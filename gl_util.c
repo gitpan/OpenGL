@@ -634,9 +634,11 @@ GLvoid * EL(SV * sv, int needlen)
 		croak("Readonly value for buffer");
 	if(SvROK(sv))
 		sv_unref(sv);
+#ifdef USE_STRICT_UNGLOB
 	else if (SvFAKE(sv) && SvTYPE(sv) == SVt_PVGV)
 		sv_unglob(sv);
-	
+#endif
+
 	SvUPGRADE(sv, SVt_PV);
 	SvGROW(sv, needlen + 1);
 	SvPOK_on(sv);

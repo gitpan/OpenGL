@@ -9,7 +9,7 @@ require DynaLoader;
 
 use Carp;
 
-$VERSION = '0.53';
+$VERSION = '0.54';
 
 @ISA = qw(Exporter AutoLoader DynaLoader);
 

@@ -80,3 +80,6 @@ Changes:
  void glpMoveWindow(int x, int y, Window w, Display* display);
  void glpResizeWindow(unsigned int width, unsigned int height, Window w, Display* display);
 	  (w and display are optional).
+
+0.54:	Martien Verbruggen fixed another Mesa limitation.
+	#ifdef out unglob'ing: symbol not found on Solaris...

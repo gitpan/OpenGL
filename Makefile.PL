@@ -25,6 +25,12 @@ $l = "@libs";		      # find anywhere...
 
 $DEFS  = "-DHAVE_GL";         # Primary OpenGL system
 
+# Mesa 3D version 3.4 needs this so that all extension constants (even
+# obsolete ones) will be defined. Without this, about 13 or so won't be
+# known. It can't hurt for other distributions, so we won't even check.
+
+$DEFS .= " -DGL_GLEXT_LEGACY";
+
 # GL Utility library (on OS/2 built into -lopengl)
 $DEFS .= " -DHAVE_GLU" if $l =~ /(^|\s)-l(\w*GLU|opengl)\b/;
 
