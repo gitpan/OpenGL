@@ -10,14 +10,14 @@
 #	INC => ''
 #	LIBS => '-lXext -lX11 -lGL -lGLU'
 #	NAME => 'OpenGL'
-#	VERSION => '0.2'
+#	VERSION => '0.3'
 
 # --- MakeMaker post_initialize section:
 
 
 # --- MakeMaker const_config section:
 
-# These definitions are from config.sh (via /home/ace_pami/stan/IRIX/lib/perl5/IP20-irix/Config.pm)
+# These definitions are from config.sh (via /usr/local/lib/perl5/irix/Config.pm)
 CC = cc
 LIBC = /usr/lib/libc.so
 LDFLAGS = 
@@ -34,8 +34,8 @@ DLSRC = dl_dlopen.xs
 
 NAME = OpenGL
 DISTNAME = OpenGL
-VERSION = 0.2
-VERSION_SYM = 0_2
+VERSION = 0.3
+VERSION_SYM = 0_3
 
 # In which directory should we put this extension during 'make'?
 # This is typically ./blib.
@@ -47,13 +47,13 @@ INST_EXE = ./blib
 # AFS users will want to set the installation directories for
 # the final 'make install' early without setting INST_LIB,
 # INST_ARCHLIB, and INST_EXE for the testing phase
-INSTALLPRIVLIB = /home/ace_pami/stan/IRIX/lib/perl5
-INSTALLARCHLIB = /home/ace_pami/stan/IRIX/lib/perl5/IP20-irix
-INSTALLBIN = /home/ace_pami/stan/IRIX/bin
+INSTALLPRIVLIB = /usr/local/lib/perl5
+INSTALLARCHLIB = /usr/local/lib/perl5/irix
+INSTALLBIN = /usr/local/bin
 
 # Perl library to use when building the extension
-PERL_LIB = /home/ace_pami/stan/IRIX/lib/perl5
-PERL_ARCHLIB = /home/ace_pami/stan/IRIX/lib/perl5/IP20-irix
+PERL_LIB = /usr/local/lib/perl5
+PERL_ARCHLIB = /usr/local/lib/perl5/irix
 LIBPERL_A = libperl.a
 
 MAKEMAKER = $(PERL_LIB)/ExtUtils/MakeMaker.pm
@@ -61,10 +61,10 @@ MM_VERSION = 4.16
 I_PERL_LIBS = -I$(PERL_ARCHLIB) -I$(PERL_LIB)
 
 # Perl header files (will eventually be under PERL_LIB)
-PERL_INC = /home/ace_pami/stan/IRIX/lib/perl5/IP20-irix/CORE
+PERL_INC = /usr/local/lib/perl5/irix/CORE
 # Perl binaries
-PERL = /home/ace_pami/stan/bin/IRIX/perl
-FULLPERL = /home/ace_pami/stan/bin/IRIX/perl
+PERL = /usr/local/bin/perl
+FULLPERL = /usr/local/bin/perl
 
 # FULLEXT = Pathname for extension directory (eg DBD/Oracle).
 # BASEEXT = Basename part of FULLEXT. May be just equal FULLEXT.
@@ -154,7 +154,7 @@ LD_RUN_PATH=
 
 
 # --- MakeMaker const_cccmd section:
-CCCMD = $(CC) -c -D_POSIX_SOURCE -ansiposix -D_BSD_TYPES -Olimit 3000 -O
+CCCMD = $(CC) -c -D_BSD_TYPES -D_BSD_SIGNALS -Olimit 3000 -O
 
 
 # --- MakeMaker tool_autosplit section:
@@ -174,7 +174,7 @@ XSUBPPARGS = -typemap $(XSUBPPDIR)/typemap -typemap typemap
 # --- MakeMaker tools_other section:
 
 SHELL = /bin/sh
-LD = ld
+LD = cc
 TOUCH = touch
 CP = cp
 MV = mv
@@ -496,19 +496,19 @@ Makefile :	Makefile.PL $(CONFIGDEP)
 
 # --- MakeMaker makeaperl section ---
 MAP_TARGET    = perl
-FULLPERL      = /home/ace_pami/stan/bin/IRIX/perl
+FULLPERL      = /usr/local/bin/perl
 MAP_LINKCMD   = $(CC) 
-MAP_PERLINC   = -I./blib -I./blib -I/home/ace_pami/stan/IRIX/lib/perl5/IP20-irix -I/home/ace_pami/stan/IRIX/lib/perl5
-MAP_STATIC    = ./blib/auto/OpenGL/OpenGL.a /tmp_mnt/home/ace_pami/stan/IRIX/lib/perl5/IP20-irix/auto/DynaLoader/DynaLoader.a
-MAP_PRELIBS   = -lsun -lm -lc -lcrypt -lbsd -lPW 
+MAP_PERLINC   = -I./blib -I./blib -I/usr/local/lib/perl5/irix -I/usr/local/lib/perl5
+MAP_STATIC    = ./blib/auto/OpenGL/OpenGL.a /usr/local/lib/perl5/irix/auto/DynaLoader/DynaLoader.a
+MAP_PRELIBS   = -lcrypt -lm 
 
-MAP_LIBPERL = /home/ace_pami/stan/IRIX/lib/perl5/IP20-irix/CORE/libperl.a
+MAP_LIBPERL = /usr/local/lib/perl5/irix/CORE/libperl.a
 
-extralibs.ld: ./blib/auto/OpenGL/extralibs.ld /tmp_mnt/home/ace_pami/stan/IRIX/lib/perl5/IP20-irix/auto/DynaLoader/extralibs.ld
+extralibs.ld: ./blib/auto/OpenGL/extralibs.ld /usr/local/lib/perl5/irix/auto/DynaLoader/extralibs.ld
 	@ rm -f $@
 	@ $(TOUCH) $@
 	cat ./blib/auto/OpenGL/extralibs.ld >> $@
-	cat /tmp_mnt/home/ace_pami/stan/IRIX/lib/perl5/IP20-irix/auto/DynaLoader/extralibs.ld >> $@
+	cat /usr/local/lib/perl5/irix/auto/DynaLoader/extralibs.ld >> $@
 
 $(MAP_TARGET): ./perlmain.o $(MAP_LIBPERL) $(MAP_STATIC) extralibs.ld
 	$(MAP_LINKCMD) -o $@ ./perlmain.o $(MAP_LIBPERL) $(MAP_STATIC) `cat extralibs.ld` $(MAP_PRELIBS)
@@ -518,7 +518,7 @@ $(MAP_TARGET): ./perlmain.o $(MAP_LIBPERL) $(MAP_STATIC) extralibs.ld
 	@ echo '    make -f Makefile map_clean'
 
 ./perlmain.o: ./perlmain.c
-	cd . && $(CC) -I/home/ace_pami/stan/IRIX/lib/perl5/IP20-irix/CORE -c -D_POSIX_SOURCE -ansiposix -D_BSD_TYPES -Olimit 3000 -O perlmain.c
+	cd . && $(CC) -I/usr/local/lib/perl5/irix/CORE -c -D_BSD_TYPES -D_BSD_SIGNALS -Olimit 3000 -O perlmain.c
 
 ./perlmain.c: Makefile
 	@ echo Writing $@
@@ -560,15 +560,8 @@ test_static :: all $(MAP_TARGET)
 
 # --- MakeMaker postamble section:
 
-typemap: typemap.gen gettypes generatefile
-	perl ./generatefile $@
-
-OpenGL.pm: OpenGL.pm.gen generatefile
-	perl ./generatefile $@
-
-OpenGL.xs: OpenGL.xs.gen getfunctions generatefile
-	perl ./generatefile $@
-
+clobber: clean
+	/bin/rm -rf blib Makefile Makefile.old
 
 
 # End.

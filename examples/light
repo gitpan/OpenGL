@@ -75,11 +75,13 @@ sub icosahedron{
 sub myinit{
     # Initialize material property, light source, lighting model, 
     # and depth buffer.
-    @mat_specular = ( 1.0, 1.0, 1.0, 1.0 );
+    @mat_specular = ( 1.0, 1.0, 0.0, 1.0 );
+    @mat_diffuse  = ( 0.0, 1.0, 1.0, 1.0 );
     @light_position = ( 1.0, 1.0, 1.0, 0.0 );
 
+    glMaterialfv(GL_FRONT, GL_DIFFUSE, pack("4f",@mat_diffuse));
     glMaterialfv(GL_FRONT, GL_SPECULAR, pack("4f",@mat_specular));
-    glMaterialf(GL_FRONT, GL_SHININESS, 50);
+    glMaterialf(GL_FRONT, GL_SHININESS, 10);
     glLightfv(GL_LIGHT0, GL_POSITION, pack("4f",@light_position));
 
     glEnable(GL_LIGHTING);
@@ -108,8 +110,9 @@ sub myReshape {
     glLoadIdentity();
 }
  
-glpOpenWindow(300,300,GLX_DOUBLEBUFFER,GLX_RGBA,GLX_RED_SIZE, 1,
-		      GLX_GREEN_SIZE, 1, GLX_BLUE_SIZE,1);
+glpOpenWindow(width=>300,height=>300,
+	      attributes=> [GLX_DOUBLEBUFFER,GLX_RGBA,GLX_RED_SIZE, 1,
+		            GLX_GREEN_SIZE, 1, GLX_BLUE_SIZE,1]);
 $use_lighting && myinit();
 myReshape();
 glEnable(GL_DEPTH_TEST);

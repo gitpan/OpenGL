@@ -48,7 +48,7 @@ sub display{
 }
 
 
-glpOpenWindow(200,200,GLX_RGBA,GLX_DOUBLEBUFFER);
+glpOpenWindow(width=>200, height=>200, attributes=>[GLX_RGBA,GLX_DOUBLEBUFFER]);
 glClearColor(0,0,0,1);
 glColor3f (1.0, 1.0, 1.0);
 glShadeModel (GL_FLAT);

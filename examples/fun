@@ -302,7 +302,9 @@ sub draw {
 #------------------------------------------
 package main;
 
-glpOpenWindow(400,400,GLX_RGBA,GLX_DOUBLEBUFFER);
+glpOpenWindow(width=>400,height=>400,
+	      mask => StructureNotifyMask|KeyPressMask,
+	      attributes=>[GLX_RGBA,GLX_DOUBLEBUFFER]);
 glShadeModel (GL_FLAT);
 
 glMatrixMode(GL_PROJECTION);
@@ -324,11 +326,31 @@ $w=100.0;$t= time;$p= $t-1;
 $rin=$win=$ein='';
 $spf = 1;
 $spin=0;
+
+$cb{&ConfigureNotify} = sub { local($e,$w,$h)=@_;glViewport(0,0,$w,$h);
+                         # print "viewport $w,$h\n";
+                        };
+$cb{&KeyPress} = sub { # print "@_[1] ",ord(@_[1])," keypress @_\n";
+                      local($ss); &$ss(@_[1]) if ($ss=$kcb{@_[1]}); };
+$kcb{'q'} = $kcb{'Q'} = $kcb{"\033"} = sub{ print "Good-Bye\n"; exit 0;};
+sub setspeed{$C::ACCELLERATION =  $_[0]/100;}
+foreach $i (0..9){
+        $kcb{"$i"}=\&setspeed;
+}
+
+
 while(1){
 	$spf = ($spf*$w + $t-$p) /($w+1.0); 
 	$fps = ($spf)?1.0/$spf:0;
 	$p=$t;
 	$t= time;
+
+	while($p=XPending) {
+		@e=&glpXNextEvent;
+		&$s(@e) if($s=$cb{$e[0]});
+        }
+
+
 	vec($rin,0,1) = 1;
 	if(select($rout=$rin,undef,undef,0)) {
 		$_=<> || die "End Of File";

@@ -4,6 +4,7 @@
 #  in the OpenGL header files 
 #
 
+$x   = "X.h";
 $gl  = "/usr/include/GL/gl.h";
 $glx = "/usr/include/GL/glx.h";
 
@@ -32,6 +33,7 @@ sub gettypes {
 	close(FILE);
 }
 
-&gettypes($gl);
-&gettypes($glx);
+gettypes($x);
+gettypes($gl);
+gettypes($glx);
 

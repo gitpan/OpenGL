@@ -5,6 +5,20 @@
 #
 ###################################
 
+XID		T_U_LONG
+Mask		T_U_LONG
+Atom		T_U_LONG
+VisualID		T_U_LONG
+Time		T_U_LONG
+Window		T_U_LONG
+Drawable		T_U_LONG
+Font		T_U_LONG
+Pixmap		T_U_LONG
+Cursor		T_U_LONG
+Colormap		T_U_LONG
+GContext		T_U_LONG
+KeySym		T_U_LONG
+KeyCode		T_U_CHAR
 GLenum		T_U_INT
 GLboolean		T_U_CHAR
 GLbitfield		T_U_INT

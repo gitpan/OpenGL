@@ -19,6 +19,8 @@
 #include <unistd.h>
 #include <stdio.h>
 
+#define NUM_ARG 6
+
 Display *dpy;
 XVisualInfo *vi;
 Colormap cmap;
@@ -32,49 +34,40 @@ static Bool WaitForNotify(Display *d, XEvent *e, char *arg) {
 }
 
 
- 
-
-
-XS(XS_OpenGL_glpOpenWindow)
+XS(XS_OpenGL_glpcOpenWindow)
 {
     dXSARGS;
-    if (items < 0) {
-	croak("Usage: OpenGL::glpOpenWindow(w=500,h=500, ...)");
+    if (items < 6) {
+	croak("Usage: OpenGL::glpcOpenWindow(x,y,w,h,pw,event_mask, ...)");
     }
     {
-	int	w;
-	int	h;
-
-	if (items < 1)
-	    w = 500;
-	else {
-	    w = (int)SvIV(ST(0));
-	}
-
-	if (items < 2)
-	    h = 500;
-	else {
-	    h = (int)SvIV(ST(1));
-	}
+	int	x = (int)SvIV(ST(0));
+	int	y = (int)SvIV(ST(1));
+	int	w = (int)SvIV(ST(2));
+	int	h = (int)SvIV(ST(3));
+	int	pw = (int)SvIV(ST(4));
+	long	event_mask = (long)SvIV(ST(5));
 	{
 
 	    XEvent event;
 
+	    Window pwin=(Window)pw;
+
 	    int *attributes = default_attributes;
 
-	    if(items>2){
+	    if(items>NUM_ARG){
 
 	        int i;
 
-	        attributes = (int *)malloc((items-2+1)* sizeof(int));
+	        attributes = (int *)malloc((items-NUM_ARG+1)* sizeof(int));
 
-	        for(i=2;i<items;i++) {
+	        for(i=NUM_ARG;i<items;i++) {
 
-	            attributes[i-2]=SvIV(ST(i));
+	            attributes[i-NUM_ARG]=SvIV(ST(i));
 
 	        }
 
-	        attributes[items-2]=None;
+	        attributes[items-NUM_ARG]=None;
 
 	    }
 
@@ -112,19 +105,33 @@ XS(XS_OpenGL_glpOpenWindow)
 
 	    swa.border_pixel = 0;
 
-	    swa.event_mask = StructureNotifyMask;
+	    swa.event_mask = event_mask;
 
-	    win = XCreateWindow(dpy, RootWindow(dpy, vi->screen), 
+	    if(!pwin){pwin=RootWindow(dpy, vi->screen);}
 
-				0, 0, w, h,
+	    win = XCreateWindow(dpy, pwin, 
+
+				x, y, w, h,
 
 				0, vi->depth, InputOutput, vi->visual,
 
 				CWBorderPixel|CWColormap|CWEventMask, &swa);
 
+	    if(!win) {
+
+	        fprintf(stderr, "No Window\n");
+
+	        exit(-1);
+
+	    }
+
 	    XMapWindow(dpy, win);
 
-	    XIfEvent(dpy, &event, WaitForNotify, (char*)win);
+	    if(event_mask & StructureNotifyMask) {
+
+	        XIfEvent(dpy, &event, WaitForNotify, (char*)win);
+
+	    }
 
 
 	    /* connect the context to the window */
@@ -177,6 +184,184 @@ XS(XS_OpenGL_glXSwapBuffers)
 
     }
     XSRETURN(1);
+}
+
+XS(XS_OpenGL_XPending)
+{
+    dXSARGS;
+    if (items < 0 || items > 1) {
+	croak("Usage: OpenGL::XPending(d=dpy)");
+    }
+    {
+	void *	d;
+	int	RETVAL;
+
+	if (items < 1)
+	    d = dpy;
+	else {
+	    d = (void *)SvIV(ST(0));
+	}
+	{
+
+		RETVAL = XPending(d);
+
+	}
+
+	ST(0) = sv_newmortal();
+	sv_setiv(ST(0), (IV)RETVAL);
+    }
+    XSRETURN(1);
+}
+
+XS(XS_OpenGL_glpXNextEvent)
+{
+    dXSARGS;
+    if (items < 0 || items > 1) {
+	croak("Usage: OpenGL::glpXNextEvent(d=dpy)");
+    }
+    SP -= items;
+    {
+	void *	d;
+
+	if (items < 1)
+	    d = dpy;
+	else {
+	    d = (void *)SvIV(ST(0));
+	}
+	{
+
+		XEvent event;
+
+		char buf[10];
+
+		KeySym ks;
+
+		XNextEvent(d,&event);
+
+		switch(event.type) {
+
+			case ConfigureNotify:
+
+				EXTEND(sp,3);
+
+				PUSHs(sv_2mortal(newSViv(event.type)));
+
+				PUSHs(sv_2mortal(newSViv(event.xconfigure.width)));
+
+				PUSHs(sv_2mortal(newSViv(event.xconfigure.height)));				
+
+				break;
+
+			case KeyPress:
+
+			case KeyRelease:
+
+				EXTEND(sp,2);
+
+				PUSHs(sv_2mortal(newSViv(event.type)));
+
+				XLookupString(&event.xkey,buf,sizeof(buf),&ks,0);
+
+				buf[0]=(char)ks;buf[1]='\0';
+
+				PUSHs(sv_2mortal(newSVpv(buf,1)));
+
+				break;
+
+			case ButtonPress:
+
+			case ButtonRelease:
+
+				EXTEND(sp,4);
+
+				PUSHs(sv_2mortal(newSViv(event.type)));
+
+				PUSHs(sv_2mortal(newSViv(event.xbutton.button)));
+
+				PUSHs(sv_2mortal(newSViv(event.xbutton.x)));
+
+				PUSHs(sv_2mortal(newSViv(event.xbutton.y)));
+
+				break;
+
+			case MotionNotify:
+
+				EXTEND(sp,4);
+
+				PUSHs(sv_2mortal(newSViv(event.type)));
+
+				PUSHs(sv_2mortal(newSViv(event.xmotion.state)));
+
+				PUSHs(sv_2mortal(newSViv(event.xmotion.x)));
+
+				PUSHs(sv_2mortal(newSViv(event.xmotion.y)));
+
+				break;
+
+			case Expose:
+
+			default:
+
+				EXTEND(sp,1);
+
+				PUSHs(sv_2mortal(newSViv(event.type)));
+
+				break;
+
+		}
+
+	}
+
+	PUTBACK;
+	return;
+    }
+}
+
+XS(XS_OpenGL_glpXQueryPointer)
+{
+    dXSARGS;
+    if (items < 0 || items > 2) {
+	croak("Usage: OpenGL::glpXQueryPointer(d=dpy,w=win)");
+    }
+    SP -= items;
+    {
+	void *	d;
+	GLXDrawable	w;
+
+	if (items < 1)
+	    d = dpy;
+	else {
+	    d = (void *)SvIV(ST(0));
+	}
+
+	if (items < 2)
+	    w = win;
+	else {
+	    w = (unsigned long)SvIV(ST(1));
+	}
+	{
+
+		int x,y,rx,ry;
+
+		Window r,c;
+
+		unsigned int m;
+
+		XQueryPointer(d,w,&r,&c,&rx,&ry,&x,&y,&m);
+
+		EXTEND(sp,3);
+
+		PUSHs(sv_2mortal(newSViv(x)));
+
+		PUSHs(sv_2mortal(newSViv(y)));
+
+		PUSHs(sv_2mortal(newSViv(m)));
+
+	}
+
+	PUTBACK;
+	return;
+    }
 }
 
 XS(XS_OpenGL_glpClipPlane)
@@ -6471,8 +6656,11 @@ XS(boot_OpenGL)
     dXSARGS;
     char* file = __FILE__;
 
-    newXS("OpenGL::glpOpenWindow", XS_OpenGL_glpOpenWindow, file);
+    newXS("OpenGL::glpcOpenWindow", XS_OpenGL_glpcOpenWindow, file);
     newXS("OpenGL::glXSwapBuffers", XS_OpenGL_glXSwapBuffers, file);
+    newXS("OpenGL::XPending", XS_OpenGL_XPending, file);
+    newXS("OpenGL::glpXNextEvent", XS_OpenGL_glpXNextEvent, file);
+    newXS("OpenGL::glpXQueryPointer", XS_OpenGL_glpXQueryPointer, file);
     newXS("OpenGL::glpClipPlane", XS_OpenGL_glpClipPlane, file);
     newXS("OpenGL::glpGetClipPlane", XS_OpenGL_glpGetClipPlane, file);
     newXS("OpenGL::glpReadTex", XS_OpenGL_glpReadTex, file);

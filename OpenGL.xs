@@ -11,6 +11,8 @@
 #include <unistd.h>
 #include <stdio.h>
 
+#define NUM_ARG 6
+
 Display *dpy;
 XVisualInfo *vi;
 Colormap cmap;
@@ -24,27 +26,29 @@ static Bool WaitForNotify(Display *d, XEvent *e, char *arg) {
 }
 
 
- 
-
-
 MODULE = OpenGL		PACKAGE = OpenGL
 
 
 void
-glpOpenWindow(w=500,h=500, ...)
+glpcOpenWindow(x,y,w,h,pw,event_mask, ...)
+	int	x
+	int	y
 	int	w
 	int	h
+	int	pw
+	long	event_mask
 	CODE:
 	{
 	    XEvent event;
+	    Window pwin=(Window)pw;
 	    int *attributes = default_attributes;
-	    if(items>2){
+	    if(items>NUM_ARG){
 	        int i;
-	        attributes = (int *)malloc((items-2+1)* sizeof(int));
-	        for(i=2;i<items;i++) {
-	            attributes[i-2]=SvIV(ST(i));
+	        attributes = (int *)malloc((items-NUM_ARG+1)* sizeof(int));
+	        for(i=NUM_ARG;i<items;i++) {
+	            attributes[i-NUM_ARG]=SvIV(ST(i));
 	        }
-	        attributes[items-2]=None;
+	        attributes[items-NUM_ARG]=None;
 	    }
 	    /* get a connection */
 	    dpy = XOpenDisplay(0);
@@ -65,14 +69,21 @@ glpOpenWindow(w=500,h=500, ...)
 	    /* create a window */
 	    swa.colormap = cmap;
 	    swa.border_pixel = 0;
-	    swa.event_mask = StructureNotifyMask;
-	    win = XCreateWindow(dpy, RootWindow(dpy, vi->screen), 
-				0, 0, w, h,
+	    swa.event_mask = event_mask;
+	    if(!pwin){pwin=RootWindow(dpy, vi->screen);}
+	    win = XCreateWindow(dpy, pwin, 
+				x, y, w, h,
 				0, vi->depth, InputOutput, vi->visual,
 				CWBorderPixel|CWColormap|CWEventMask, &swa);
+	    if(!win) {
+	        fprintf(stderr, "No Window\n");
+	        exit(-1);
+	    }
 	    XMapWindow(dpy, win);
-	    XIfEvent(dpy, &event, WaitForNotify, (char*)win);
-	
+	    if(event_mask & StructureNotifyMask) {
+	        XIfEvent(dpy, &event, WaitForNotify, (char*)win);
+	    }
+
 	    /* connect the context to the window */
 	    if(!glXMakeCurrent(dpy, win, cx)) {
 	        fprintf(stderr, "Non current\n");
@@ -95,6 +106,79 @@ glXSwapBuffers(d=dpy,w=win)
 	    glXSwapBuffers(d,w);
 	}
 
+
+int
+XPending(d=dpy)
+	void *	d
+	CODE:
+	{
+		RETVAL = XPending(d);
+	}
+	OUTPUT:
+	RETVAL
+
+void
+glpXNextEvent(d=dpy)
+	void *	d
+	PPCODE:
+	{
+		XEvent event;
+		char buf[10];
+		KeySym ks;
+		XNextEvent(d,&event);
+		switch(event.type) {
+			case ConfigureNotify:
+				EXTEND(sp,3);
+				PUSHs(sv_2mortal(newSViv(event.type)));
+				PUSHs(sv_2mortal(newSViv(event.xconfigure.width)));
+				PUSHs(sv_2mortal(newSViv(event.xconfigure.height)));				
+				break;
+			case KeyPress:
+			case KeyRelease:
+				EXTEND(sp,2);
+				PUSHs(sv_2mortal(newSViv(event.type)));
+				XLookupString(&event.xkey,buf,sizeof(buf),&ks,0);
+				buf[0]=(char)ks;buf[1]='\0';
+				PUSHs(sv_2mortal(newSVpv(buf,1)));
+				break;
+			case ButtonPress:
+			case ButtonRelease:
+				EXTEND(sp,4);
+				PUSHs(sv_2mortal(newSViv(event.type)));
+				PUSHs(sv_2mortal(newSViv(event.xbutton.button)));
+				PUSHs(sv_2mortal(newSViv(event.xbutton.x)));
+				PUSHs(sv_2mortal(newSViv(event.xbutton.y)));
+				break;
+			case MotionNotify:
+				EXTEND(sp,4);
+				PUSHs(sv_2mortal(newSViv(event.type)));
+				PUSHs(sv_2mortal(newSViv(event.xmotion.state)));
+				PUSHs(sv_2mortal(newSViv(event.xmotion.x)));
+				PUSHs(sv_2mortal(newSViv(event.xmotion.y)));
+				break;
+			case Expose:
+			default:
+				EXTEND(sp,1);
+				PUSHs(sv_2mortal(newSViv(event.type)));
+				break;
+		}
+	}
+
+void
+glpXQueryPointer(d=dpy,w=win)
+	void *	d
+	GLXDrawable	w
+	PPCODE:
+	{
+		int x,y,rx,ry;
+		Window r,c;
+		unsigned int m;
+		XQueryPointer(d,w,&r,&c,&rx,&ry,&x,&y,&m);
+		EXTEND(sp,3);
+		PUSHs(sv_2mortal(newSViv(x)));
+		PUSHs(sv_2mortal(newSViv(y)));
+		PUSHs(sv_2mortal(newSViv(m)));
+	}
 
 #
 # The following XSUBS were done by hand

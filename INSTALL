@@ -1,0 +1,83 @@
+
+If you have any problems building the module, installing, or running demos,
+then see the file "HELP", or get the most up-to-date help at
+
+        http://www.arc.ab.ca/vr/opengl/help.html
+
+
+Getting the Software
+--------------------
+The software can be ftp'd from:
+	ftp://skyler.arc.ab.ca/pub/perl
+Snag the file OpenGL-0.3.tar.gz . Its the most recent version. Unless, of
+course, you see a later version :-) Note that this is still considered an
+alpha release.
+
+Now gunzip and untar the file:
+        gunzip -c OpenGL-0.3.tar.gz | tar xvf -
+Go into the newly created "OpenGL-0.3" directory:
+        cd OpenGL
+
+Have a look over the contents and some of the files including the README.
+You are now ready to build the module.
+
+Building the Module
+-------------------
+To generate the Makefile do a:
+
+        perl Makefile.PL
+
+This generates the Makefile. If you have to configure something, do it in
+Makefile.PL if possible. Next, simply do a
+
+        make
+
+and hopefully everything works smoothly. Remember to look at HELP if there
+are problems.
+
+There are a number of example programs in the examples directory. Some of
+them are perl versions of the samples used in the "OpenGL Programming Guide"
+published by Addison-Wesley. Test the install with some of these programs
+You may have to change the first line
+
+        #!/usr/local/bin/perl
+
+to whatever the pathname for perl is. i.e.:
+
+        cd examples
+        perl -pi -e "s,/usr/local/bin/perl,`which perl`,;" *
+
+(No promises that the above line will work correctly.) Enjoy.
+
+If you get things working then be sure to do the following:
+
+        echo "Yo, the OpenGL module works!" | mail stan@arc.ab.ca
+
+Try doing some stuff on your own. You may find the tutorial helpful.
+
+
+Installation
+------------
+If you have the necessary permission then you can install the OpenGL module
+in the perl library. If you're in the examples directory then get back out
+("cd .."). Do a:
+
+        make install
+
+If there are no problems then everything should install correctly. Test the
+examples using the installed module (dont have the demo search the "blib"
+directory by commenting out the appropriate line):
+
+        cd examples
+        perl -pi -e 's/^(BEGIN.*unshift.*INC)/\#$1/;' *
+
+Please Help
+
+Join the world wide effort to create and polish this module. Send comments,
+flames, questions, suggestions, or even just useless weather observations
+to:
+
+        stan@arc.ab.ca
+
+----------------------------------------------------------------------------
+Last Updated: stan Dec 10 95

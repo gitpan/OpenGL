@@ -10,7 +10,7 @@ BEGIN{ unshift(@INC,"../blib"); }  # in case OpenGL is built but not installed
 use OpenGL;
 
 # if you dont ask for a visual with a depth buffer you might not get one
-glpOpenWindow(400,400,GLX_RGBA,GLX_DEPTH_SIZE,1);
+glpOpenWindow(attributes=>[GLX_RGBA,GLX_DEPTH_SIZE,1]);
 
 # enable the important gl feature
 glEnable(GL_DEPTH_TEST);

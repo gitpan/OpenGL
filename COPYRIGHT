@@ -7,15 +7,23 @@ http://www.arc.ab.ca/~stan
 Please feel free to give 
 me acknowledgement/credit/money/honorable-mention/job-offers/research-funding
 wherever or whenever appropriate :-)
-
+Permission to copy, modify is granted provided that you
+include the above copyright notice with it.
+This software is provided as is, and comes with no promises
+or guarantees.  You may only use it if you promise not to
+sue me or my employer for anything relating to the use of
+this software :-) 
 
 OpenGL is a trademark of Silicon Graphics Inc.
 
+Special thanks to:
+	Tim Bunce
+	Brian Paul
+	Karl Glazebrook   http://www.ast.cam.ac.uk/~kgb
+	The Alberta Research Council
+
 Acknowledgement and credit for those where acknowledgement
 and credit is warrented ... yadda , yadda .... bla ... bla ...
-
-Just covering my ___ :-)
-
 
 Some of these examples in the "examples" subdirectory
 are adapted from the OpenGL Programming Guide.

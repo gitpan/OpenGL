@@ -27,27 +27,47 @@ sub display{
 
     glPushMatrix();
     glRotatef($spin, 0.0, 0.0, 1.0);
-    glRectf(-25.0, -25.0, 25.0, 25.0);
+    ($x,$y) = glpXQueryPointer;
+    glRectf(-25.0, -25.0, 25+$x/10, 25+$y/10);
     glPopMatrix();
 
     glFlush();
     glXSwapBuffers;
 }
-
+$increment=2.0;
 sub spinDisplay {
-    $spin = $spin + 2.0;
+    $spin = $spin + $increment;
     if ($spin > 360.0) {
 	$spin = $spin - 360.0;
     }
     display();
 }
 
-glpOpenWindow(400,400,GLX_RGBA,GLX_DOUBLEBUFFER);
+glpOpenWindow(attributes=>[GLX_RGBA,GLX_DOUBLEBUFFER]);
 glClearColor(0,0,0,1);
 glColor3f (1.0, 1.0, 1.0);
 glShadeModel (GL_FLAT);
 myReshape();
+$cb{&ConfigureNotify} = sub { local($e,$w,$h)=@_;glViewport(0,0,$w,$h);
+			 # print "viewport $w,$h\n";
+			};
+$cb{&KeyPress} = sub { # print "@_[1] ",ord(@_[1])," keypress @_\n";
+		      local($ss); &$ss(@_[1]) if ($ss=$kcb{@_[1]}); };
+$kcb{'q'} = $kcb{'Q'} = $kcb{"\033"} = sub{ print "Good-Bye\n"; exit 0;};
+sub setincrement{$increment = $_[0];}
+foreach $i (0..9){
+	$kcb{"$i"}=\&setincrement;
+}
+#print "cn=",&ConfigureNotify,"\n";
+#print "kn=",KeyPress,"\n";
 
 while(1) {
 	spinDisplay();
+	while($p=XPending) {
+		#print $p,"\n"; 
+		@e=&glpXNextEvent;
+		#print("e=@e\n");
+		&$s(@e) if($s=$cb{$e[0]});
+		#print "doncb\n" if ($s);
+	}
 }
