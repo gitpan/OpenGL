@@ -1,0 +1,20 @@
+#!/usr/local/bin/perl
+#
+# simple example that opens up a window then goes into interpretor mode
+#
+
+BEGIN{ unshift(@INC,"../blib"); }  # in case OpenGL is built but not installed
+use OpenGL;
+
+glpOpenWindow;
+glClearColor(0,0,1,1);
+glClear(GL_COLOR_BUFFER_BIT);
+glFlush();
+
+print "OpenGL window open, perl interpretor ready!\n";
+print "Try entering some GL commands to draw stuff:\n";
+while(<>){
+	$e=eval;
+	print "EVAL:  $e\n";
+	print "ERROR: $@" if $@;
+}

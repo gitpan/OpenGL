@@ -1,0 +1,193 @@
+Help
+====
+You're probably here because things aint goin so great, right?
+Hopefully information here will help solve your problem.
+
+For the most up-to-date "help" information see:
+	http://www.arc.ab.ca/vr/opengl/help.html
+
+Files
+-----
+If you are having difficulty building/installing the module
+or some other general problem, then it might be helpful to
+get an overview of the files that make it up.
+The important files for this module that you get are:
+	- Makefile.PL    -> creates Makefile
+	- OpenGL.pm.gen  -> generates OpenGL.pm
+	- OpenGL.xs.gen  -> generates OpenGL.xs
+	- typemap.gen    -> generates typemap
+	- generatefile   -> script to create file from ".gen" file
+	- gettypes       -> used in generating typemap
+	- getfunctions   -> used in generating OpenGL.xs
+	
+The Makefile is built from Makefile.PL.
+Unlike most other perl modules,
+the files typemap, OpenGL.pm, and OpenGL.xs are generated from the
+opengl ".h" (header) files and the ".gen" files during the build process.  
+(Elegant design - wonderful for maintenaince, and unbeatable compression :-)
+OpenGL.c is then generated from OpenGL.xs using the xsubpp compiler.
+
+Sample Generated Files
+----------------------
+In the subdirectory "sample/" are versions of these 
+files that were generated on an IRIX 5.3 SGI system.  
+
+By comparing these files with files 
+produced during your build process you may be able
+to diagnose any problems you have making the module work.
+For example, to check differences in the ".pm" file,
+go into the main OpenGL module directory and execute:
+	diff OpenGL.pm sample/
+Or you can go all out and execute:
+	diff . sample | more
+to compare all common files at once.
+
+Common sense should tell you whether any differences are major problems
+or a consequence of different systems, pathnames, etc..
+To help you understand, the following facts about these files might be useful:
+	- files were generated on an SGI Indigo running IRIX 5.3
+	- Perl 5.001m (patch level m) was used.  
+	- The pathname for perl was: /home/ace_pami/stan/bin/IRIX/perl
+
+If you have an IRIX 5.3 system you may be able to run
+the example programs using the pre built module in 
+	sample/blib/
+To try this, make a copy of the examples you want to try:
+	cd sample
+	cp -r ../examples .
+The reason for making a copy here is that the examples search the
+directory "../blib/" for the module.
+Now try some of the examples:
+	cd examples
+	perl simple
+Alternatively the program can be executed as:
+	simple
+provided the first line is the proper pathname for perl.
+
+
+
+HardCoded Paths
+---------------
+The OpenGL module comes to you with hard-coded pathnames like:
+	/usr/include/GL/gl.h
+If OpenGL (libs, includes, etc.) is installed in a 
+different location on your system then you will have to 
+modify some of the files.  Do a:
+	grep "/usr/include" *
+there's not that many. 
+You may also have to add "-L" and "-I" directives
+to the file Makefile.PL and then regenerate the Makefile.
+
+Failed Compile
+--------------
+One person failed to compile version 0.1 of this module:
+	cc -c -D_BSD_TYPES -D_BSD_SIGNALS -Olimit 3000 -O  \
+	    -I/usr/local/lib/perl5/irix/CORE   OpenGL.c
+	cfe: Warning 645: OpenGL.c, line 106: Duplicate 'int'
+	       int      int     {
+	 ----------     ^
+	cfe: Error: OpenGL.c, line 106: Syntax Error
+	       int      int     {
+	 ----------     ---     ^
+	*** Error code 1 (bu21)
+This person was using perl 5.001e.  The file OpenGL.xs
+in version 0.1 had a couple of places where the lines
+declaring the function arguments had spaces 
+delimiting the type from the argument name instead of tabs:
+	OpenWindow(w=500,h=500)
+		int w;
+		int h;
+There should have been a tab 
+between "int" and "w" instead of just a space.
+Not a problem in perl 5.001m.
+Anyway, I think thats what the problem was (spaces instead of tabs).
+
+MESA on SunOS
+-------------
+One person trying version 0.1 wrote:
+	I got it to compile and startup on 
+	sunos 4.1.4 with mesa, but nothing
+	displays except for the main window.  
+	(All examples the same)
+I haven't tried on other systems yet, I dont know what 
+the problem was or where the program blocked.
+I do hope to port/test on other systems.
+Hardware donations accepted :-)
+
+No WriteMakefile
+----------------
+One dude did a:
+	perl Makefile.PL
+and got:
+	Undefined subroutine &main::WriteMakefile ...
+I assume the problem is an older version of perl.
+If you know, can you email me stan@arc.ab.ca
+so I can update this document -thanks.
+
+
+Incorrect Perl Pathname
+-----------------------
+You try to execute an OpenGL perl program but it doesn't work.
+For example, you are in the examples directory and you execute:
+	simple
+but you get the response (csh users):
+	simple - Command not found
+or (bash users):
+	simple: No such file or directory
+
+The problem could be the first line in the program:
+	#!/usr/local/bin/perl
+Determine the pathname for perl on your system by running:
+	which perl
+and replace the "/usr/local/bin/perl" part of the first line
+with the actual pathname.  
+Note that the full pathname (beginning with "/") is required.
+
+
+No Execute Permission
+---------------------
+If you try to run a program but get a response similar to:
+	myprogram: Permission denied
+then it could be a problem with the file permissions.
+Try:
+	chmod +x myprogram
+and re-execute the program.
+
+
+Cant Find OpenGL Module
+-----------------------
+You run your perl program but it errors:
+	Can't locate OpenGL.pm in @INC at -e line 1.
+	BEGIN failed--compilation aborted at -e line 1.
+The problem here is that it cant find the
+OpenGL module.  
+
+If you haven't built the module then you must build it.
+
+If you did "make" the module but
+did not install (by doing a "make install"), 
+then your program might need help finding
+where it is.
+This can be done by adding to the include path:
+	BEGIN{ unshift(@INC,"/my/home/directory/OpenGL-0.2/blib"); }
+(Replace /my/home/directory with the correct path.) 
+This line should preceed the line
+	use OpenGL;
+See the TUTORIAL for more information.
+
+Since the example programs look for "../blib/", you may have
+to be in the examples directory:
+	cd examples
+in order form them to work.
+
+
+
+
+
+
+
+
+
+	
+
+
