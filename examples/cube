@@ -65,5 +65,9 @@ glShadeModel(GL_FLAT);
 myReshape();
 display();
 
-while(<>){;}  # control-D to quit
+if ($^O eq 'os2') {
+  OS2::Process_Messages(0) while 1;
+} else {
+  while(<>){;}  # control-D to quit
+}
 

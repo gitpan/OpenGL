@@ -15,6 +15,12 @@ glFlush();
 
 print "OpenGL window open, perl interpretor ready!\n";
 print "Try entering some GL commands to draw stuff:\n";
+
+if ($^O eq 'os2') {
+  warn "Sorry, TTY input not yet simple-to code on OS/2\n" if $^O eq 'os2';
+  OS2::Process_Messages(0) while 1;
+}
+
 while(<>){
 	$e=eval;
 	print "EVAL:  $e\n";

@@ -29,7 +29,7 @@ sub display{
 
     glPushMatrix();
     glRotatef($spin, 0.0, 0.0, 1.0);
-    ($x,$y) = glpXQueryPointer;
+    ($x,$y) = ($^O eq 'os2' ? (0,0) : glpXQueryPointer);
     glRectf(-25.0, -25.0, 25+$x/10, 25+$y/10);
     glPopMatrix();
 

@@ -87,7 +87,9 @@ sub initlists{
 }
 
 sub readnff{
-  open(FILE,"<spaceship.nff") || die "cant open spaceship.nff";
+  my $file = 'spaceship.nff';
+  $file = "examples/$file" unless -r $file;
+  open(FILE,"<$file") || die "cant open $file";
   $_="";
   while(!(/^82\s*$/)){$_=<FILE>;}
   $n=82;
@@ -354,7 +356,7 @@ while(1){
 
 
 	vec($rin,0,1) = 1;
-	if(select($rout=$rin,undef,undef,0)) {
+	if($^O ne 'os2' and select($rout=$rin,undef,undef,0)) {
 		$_=<> || die "End Of File";
 		eval;
 	}

@@ -1,50 +1,28 @@
-OpenGL Perl Module V0.4
-=======================
-the files
-COPYRIGHT HELP TUTORIAL WHY README INSTALL
-are derived from:
-	http://www.arc.ab.ca/vr/opengl
+This is a binary distribution version 0.01 of OpenGL module
+version 0.4 for os2 and Perl version 5.00553.
 
-OpenGL Module Overview
-----------------------
+It is installable on machines which have the same version of Perl and
+a binary compatible configurations to the machine this was created on.
 
-OpenGL is a standard API for doing computer graphics. This module allows a
-perl program to use OpenGL by letting it make OpenGL function calls.
+To test and install this extension use
 
-What's Here
------------
-This module basically has all of the opengl library and some of the X, glu
-and glx libraries. In addition, some extra routines are provided for
-convienience. For example, "glpOpenWindow", does all that X/glX setup stuff
-for you.
+  perl -MCPAN -e "test 'OpenGL::bin_os2' "
+  perl -MCPAN -e "install 'OpenGL::bin_os2' "
 
-The perl module preserves the interface (names and arguments) to all the
-opengl functions. Therefore, you can continue to use existing man pages,
-books, and other documentation.
+or
 
-And we got a PLUGIN for netscape now too!!
-check out the plugins subdirectory.
+  perl -MCPAN -e shell
+  CPAN> test OpenGL::bin_os2
+  CPAN> install OpenGL::bin_os2
 
-System Requirements
--------------------
-Obviously you need a machine with Perl 5. If you dont have perl5, and you
-have an SGI then get it here. You also must have either:
+or, if you download the archive yourself, extract it, and cd to the
+distribution directory,
 
-   * OpenGL and X (with the glx extention)
-   * MesaGL library, which is compatable software implementation of OpenGL.
+  perl Makefile.PL
+  make
+  make test
+  make install
 
-This module has only been tested on a SGI workstation running IRIX 5.3 and
-using PERL version 5.001 Unofficial patchlevel 1m. I'm told that it works
-great on AIX 3.2.5 too, and with Mesa on SunOS.
-
-More Info
----------
-  * installation instructions can be found in the file: INSTALL 
-  * the file HELP contains useful troubleshooting info
-  * The TUTORIAL goes into detail about programming with the OpenGL module.
-
-
-If you have any further questions, comments, or flames, then please send me
-email:
-	stan@arc.ab.ca
+No additional software but a complete correctly installed Perl (binary)
+distribution is required.
 

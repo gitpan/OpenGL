@@ -1,0 +1,5 @@
+Missing features on OS/2:
+
+	double:	query pointer
+	quest:	query pointer
+	fun:	select() on stdin

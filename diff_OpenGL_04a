@@ -1,0 +1,765 @@
+diff -pru F:\home\.cpan\build\OpenGL-0.4/create/generatefile OpenGL-0.4.my/create/generatefile
+--- F:/home/.cpan/build/OpenGL-0.4/create/generatefile	Fri Nov 10 17:25:44 1995
++++ OpenGL-0.4.my/create/generatefile	Tue Nov 10 19:01:46 1998
+@@ -18,6 +18,7 @@ sub filegen {
+ 	while(<SRC>) {
+ 		if(m/^\#EVAL\:(.*)/) {
+ 			print OUT (eval($1)) ;
++			warn $@ if $@;
+ 		}
+ 		else {
+ 			print OUT;
+diff -pru F:\home\.cpan\build\OpenGL-0.4/create/getfunctions OpenGL-0.4.my/create/getfunctions
+--- F:/home/.cpan/build/OpenGL-0.4/create/getfunctions	Fri Nov 10 17:25:44 1995
++++ OpenGL-0.4.my/create/getfunctions	Sat Nov 14 03:16:44 1998
+@@ -3,21 +3,39 @@
+ # generate the XSUBS for the all gl functions
+ #
+ 
+-$gl  = "/usr/include/GL/gl.h";
+-$glu = "/usr/include/GL/glu.h";
++use Config;
+ 
++sub findh {
++  my $h = shift;
++  foreach my $dir ($Config{usrinc}, 
++		   split /$Config{path_sep}/, $ENV{C_INCLUDE_PATH}) {
++    return "$dir/$h" if -r "$dir/$h";
++  }
++  return $h;
++}
++
++$gl  = findh "GL/gl.h";
++$glu = findh "GL/glu.h";
++$pgl = findh "GL/pgl.h";
++$aux = findh "GL/aux.h";
++
++my $skip;
++$skip = 'APIENTRY\s+' if $^O eq 'os2';
+ 
+ sub getfuncs {
+ 	local($file)=@_;
+ 	open(FILE,$file) || die "cant open $file\n";
+ 	while(<FILE>) {
+ 		# if(/extern\s+(\w+)\s+(\w+)\s*\((.*\*.*)\)\s*\;/ ){
+-		if(/extern\s+(\w+)\s+(\w+)\s*\((.*)\)\s*\;/ ){
++		if(/extern\s+(\w+)\s+(\w+)\s*\((.*)\)\s*\;/ 
++		   or $skip and /(\w+)\s+$skip(\w+)\s*\((.*)\)\s*\;/o){
+ 			#print "$1 $2($3)\n" 
+ 			$rt=$1;$name=$2;$args=$3;
++			# Cannot translate function pointers
++			next if $args =~ /\)\s*\(/;
+ 			$exists_pointer = ($args =~ /\*/); 
+ 			@args = split(/\,/,$args);
+-			@args=() if (($args =~ /^\s*void\s*$/) || ($args =~ /^\s*$/));
++			@args=() if (($args =~ /^\s*(GL)?void\s*$/) || ($args =~ /^\s*$/));
+ 			print "$rt\n"; 
+ 			print "$name(";
+ 			$i=0;
+@@ -25,16 +43,22 @@ sub getfuncs {
+ 				print "," if($i);
+ 				$a =~ s/const\s+(.*\S)\s*\*\s*(.*)/$1_star $2/;
+ 				$a =~ s/(.*\S)\s*\*\s*(.*)/$1_star $2/;
+-				$a =~ /(\w+)\s+(\w+)/;
+-				print($2);
++				($a =~ /(\w+)\s+(\w+)/) 
++				  ? print $2 
++				    : print "arg$i";
+ 				$i++;
+ 			}
+ 			print ")\n";
++			$i = 0;
+ 			foreach $a (@args) {
+-				$a =~ /(\w+)\s+(\w+)/;
+-				$t=$1;$n=$2;
+-				$t =~ s/\w+_star/char \*/;
++			        if ($a =~ /([\w*]+)\s+(\w+)/) {
++				  $t=$1; $n=$2;
++				} else {
++				  $t = $a; $n = "arg$i";
++				}
++				$t =~ s/[\w*]+_star/char \*/;
+ 				print "\t$t\t$n\n";
++				$i++;
+ 			}
+ 			if($exists_pointer) {
+ 				print "\tCODE:\n";
+@@ -43,9 +67,12 @@ sub getfuncs {
+ 				$i=0;
+ 				foreach $a (@args) {
+ 					print "," if($i);
+-					$a =~ /(\w+)\s+(\w+)/;
+-					$t=$1;$n=$2;
+-					if($t =~ /(\w+)_star/) {
++					if ($a =~ /([\w*]+)\s+(\w+)/) {
++					  $t=$1; $n=$2;
++					} else {
++					  $t = $a; $n = "arg$i";
++					}
++					if($t =~ /([\w*]+)_star/) {
+ 						print "($1 *)";
+ 					}
+ 					print $n;
+@@ -60,3 +87,4 @@ sub getfuncs {
+ }
+ 
+ &getfuncs($gl);
++&getfuncs($aux);
+diff -pru F:\home\.cpan\build\OpenGL-0.4/create/gettypes OpenGL-0.4.my/create/gettypes
+--- F:/home/.cpan/build/OpenGL-0.4/create/gettypes	Fri Nov 10 17:25:44 1995
++++ OpenGL-0.4.my/create/gettypes	Sat Nov 14 03:15:02 1998
+@@ -4,9 +4,23 @@
+ #  in the OpenGL header files 
+ #
+ 
+-$x   = "X.h";
+-$gl  = "/usr/include/GL/gl.h";
+-$glx = "/usr/include/GL/glx.h";
++use strict;
++use Config;
++
++sub findh {
++  my $h = shift;
++  foreach my $dir ($Config{usrinc}, 
++		   split /$Config{path_sep}/, $ENV{C_INCLUDE_PATH}) {
++    return "$dir/$h" if -r "$dir/$h";
++  }
++  return $h;
++}
++
++my $x   = "X.h";
++my $gl  = findh "GL/gl.h";
++my $glx = findh "GL/glx.h";
++my $aux = findh "GL/aux.h";
++my (%t, $k);
+ 
+ %t=(
+ 	'int'    , 'INT',
+@@ -19,7 +33,7 @@ $glx = "/usr/include/GL/glx.h";
+ );
+ 
+ sub gettypes {
+-	local($file)=@_;
++	my ($file)=@_;
+ 	open(FILE,$file) || die "cant open $file\n";
+ 	while(<FILE>) {
+ 		if(/typedef/) {
+@@ -33,7 +47,10 @@ sub gettypes {
+ 	close(FILE);
+ }
+ 
+-gettypes($x);
++gettypes($x) if -r $glx;
+ gettypes($gl);
+-gettypes($glx);
++gettypes($glx) if -r $glx;
++gettypes($aux) if -r $aux;
+ 
++print "GLXDrawable\t\tT_PTROBJ\nWindow\t\tT_PTROBJ\n" unless -r $glx;
++print "float\t\tT_FLOAT\n";
+diff -pru F:\home\.cpan\build\OpenGL-0.4/create/Makefile OpenGL-0.4.my/create/Makefile
+--- F:/home/.cpan/build/OpenGL-0.4/create/Makefile	Sat Nov 18 21:59:44 1995
++++ OpenGL-0.4.my/create/Makefile	Tue Nov 10 17:45:28 1998
+@@ -2,7 +2,7 @@
+ #  Makefile for generating important files 
+ #
+ 
+-PERL=/usr/local/bin/perl
++PERL=perl
+ 
+ default:  typemap OpenGL.pm OpenGL.xs
+ 
+diff -pru F:\home\.cpan\build\OpenGL-0.4/create/OpenGL.pm.gen OpenGL-0.4.my/create/OpenGL.pm.gen
+--- F:/home/.cpan/build/OpenGL-0.4/create/OpenGL.pm.gen	Tue Jan  2 14:18:34 1996
++++ OpenGL-0.4.my/create/OpenGL.pm.gen	Sat Nov 14 14:28:04 1998
+@@ -3,7 +3,12 @@ package OpenGL;
+ $Version = 0.4;
+ 
+ # file OpenGL.pm is generated by OpenGL.pm.gen 
+-#EVAL: sub forfile{local($file,$s)=@_;$out = "";open(FILE,$file) || die "cant open $file";while(<FILE>) {$out .=&$s($_);}close(FILE);$out;};""
++#EVAL: use Config; sub findh {  my $h = shift;  foreach my $dir ($Config{usrinc}, split /$Config{path_sep}/, $ENV{C_INCLUDE_PATH}) { return "$dir/$h" if -r "$dir/$h"; } return $h; }
++#EVAL: sub forfile{my($hfile,$s)=@_;my $file = findh $hfile; my $out = "";open(FILE,$file) || die "cant open $file";while(<FILE>) {$out .=&$s($_);}close(FILE);$out;};""
++#EVAL: $skip = 'APIENTRY\s+' if $^O eq 'os2'; ""
++#EVAL: $glx = -e findh 'GL/glx.h'; ""
++#EVAL: $aux = -e findh 'GL/aux.h'; ""
++#EVAL: $pgl = -e findh 'GL/pgl.h'; ""
+ 
+ require Exporter;
+ require DynaLoader;
+@@ -26,29 +31,49 @@ require DynaLoader;
+ 	gluPerspective
+ 	gluLookAt
+ 
+-#EVAL: forfile("/usr/include/GL/gl.h",sub {($_[0]=~/extern\s+(\w+)\s+(\w+)\s*\((.*)\)\s*\;/)?"\t$2\n":"";})
++#EVAL: $fc = sub {($_[0]=~/extern\s+(\w+)\s+(\w+)\s*\((.*)\)\s*\;/ or $skip and $_[0]=~/\s+(\w+)\s+$skip(\w+)\s*\((.*)\)\s*\;/o)?"\t$2\n":"";}
++#EVAL: forfile("GL/gl.h", $fc)
+ 
+-#EVAL: $gc=sub{($_[0]=/\#define\s+(\S+)\s+(\S+)/)?"\t$1\n":"";} ;""
+-#EVAL: forfile("X.h",$gc)
++#EVAL: forfile("GL/aux.h", $fc) if $aux
+ 
+-#EVAL: forfile("/usr/include/GL/gl.h",$gc)
++#EVAL: $gc=sub{($_[0]=/\#define\s+([^\s()]+)\s+([^\s'']+)/ and $1 ne 'APIENTRY')?"\t$1\n":"";} ;""
++#EVAL: forfile("X.h",$gc) if $glx
+ 
+-#EVAL: forfile("/usr/include/GL/glxtokens.h",$gc)
++#EVAL: forfile("GL/gl.h",$gc)
+ 
+-#EVAL: forfile("/usr/include/GL/glu.h",$gc)
++#EVAL: forfile("GL/glxtokens.h",$gc) if $glx
++
++#EVAL: forfile("GL/glu.h",$gc)
++
++#EVAL: forfile("GL/aux.h",$gc) if $aux
++
++#EVAL: $pgc=sub{($_[0]=/\#define\s+PGL_(\S+)\s+(\S+)/)?"\tGLX_$1\n":"";} ;""
++#EVAL: forfile("GL/pgl.h",$pgc) if $pgl
++#EVAL: "\tConfigureNotify\n\tKeyPress\n" if $pgl
+ 
+ );
+ bootstrap OpenGL;
+ 
+-#EVAL: $dc=sub{($_[0]=/\#define\s+(\S+)\s+(\S+)/)?"sub $1 {$2;}\n":"";} ;""
++#EVAL: $dc=sub{($_[0]=/\#define\s+([^\s()]+)\s+([^\s'']+)/ and $1 ne 'APIENTRY')?"sub $1 {$2;}\n":"";} ;""
+ # from X.h
+-#EVAL: forfile("X.h",$dc)
++#EVAL: forfile("X.h",$dc) if $glx
++
++# from GL/gl.h
++#EVAL: forfile("GL/gl.h",$dc)
++
++# from GL/glxtokens.h
++#EVAL: forfile("GL/glxtokens.h",$dc) if $glx
+ 
+-#EVAL: forfile("/usr/include/GL/gl.h",$dc)
++# from GL/glu.h
++#EVAL: forfile("GL/glu.h",$dc)
+ 
+-#EVAL: forfile("/usr/include/GL/glxtokens.h",$dc)
++# from GL/aux.h
++#EVAL: forfile("GL/aux.h",$dc) if $aux
+ 
+-#EVAL: forfile("/usr/include/GL/glu.h",$dc)
++#EVAL: $pdc=sub{($_[0]=/\#define\s+PGL_(\S+)\s+(\S+)/)?"sub GLX_$1 {$2;}\n":"";} ;""
++# from pgl.h
++#EVAL: forfile("GL/pgl.h",$pdc) if $pgl
++#EVAL: "sub ConfigureNotify () {1}\nsub KeyPress () {2}\nsub StructureNotifyMask () {4}\n" if $pgl
+ 
+ %window_defaults=(
+ 		'x'	=> 0,
+diff -pru F:\home\.cpan\build\OpenGL-0.4/create/OpenGL.xs.gen OpenGL-0.4.my/create/OpenGL.xs.gen
+--- F:/home/.cpan/build/OpenGL-0.4/create/OpenGL.xs.gen	Tue Dec  5 16:46:16 1995
++++ OpenGL-0.4.my/create/OpenGL.xs.gen	Sat Nov 14 03:32:46 1998
+@@ -6,14 +6,181 @@
+ #include "XSUB.h"
+ 
+ #include <GL/gl.h>
+-#include <GL/glx.h>
++#EVAL: use Config; sub findh {  my $h = shift;  foreach my $dir ($Config{usrinc}, split /$Config{path_sep}/, $ENV{C_INCLUDE_PATH}) { return "$dir/$h" if -r "$dir/$h"; } return; }
++#EVAL: findh "GL/glx.h" ? "#define HAVE_X\n" : ""
++#EVAL: findh "GL/aux.h" ? ($aux = 1, "#include <GL/aux.h>\n") : ""
++
++#ifdef HAVE_X
++
++#  include <GL/glx.h>
++Display *dpy;
++
++#else	/* !( defined HAVE_X ) */
++#  ifdef __PM__
++
++#    define INCL_BASE
++#    define INCL_PM
++#    include <os2.h>
++#    include <GL/pgl.h>
++#define PM_ESCAPE 0x0f
++typedef HWND Window;
++typedef char XEvent;			/* Not used yet */
++typedef HAB Display;
++typedef VISUALCONFIG XVisualInfo;	/* Exchange this with config */
++typedef HGC GLXContext;	/* Exchange this with config */
++typedef struct XSetWindowAttributes {
++    int colormap;
++    int border_pixel;
++    long event_mask;
++} XSetWindowAttributes;			/* Not used! */
++typedef long Colormap;			/* Not used! */
++typedef HWND GLXDrawable;
++
++#    define glXSwapBuffers(d,w)	Perl_Serve_Messages(0),pglSwapBuffers(d,w)
++#    define XOpenDisplay(dummy0) (perl_hab_GET(),(hmq = Perl_Register_MQ(1)),Perl_hab)
++#    define XMapWindow(d, w)	0
++#    define glXChooseVisual(d, scr, att) pglChooseConfig(d,att)
++					/* XXXX isDirect: correct interpr? */
++#    define glXCreateContext(d, vis, sharel, isDirect)	\
++                  pglCreateContext(d, vis, sharel, isDirect)
++#    define GLX_RGBA PGL_RGBA
++#    define XCreateColormap(d, win, vis, alloc)	0
++#    define RootWindow(d, screen) HWND_DESKTOP
++#    define XCreateWindow(d, par, x, y, w, h, qqq0, de, io, vis, msk, attr) \
++               MyCreateWindow(d, par, x, y, w, h)
++#    define XIfEvent(a,b,c,d)
++#    define glXMakeCurrent(dpy, win, cx) pglMakeCurrent(dpy, cx, win)
++#    define None PGL_None
++#    define StructureNotifyMask 0
++#    define XPending(d) 0		/* Fake */
++
++#    define auxXWindow()	(croak("Not implemented: auxXWindow"),0)
++
++HMQ hmq;
++Display dpy;
++
++MRESULT EXPENTRY WindowProc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM
++mp2)
++{
++  static float t = 0.0;
++  static SWP clientsize;
++  static USHORT mycode;
++  static UCHAR key;
++
++  switch(msg) {
++  case WM_SIZE:
++    /* Upon a resize, query new window size and set OpenGL viewport */
++    WinQueryWindowPos(hwnd,&clientsize);
++    glViewport(0, 0, clientsize.cx, clientsize.cy);
++    return WinDefWindowProc(hwnd, msg, mp1, mp2);
++  case WM_TIMER:
++    /* Upon getting a timer message, the invalidate rectangle call  */
++    /* will cause a WM_PAINT message to be sent, enabling animation */
++    WinInvalidateRect(hwnd, NULLHANDLE, NULL);
++    return WinDefWindowProc(hwnd, msg, mp1, mp2);
++  case WM_PAINT:
++#    if 0
++    /* This is what is done for every frame of the animation        */
++    t += 1.0;
++    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
++    glPushMatrix();
++    glRotatef(t, 1.0, 1.0, 1.0);
++    glBegin(GL_TRIANGLE_FAN);
++      glColor3fv(colors[0]);
++      glVertex3fv(verts[0]);
++      glColor3fv(colors[1]);
++      glVertex3fv(verts[1]);
++      glColor3fv(colors[2]);
++      glVertex3fv(verts[2]);
++      glColor3fv(colors[3]);
++      glVertex3fv(verts[3]);
++      glColor3fv(colors[4]);
++      glVertex3fv(verts[4]);
++      glColor3fv(colors[1]);
++      glVertex3fv(verts[1]);
++    glEnd();
++    glBegin(GL_TRIANGLE_FAN);
++      glColor3fv(colors[5]);
++      glVertex3fv(verts[5]);
++      glColor3fv(colors[1]);
++      glVertex3fv(verts[1]);
++      glColor3fv(colors[4]);
++      glVertex3fv(verts[4]);
++      glColor3fv(colors[3]);
++      glVertex3fv(verts[3]);
++      glColor3fv(colors[2]);
++      glVertex3fv(verts[2]);
++      glColor3fv(colors[1]);
++      glVertex3fv(verts[1]);
++    glEnd();
++    glPopMatrix();
++    pglSwapBuffers(hab, hwnd);
++#    endif
++    return WinDefWindowProc(hwnd, msg, mp1, mp2);
++  case WM_CHAR:
++#    if 0
++    mycode = (USHORT)SHORT1FROMMP(mp1);
++    if ((mycode & KC_CHAR) && !(mycode & KC_KEYUP))
++      key = CHAR1FROMMP(mp2);
++    else if ((mycode & KC_VIRTUALKEY) && !(mycode & KC_KEYUP))
++      key = CHAR3FROMMP(mp2);
++    else
++      key = 0;
++    if (key == PM_ESCAPE)
++      WinPostMsg(hwnd, WM_CLOSE, (MPARAM)0, (MPARAM)0);
++#    endif
++    return WinDefWindowProc(hwnd, msg, mp1, mp2);
++  default:
++    return WinDefWindowProc(hwnd, msg, mp1, mp2);
++  }
++}
++
++Window
++MyCreateWindow(Display d, Window par, int x, int y, int w, int h)
++{
++    HWND hwnd, hwndTop;
++    ULONG createflags = FCF_TITLEBAR |
++                      FCF_SYSMENU  |
++                      FCF_MINMAX   |
++                      FCF_SIZEBORDER;
++    
++    if (!WinRegisterClass( Perl_hab,
++			   (PSZ)"PGLtest",
++			   WindowProc,
++			   CS_SIZEREDRAW | CS_MOVENOTIFY, /* Need at least this! */
++			   0))
++	croak("Cannot register class");
++    hwndTop = WinCreateStdWindow(
++                      par,   /* Parent    */
++                      WS_VISIBLE,     /* Frame style             */
++                      &createflags,   /* min FCF_MENU|FCF_MINMAX */
++                      (PSZ)"PGLtest", /* class name              */
++                      "OpenGL Sample",/* window title            */
++                      WS_VISIBLE,     /* client style            */
++                      0,              /* resource handle         */
++                      1,              /* Resource ID             */
++                      &hwnd);
++    if (!hwnd)
++	croak("Cannot create window");
++        /* you must set window size before you call pglMakeCurrent */
++    if (!WinSetWindowPos( hwndTop,
++			  HWND_TOP,
++			  x,
++			  y,
++			  w,		/* XXXX Add border! */
++			  h,
++			  SWP_ACTIVATE | SWP_SIZE | SWP_MOVE | SWP_SHOW))
++          croak("Couldn't position window!\n");
++    return hwnd;
++}
++#  endif	/* defined __PM__ */ 
++#endif	/* defined HAVE_X */ 
+ #include <GL/glu.h>
+ #include <unistd.h>
+ #include <stdio.h>
+ 
+ #define NUM_ARG 6
+ 
+-Display *dpy;
+ XVisualInfo *vi;
+ Colormap cmap;
+ XSetWindowAttributes swa;
+@@ -21,9 +188,23 @@ Window win;
+ GLXContext cx;
+ 
+ static int default_attributes[] = { GLX_RGBA, /*GLX_DOUBLEBUFFER,*/  None };
++
++#ifdef HAVE_X
+ static Bool WaitForNotify(Display *d, XEvent *e, char *arg) {
+     return (e->type == MapNotify) && (e->xmap.window == (Window)arg);
+ }
++#endif	/* !( defined HAVE_X ) */ 
++
++#ifdef OS2_GL_DISABLE_MISSING_EXT
++#define glCopyTexSubImage3DEXT(target, level, xoffset, yoffset, zoffset, x, y, width, height) 	\
++  (croak("Not implemented: glCopyTexSubImage3DEXT"),0)
++#define glTexImage3DEXT(target, level, internalformat, width, height, depth, border, format, type, pixels)	\
++  (croak("Not implemented: glTexImage3DEXT"),0)
++#define glTexSubImage3DEXT(target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, pixels)	\
++  (croak("Not implemented: glTexSubImage3DEXT"),0)
++#define glBlendEquationEXT(mode)				\
++  (croak("Not implemented: glBlendEquationEXT"),0)
++#endif
+ 
+ 
+ MODULE = OpenGL		PACKAGE = OpenGL
+@@ -53,11 +234,10 @@ glpcOpenWindow(x,y,w,h,pw,event_mask, ..
+ 	    /* get a connection */
+ 	    dpy = XOpenDisplay(0);
+ 	    if (!dpy) { fprintf(stderr, "No display!\n");exit(-1);}
+-	
+ 	    /* get an appropriate visual */
+ 	    vi = glXChooseVisual(dpy, DefaultScreen(dpy),attributes);
+-	    if(!vi) { fprintf(stderr, "No visual!\n");exit(-1);}
+-	
++	    if(!vi) { fprintf(stderr, "No visual!\n");exit(-1);}	
++#ifdef HAVE_X
+ 	    /* create a GLX context */
+ 	    cx = glXCreateContext(dpy, vi, 0, GL_TRUE);
+ 	    if(!cx){fprintf(stderr, "No context!\n");exit(-1);}
+@@ -70,6 +250,7 @@ glpcOpenWindow(x,y,w,h,pw,event_mask, ..
+ 	    swa.colormap = cmap;
+ 	    swa.border_pixel = 0;
+ 	    swa.event_mask = event_mask;
++#endif	/* defined HAVE_X */ 
+ 	    if(!pwin){pwin=RootWindow(dpy, vi->screen);}
+ 	    win = XCreateWindow(dpy, pwin, 
+ 				x, y, w, h,
+@@ -80,6 +261,12 @@ glpcOpenWindow(x,y,w,h,pw,event_mask, ..
+ 	        exit(-1);
+ 	    }
+ 	    XMapWindow(dpy, win);
++#ifndef HAVE_X				/* On OS/2 win should be
++					   visible now. */
++	    /* create a GLX context */
++	    cx = glXCreateContext(dpy, vi, 0, GL_TRUE);
++	    if(!cx){fprintf(stderr, "No context!\n");exit(-1);}
++#endif	/* HAVE_X */ 
+ 	    if(event_mask & StructureNotifyMask) {
+ 	        XIfEvent(dpy, &event, WaitForNotify, (char*)win);
+ 	    }
+@@ -97,6 +284,8 @@ glpcOpenWindow(x,y,w,h,pw,event_mask, ..
+ # If glpOpenWindow was used then glXSwapBuffers should be called
+ # without parameters (i.e. use the default parameters)
+ 
++#ifdef HAVE_X
++
+ void
+ glXSwapBuffers(d=dpy,w=win)
+ 	void *	d
+@@ -106,6 +295,18 @@ glXSwapBuffers(d=dpy,w=win)
+ 	    glXSwapBuffers(d,w);
+ 	}
+ 
++#else	/* !( defined HAVE_X ) */ 
++
++void
++glXSwapBuffers(d=dpy,w=win)
++	long	d
++	GLXDrawable	w
++	CODE:
++	{
++	    glXSwapBuffers(d,w);
++	}
++
++#endif	/* !( defined HAVE_X ) */ 
+ 
+ int
+ XPending(d=dpy)
+@@ -117,6 +318,8 @@ XPending(d=dpy)
+ 	OUTPUT:
+ 	RETVAL
+ 
++#ifdef HAVE_X
++
+ void
+ glpXNextEvent(d=dpy)
+ 	void *	d
+@@ -179,6 +382,8 @@ glpXQueryPointer(d=dpy,w=win)
+ 		PUSHs(sv_2mortal(newSViv(y)));
+ 		PUSHs(sv_2mortal(newSViv(m)));
+ 	}
++
++#endif /* HAVE_X */
+ 
+ #
+ # The following XSUBS were done by hand
+diff -pru F:\home\.cpan\build\OpenGL-0.4/examples/cube OpenGL-0.4.my/examples/cube
+--- F:/home/.cpan/build/OpenGL-0.4/examples/cube	Thu Feb 15 23:31:06 1996
++++ OpenGL-0.4.my/examples/cube	Sun Dec  6 03:48:02 1998
+@@ -65,5 +65,9 @@ glShadeModel(GL_FLAT);
+ myReshape();
+ display();
+ 
+-while(<>){;}  # control-D to quit
++if ($^O eq 'os2') {
++  OS2::Process_Messages(0) while 1;
++} else {
++  while(<>){;}  # control-D to quit
++}
+ 
+diff -pru F:\home\.cpan\build\OpenGL-0.4/examples/depth OpenGL-0.4.my/examples/depth
+--- F:/home/.cpan/build/OpenGL-0.4/examples/depth	Thu Feb 15 23:30:58 1996
++++ OpenGL-0.4.my/examples/depth	Sun Dec  6 03:49:06 1998
+@@ -36,5 +36,9 @@ glBegin(GL_POLYGON);
+ glEnd();
+ glFlush();
+ 
+-print "Hit control-D to quit:\n\n";
+-while(<>){;}
++if ($^O eq 'os2') {
++  OS2::Process_Messages(0) while 1;
++} else {
++  print "Hit control-D to quit:\n\n";
++  while(<>){;}
++}
+diff -pru F:\home\.cpan\build\OpenGL-0.4/examples/double OpenGL-0.4.my/examples/double
+--- F:/home/.cpan/build/OpenGL-0.4/examples/double	Thu Feb 15 23:30:50 1996
++++ OpenGL-0.4.my/examples/double	Sun Dec  6 03:52:36 1998
+@@ -29,7 +29,7 @@ sub display{
+ 
+     glPushMatrix();
+     glRotatef($spin, 0.0, 0.0, 1.0);
+-    ($x,$y) = glpXQueryPointer;
++    ($x,$y) = ($^O eq 'os2' ? (0,0) : glpXQueryPointer);
+     glRectf(-25.0, -25.0, 25+$x/10, 25+$y/10);
+     glPopMatrix();
+ 
+diff -pru F:\home\.cpan\build\OpenGL-0.4/examples/fun OpenGL-0.4.my/examples/fun
+--- F:/home/.cpan/build/OpenGL-0.4/examples/fun	Thu Feb 15 23:18:06 1996
++++ OpenGL-0.4.my/examples/fun	Sun Dec  6 04:33:42 1998
+@@ -87,7 +87,9 @@ sub initlists{
+ }
+ 
+ sub readnff{
+-  open(FILE,"<spaceship.nff") || die "cant open spaceship.nff";
++  my $file = 'spaceship.nff';
++  $file = "examples/$file" unless -r $file;
++  open(FILE,"<$file") || die "cant open $file";
+   $_="";
+   while(!(/^82\s*$/)){$_=<FILE>;}
+   $n=82;
+@@ -354,7 +356,7 @@ while(1){
+ 
+ 
+ 	vec($rin,0,1) = 1;
+-	if(select($rout=$rin,undef,undef,0)) {
++	if($^O ne 'os2' and select($rout=$rin,undef,undef,0)) {
+ 		$_=<> || die "End Of File";
+ 		eval;
+ 	}
+diff -pru F:\home\.cpan\build\OpenGL-0.4/examples/glu_test OpenGL-0.4.my/examples/glu_test
+--- F:/home/.cpan/build/OpenGL-0.4/examples/glu_test	Thu Feb 15 23:30:34 1996
++++ OpenGL-0.4.my/examples/glu_test	Sun Dec  6 03:50:32 1998
+@@ -65,5 +65,10 @@ glShadeModel(GL_FLAT);
+ myReshape();
+ display();
+ 
+-while(<>){;}  # control-D to quit
++if ($^O eq 'os2') {
++  OS2::Process_Messages(0) while 1;
++} else {
++  print "Hit control-D to quit:\n\n";
++  while(<>){;}
++}
+ 
+diff -pru F:\home\.cpan\build\OpenGL-0.4/examples/light OpenGL-0.4.my/examples/light
+--- F:/home/.cpan/build/OpenGL-0.4/examples/light	Thu Feb 15 23:30:22 1996
++++ OpenGL-0.4.my/examples/light	Sat Nov 14 16:46:46 1998
+@@ -81,10 +81,10 @@ sub myinit{
+     @mat_diffuse  = ( 0.0, 1.0, 1.0, 1.0 );
+     @light_position = ( 1.0, 1.0, 1.0, 0.0 );
+ 
+-    glMaterialfv(GL_FRONT, GL_DIFFUSE, pack("4f",@mat_diffuse));
+-    glMaterialfv(GL_FRONT, GL_SPECULAR, pack("4f",@mat_specular));
++    glMaterialfv(GL_FRONT, GL_DIFFUSE, pack("f4",@mat_diffuse));
++    glMaterialfv(GL_FRONT, GL_SPECULAR, pack("f4",@mat_specular));
+     glMaterialf(GL_FRONT, GL_SHININESS, 10);
+-    glLightfv(GL_LIGHT0, GL_POSITION, pack("4f",@light_position));
++    glLightfv(GL_LIGHT0, GL_POSITION, pack("f4",@light_position));
+ 
+     glEnable(GL_LIGHTING);
+     glEnable(GL_LIGHT0);
+diff -pru F:\home\.cpan\build\OpenGL-0.4/examples/plane OpenGL-0.4.my/examples/plane
+--- F:/home/.cpan/build/OpenGL-0.4/examples/plane	Thu Feb 15 23:30:08 1996
++++ OpenGL-0.4.my/examples/plane	Sun Dec  6 03:53:20 1998
+@@ -106,4 +106,9 @@ myinit();
+ myReshape;
+ display;
+ 
+-while(<>){;}
++if ($^O eq 'os2') {
++  OS2::Process_Messages(0) while 1;
++} else {
++  print "Hit control-D to quit:\n\n";
++  while(<>){;}
++}
+diff -pru F:\home\.cpan\build\OpenGL-0.4/examples/simple OpenGL-0.4.my/examples/simple
+--- F:/home/.cpan/build/OpenGL-0.4/examples/simple	Thu Feb 15 23:28:22 1996
++++ OpenGL-0.4.my/examples/simple	Sun Dec  6 03:58:46 1998
+@@ -22,5 +22,9 @@ glBegin(GL_POLYGON);
+ glEnd();
+ glFlush();
+ 
+-print "Program 1-1 Simple, hit control-D to quit:\n\n";
+-while(<>){;}
++if ($^O eq 'os2') {
++  OS2::Process_Messages(0) while 1;
++} else {
++  print "Program 1-1 Simple, hit control-D to quit:\n\n";
++  while(<>){;}
++}
+diff -pru F:\home\.cpan\build\OpenGL-0.4/examples/smooth OpenGL-0.4.my/examples/smooth
+--- F:/home/.cpan/build/OpenGL-0.4/examples/smooth	Thu Feb 15 23:28:14 1996
++++ OpenGL-0.4.my/examples/smooth	Sun Dec  6 03:59:38 1998
+@@ -35,4 +35,9 @@ glClear (GL_COLOR_BUFFER_BIT);
+ triangle ();
+ glFlush ();
+ 
+-while(<>){}
++if ($^O eq 'os2') {
++  OS2::Process_Messages(0) while 1;
++} else {
++  print "Program 1-1 Simple, hit control-D to quit:\n\n";
++  while(<>){;}
++}
+diff -pru F:\home\.cpan\build\OpenGL-0.4/examples/texhack OpenGL-0.4.my/examples/texhack
+--- F:/home/.cpan/build/OpenGL-0.4/examples/texhack	Thu Feb 15 23:27:58 1996
++++ OpenGL-0.4.my/examples/texhack	Sun Dec  6 04:35:00 1998
+@@ -60,7 +60,11 @@ glEnable(GL_DEPTH_TEST);
+ glDepthFunc(GL_LESS);
+ 
+ glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+-glpReadTex("stan.ppm");
++
++my $file = 'stan.ppm';
++$file = "examples/$file" unless -r $file;
++
++glpReadTex($file);
+ glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+ glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+ glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+diff -pru F:\home\.cpan\build\OpenGL-0.4/examples/texture OpenGL-0.4.my/examples/texture
+--- F:/home/.cpan/build/OpenGL-0.4/examples/texture	Thu Feb 15 23:27:36 1996
++++ OpenGL-0.4.my/examples/texture	Sun Dec  6 04:35:36 1998
+@@ -86,7 +86,11 @@ glEnable(GL_DEPTH_TEST);
+ glDepthFunc(GL_LESS);
+ 
+ glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+-($w,$h,$image)=&read_ascii_ppm("wolf.ppm");
++
++my $file = 'wolf.ppm';
++$file = "examples/$file" unless -r $file;
++
++($w,$h,$image)=&read_ascii_ppm($file);
+ glTexImage2D(GL_TEXTURE_2D, 0, 3, $w,$h, 0, GL_RGB, GL_UNSIGNED_BYTE,$image);
+ 
+ glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+diff -pru F:\home\.cpan\build\OpenGL-0.4/examples/try OpenGL-0.4.my/examples/try
+--- F:/home/.cpan/build/OpenGL-0.4/examples/try	Thu Feb 15 23:27:18 1996
++++ OpenGL-0.4.my/examples/try	Sun Dec  6 04:03:10 1998
+@@ -15,6 +15,12 @@ glFlush();
+ 
+ print "OpenGL window open, perl interpretor ready!\n";
+ print "Try entering some GL commands to draw stuff:\n";
++
++if ($^O eq 'os2') {
++  warn "Sorry, TTY input not yet simple-to code on OS/2\n" if $^O eq 'os2';
++  OS2::Process_Messages(0) while 1;
++}
++
+ while(<>){
+ 	$e=eval;
+ 	print "EVAL:  $e\n";
+diff -pru F:\home\.cpan\build\OpenGL-0.4/Makefile.PL OpenGL-0.4.my/Makefile.PL
+--- F:/home/.cpan/build/OpenGL-0.4/Makefile.PL	Thu Feb 15 22:02:54 1996
++++ OpenGL-0.4.my/Makefile.PL	Tue Dec  1 03:33:58 1998
+@@ -3,22 +3,28 @@
+ # This thing creates the Makefile and stuff
+ #
+ 
++$def = '';
++$def = '-DOS2_GL_DISABLE_MISSING_EXT -DAPIENTRY= -D__PM__' if $^O eq 'os2';
++$auxlib = ($^O eq 'os2' ? 'libaux' : 'aux');
++$inc = '';
++$inc .= ' -I/usr/openwin/include' if -d '/usr/openwin/include';
++
+ #  Generate the Makefile
+ use ExtUtils::MakeMaker;
+ WriteMakefile(
+     'NAME'	=> 'OpenGL',
+     'VERSION'	=> '0.4',
+-    'LIBS'	=> '-lXext -lX11 -lGL -lGLU',    
+-    # 'LIBS'	=> '-L/usr/local/Mesa/lib -lXext -lX11 -lGL -lGLU',    
+-    'DEFINE'	=> '',     # e.g., '-DHAVE_SOMETHING' 
+-    'INC'	=> '',   
++    'LIBS'	=> "-lXext -lX11 -lGL -lGLU -lopengl -l$auxlib -lm",
++    # 'LIBS'	=> '-L/usr/local/Mesa/lib -lXext -lX11 -lGL -lGLU',
++    'DEFINE'	=> $def,
++    'INC'	=> $inc,   
+     # 'INC'	=> '-I/usr/local/Mesa/include',   
+ );
+ 
+ sub MY::postamble {
+         '
+ clobber: clean
+-	/bin/rm -rf blib Makefile Makefile.old
++	$(RM_RF) blib Makefile Makefile.old
+ ';
+ }
+ 

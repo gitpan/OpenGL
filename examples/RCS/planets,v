@@ -1,0 +1,532 @@
+head	1.9;
+access;
+symbols;
+locks
+	ilya:1.9; strict;
+comment	@# @;
+
+
+1.9
+date	98.11.14.22.22.40;	author ilya;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	98.11.14.21.55.20;	author ilya;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	98.11.14.21.25.27;	author ilya;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	98.11.14.20.55.19;	author ilya;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	98.11.14.20.47.10;	author ilya;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	98.11.14.20.17.07;	author ilya;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	98.11.14.19.49.50;	author ilya;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	98.11.14.18.53.39;	author ilya;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	98.11.14.08.57.28;	author ilya;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.9
+log
+@Added ring of Saturn.
+Could not make it too thin: it becomes white?
+@
+text
+@#!/usr/bin/perl -w
+
+use strict;
+use OpenGL;
+
+my $where = (@@ARGV ? 'far away' : 'near Earth');
+print "Camera position: $where.\n";
+print "Give arguments to position camera far away.\n";
+
+my $field_of_view = (@@ARGV ? 20 : 100); # Degrees
+my $minviewdist = 0.1;
+my $maxviewdist = 1000;
+
+sub resizeHandler {		# Not auto yet
+  my ($wind_w, $wind_h) = @@_;
+  
+  glMatrixMode( GL_PROJECTION );
+   glLoadIdentity();
+   gluPerspective( $field_of_view, $wind_w/$wind_h,
+		   $minviewdist, $maxviewdist );
+  glMatrixMode( GL_MODELVIEW );
+}
+
+glpOpenWindow( attributes => [GLX_RGBA, GLX_DOUBLEBUFFER] );
+
+
+
+#gluOrtho2D(-10,10,-10,10);
+#glOrtho(-10,10,-10,10,-100,100);	# Last two args are 0,10 in the example ?!
+resizeHandler(1,1);
+
+#glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+glEnable( GL_DEPTH_TEST );
+glEnable( GL_LIGHTING );
+glEnable( GL_LIGHT0 );
+glEnable( GL_COLOR_MATERIAL );
+glLightModelfv( GL_LIGHT_MODEL_AMBIENT, pack 'f4', 0.1, 0.1, 0.1, 1);
+
+my $mercury = 0;
+my $venus = 0;
+my $earth = 0;
+my $earthMoon = 0;
+my $earthspin = 0;
+my $mars = 0;
+my $jupiter = 230;		# Make them visible
+my $jups1 = 0;
+my $jups2 = 0;
+my $jups3 = 0;
+my $jups4 = 0;
+my $saturn = 250;		# Make them visible
+
+sub display {
+  # clear the canvas
+  glClearColor(0,0,0,1);
+  glDrawBuffer(GL_FRONT_AND_BACK);
+  glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+  glDrawBuffer(GL_BACK);
+
+  glLoadIdentity();
+
+  if (@@ARGV) {
+    # move the squares back a bit
+    glTranslatef( 0, 0, -500 );
+    # and add a tilt
+    glRotatef(-70, 1,0,0);
+  } else {
+    # place viewpoint on the surface of the planet
+    glRotatef(30, 1,0,0);
+    glTranslatef( 0, -5, 2 );
+    glRotatef(-$earthspin, 0,1,0);
+    glTranslatef( 0, 0, -60 );
+    glRotatef(-90, 1,0,0);
+    glRotatef(90-$earth, 0,0,1);
+  }
+
+  # Sun light
+  glLightfv(GL_LIGHT0, GL_POSITION, pack "f4", 0, 0, 0, 1);
+  #glLightfv(GL_LIGHT1, GL_DIFFUSE,  pack "f4", 1, 1, 1, 1);
+  #glLightfv(GL_LIGHT0, GL_DIFFUSE,  pack "f4", 0, 0, 0, 1);
+  # Same for specular?
+
+  # Moon light
+
+  glPushMatrix();
+
+  # Position the moon
+  glRotatef($earth,0,0,1);
+  glTranslatef( -60, 0, 0 );
+  glRotatef($earthMoon,0,0,1);
+  glTranslatef( -10, 0, 0 );
+  glLightfv(GL_LIGHT1, GL_POSITION, pack "f4", 0, 0, 0, 1);
+  my $moon_bright = 0.1*(1 + cos($earthMoon*3.1415926/180));
+  glLightfv(GL_LIGHT1, GL_AMBIENT, 
+	    pack "f4", $moon_bright, $moon_bright, $moon_bright, 1);
+  
+  glPopMatrix();
+
+  # Sun
+  # glColor3f(1,1,1);
+  glMaterialfv( GL_FRONT, GL_EMISSION, pack 'f4', 1, 1, 0, 1);
+  auxSolidSphere(20);
+  glMaterialfv( GL_FRONT, GL_EMISSION, pack 'f4', 0, 0, 0, 1);
+  
+  glPushMatrix();
+
+  # Position the mercury
+  glRotatef($mercury,0,0,1);
+  glTranslatef( -30, 0, 0 );
+  glColor3f(0.6, 0.6, 0.6);
+  auxSolidSphere(2);
+  
+  glPopMatrix();
+  
+  glPushMatrix();
+
+  # Position the venus
+  glRotatef($venus,0,0,1);
+  glTranslatef( -40, 0, 0 );
+  glColor3f(0,1,0);
+  auxSolidSphere(5);
+  
+  glPopMatrix();
+  
+  glPushMatrix();
+
+  # Position the earth
+  glRotatef($earth,0,0,1);
+  glTranslatef( -60, 0, 0 );
+  glColor3f(0,0,1);
+
+  glPushMatrix();
+
+  # Rotate the planet earth
+  glRotatef($earthspin,0,0,1);
+  
+  glEnable( GL_LIGHT1 );
+  auxSolidSphere(5);
+  glDisable( GL_LIGHT1 );
+
+  glPopMatrix();
+
+  
+  # Position the earth's moon
+  glRotatef($earthMoon,0,0,1);
+  glTranslatef( -10, 0, 0 );
+  glColor3f(0.5,0.5,0.5);
+  auxSolidSphere(1);
+
+  glPopMatrix();
+  
+  glPushMatrix();
+
+  # Position the mars
+  glRotatef($mars,0,0,1);
+  glTranslatef( -80, 0, 0 );
+  glColor3f(1,0,0);
+  auxSolidSphere(4);
+  
+  glPopMatrix();
+  
+  glPushMatrix();
+
+  # Position the jupiter
+  glRotatef($jupiter,0,0,1);
+  glTranslatef( -120, 0, 0 );
+  glColor3f(0.6,0.6,0.6);
+  auxSolidSphere(9);
+
+  glPushMatrix();
+
+  # Position the jup's moon1
+  glRotatef($jups1,0,0,1);
+  glTranslatef( -6, 0, 0 );
+  glColor3f(0.5,0.5,0.5);
+  auxSolidSphere(1);
+  
+  glPopMatrix();
+  
+  glPushMatrix();
+
+  # Position the jup's moon2
+  glRotatef($jups2,0,0,1);
+  glTranslatef( -8, 0, 0 );
+  glColor3f(0.5,0.5,0.5);
+  auxSolidSphere(1);
+  
+  glPopMatrix();
+  
+  glPushMatrix();
+
+  # Position the jup's moon3
+  glRotatef($jups3,0,0,1);
+  glTranslatef( -10, 0, 0 );
+  glColor3f(0.5,0.5,0.5);
+  auxSolidSphere(1);
+  
+  glPopMatrix();
+  
+  glPushMatrix();
+
+  # Position the jup's moon4
+  glRotatef($jups4,0,0,1);
+  glTranslatef( -12, 0, 0 );
+  glColor3f(0.5,0.5,0.5);
+  auxSolidSphere(1);
+  
+  glPopMatrix();
+  
+  glPopMatrix();
+  
+  glPushMatrix();
+
+  # Position the saturn
+  glRotatef($saturn,0,0,1);
+  glTranslatef( -150, 0, 0 );
+  glColor3f(0.5,0.5,0.5);
+  auxSolidSphere(8);
+
+  glRotatef(-$saturn,0,0,1);
+  glRotatef(14, 0.707, -0.707, 0); # What is the actual tilt?
+  glScalef(1,1,0.2);		# Giving smaller values makes it white?!
+  auxSolidTorus(4.5,13);
+  
+  glPopMatrix();
+  
+  glPopMatrix();
+  
+  glXSwapBuffers();
+}
+
+while (1) {
+  $mercury += 1/0.24;
+  $mercury -= 360 if $mercury >= 360;
+  
+  $venus += 1/0.62;
+  $venus -= 360 if $venus >= 360;
+  
+  $earthMoon += 12.36;		# Relative to sun-earth line
+  $earthMoon -= 360 if $earthMoon >= 360;
+  
+  $earthspin += 3.65;		# 1/100 of real
+  $earthspin -= 360 if $earthspin >= 360;
+  
+  $earth += 1;
+  $earth -= 360 if $earth >= 360;
+  
+  $venus += 1/0.62;
+  $venus -= 360 if $venus >= 360;
+  
+  $mars += 1/1.88;			# Wrong
+  $mars -= 360 if $mars >= 360;
+  
+  $jupiter += 1/11.86;
+  $jupiter -= 360 if $jupiter >= 360;
+  
+  $jups1 += -1/11.86 + 365.2/1.77;
+  $jups1 -= 360 if $jups1 >= 360;
+  
+  $jups2 += -1/11.86 + 365.2/3.55;
+  $jups2 -= 360 if $jups2 >= 360;
+  
+  $jups3 += -1/11.86 + 365.2/7.16;
+  $jups3 -= 360 if $jups3 >= 360;
+  
+  $jups4 += -1/11.86 + 365.2/16.69;
+  $jups4 -= 360 if $jups4 >= 360;
+  
+  $saturn += 1/29.46;
+  $saturn -= 360 if $saturn >= 360;
+  
+  display();
+}
+@
+
+
+1.8
+log
+@Enable light from moon (on earth only).
+@
+text
+@d218 7
+@
+
+
+1.7
+log
+@Added configurable position, Jupiter's satellites, slightly wider angle.
+@
+text
+@d76 22
+a98 1
+  glLightfv(GL_LIGHT0, GL_POSITION, pack "f4", 0, 0, 0, 1);
+d136 1
+d138 1
+@
+
+
+1.6
+log
+@Point of view moved to the surface of the earth.
+Field of view expanded.
+@
+text
+@d6 5
+a10 1
+my $field_of_view = 70;		# Degrees
+d45 6
+a50 2
+my $jupiter = 50;		# Make them visible
+my $saturn = 60;		# Make them visible
+d60 15
+a74 13
+  
+  # move the squares back a bit
+  #glTranslatef( 0, 0, -500 );
+  # and add a tilt
+  #glRotatef(-70, 1,0,0);
+  
+  # place viewpoint on the surface of the planet
+  glRotatef(30, 1,0,0);
+  glTranslatef( 0, -5, 2 );
+  glRotatef(-$earthspin, 0,1,0);
+  glTranslatef( 0, 0, -60 );
+  glRotatef(-90, 1,0,0);
+  glRotatef(90-$earth, 0,0,1);
+d145 40
+d225 12
+@
+
+
+1.5
+log
+@Lights and materials added, earth rotates.
+@
+text
+@d6 1
+a6 1
+my $field_of_view = 20;		# Degrees
+d54 1
+a54 1
+  glTranslatef( 0, 0, -500 );
+d56 9
+a64 1
+  glRotatef(-70, 1,0,0);
+d66 1
+a67 2
+
+  # Sun
+@
+
+
+1.4
+log
+@More Planets and tilt added.
+@
+text
+@d30 4
+d39 1
+d58 5
+a62 1
+  glColor3f(1,1,1);
+d64 1
+d92 6
+d99 3
+d153 3
+@
+
+
+1.3
+log
+@Earth and Moon rotate.
+@
+text
+@d28 5
+d35 3
+a37 2
+my $venus = 0;
+my $jupiter = 0;
+d40 1
+a44 1
+  glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+d50 15
+d66 12
+d82 1
+a82 1
+  auxWireSphere(5);
+d88 33
+a120 1
+  auxWireSphere(1);
+d126 7
+a132 1
+  $earthMoon += 13.36;
+d135 1
+a135 1
+  $earth += 3;
+d138 1
+a138 1
+  $venus += 1.613;
+d141 4
+a144 1
+  $jupiter += 0.0843;
+d146 3
+@
+
+
+1.2
+log
+@Updated to 3D and perspective view.
+@
+text
+@d8 1
+a8 1
+my $maxviewdist = 100;
+d20 1
+a20 1
+glpOpenWindow;
+a21 5
+glClearColor(0,0,0,1);
+glDrawBuffer(GL_FRONT_AND_BACK);
+glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+glDrawBuffer(GL_BACK);
+glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+d28 11
+a38 2
+glLoadIdentity();
+glColor3f(1,0,0);
+d40 19
+a58 2
+# move the squares back a bit
+glTranslatef( 0.0, 0.0, -50.0 );
+d60 15
+a74 14
+#glBegin(GL_LINE_STRIP);
+glBegin(GL_QUADS);
+ glVertex3f(5,5,1);
+ glVertex3f(-5,5,1);
+ glVertex3f(-5,-5,1);
+ glVertex3f(5,-5,1);
+ glVertex3f(5,5,10);
+ glVertex3f(-5,5,10);
+ glVertex3f(-5,-5,10);
+ glVertex3f(5,-5,10);
+glEnd();
+
+glFlush();
+OS2::Process_Messages(0) while 1;
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d6 14
+d26 2
+d29 3
+a31 1
+gluOrtho2D(-10,10,-10,10);
+d33 1
+d35 5
+d41 8
+a48 4
+ glVertex2f(5,5);
+ glVertex2f(-5,5);
+ glVertex2f(-5,-5);
+ glVertex2f(5,-5);
+@
