@@ -1,4 +1,4 @@
-OpenGL Perl Module V0.3
+OpenGL Perl Module V0.4
 =======================
 the files
 COPYRIGHT HELP TUTORIAL WHY README INSTALL
@@ -21,6 +21,9 @@ for you.
 The perl module preserves the interface (names and arguments) to all the
 opengl functions. Therefore, you can continue to use existing man pages,
 books, and other documentation.
+
+And we got a PLUGIN for netscape now too!!
+check out the plugins subdirectory.
 
 System Requirements
 -------------------

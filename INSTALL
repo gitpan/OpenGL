@@ -9,13 +9,13 @@ Getting the Software
 --------------------
 The software can be ftp'd from:
 	ftp://skyler.arc.ab.ca/pub/perl
-Snag the file OpenGL-0.3.tar.gz . Its the most recent version. Unless, of
+Snag the file OpenGL-0.4.tar.gz . Its the most recent version. Unless, of
 course, you see a later version :-) Note that this is still considered an
 alpha release.
 
 Now gunzip and untar the file:
-        gunzip -c OpenGL-0.3.tar.gz | tar xvf -
-Go into the newly created "OpenGL-0.3" directory:
+        gunzip -c OpenGL-0.4.tar.gz | tar xvf -
+Go into the newly created "OpenGL-0.4" directory:
         cd OpenGL
 
 Have a look over the contents and some of the files including the README.
@@ -55,6 +55,7 @@ If you get things working then be sure to do the following:
 
 Try doing some stuff on your own. You may find the tutorial helpful.
 
+If you want to build the Netscape plugin then go to the plugins subdirectory!
 
 Installation
 ------------
@@ -80,4 +81,4 @@ to:
         stan@arc.ab.ca
 
 ----------------------------------------------------------------------------
-Last Updated: stan Dec 10 95
+

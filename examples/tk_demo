@@ -1,0 +1,41 @@
+#!/usr/local/bin/perl 
+#
+# This is an example of combining the tk module and opengl
+# You have to have TK installed for this to work.
+# this program opens a window and when you hit a key in
+# the window a callback that does some opengl stuff is
+# executed.  
+# Yes, this is a totally lame program, but its a proof
+# of concept sort of thing.
+# We'll get something better next time :-)
+#
+
+use lib ('blib');
+use Tk;
+use OpenGL;
+
+$top = MainWindow->new();
+
+sub DoKey
+{
+	$w = shift;
+	$id = $w->WindowId;
+	#print " window id: $id -> ",$$id,"\n";
+	glpOpenWindow(width=>50,height=>50,parent=>$$id);
+	glClearColor(0,0,1,1);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glOrtho(-1,1,-1,1,-1,1);
+	
+	glColor3f(1,0,0);
+	glBegin(GL_POLYGON);
+	  glVertex2f(-0.5,-0.5);
+	  glVertex2f(-0.5, 0.5);
+	  glVertex2f( 0.5, 0.5);
+	  glVertex2f( 0.5,-0.5);
+	glEnd();
+	glFlush();
+}
+
+$top->bind("<Any-KeyPress>",\&DoKey);
+
+Tk::MainLoop();

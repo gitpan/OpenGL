@@ -1,5 +1,5 @@
 /*
- * This file was generated automatically by xsubpp version 1.9 from the 
+ * This file was generated automatically by xsubpp version 1.933 from the 
  * contents of OpenGL.xs. Don't edit this file, edit OpenGL.xs instead.
  *
  *	ANY CHANGES MADE HERE WILL BE LOST! 
@@ -37,9 +37,8 @@ static Bool WaitForNotify(Display *d, XEvent *e, char *arg) {
 XS(XS_OpenGL_glpcOpenWindow)
 {
     dXSARGS;
-    if (items < 6) {
+    if (items < 6)
 	croak("Usage: OpenGL::glpcOpenWindow(x,y,w,h,pw,event_mask, ...)");
-    }
     {
 	int	x = (int)SvIV(ST(0));
 	int	y = (int)SvIV(ST(1));
@@ -48,109 +47,60 @@ XS(XS_OpenGL_glpcOpenWindow)
 	int	pw = (int)SvIV(ST(4));
 	long	event_mask = (long)SvIV(ST(5));
 	{
-
 	    XEvent event;
-
 	    Window pwin=(Window)pw;
-
 	    int *attributes = default_attributes;
-
 	    if(items>NUM_ARG){
-
 	        int i;
-
 	        attributes = (int *)malloc((items-NUM_ARG+1)* sizeof(int));
-
 	        for(i=NUM_ARG;i<items;i++) {
-
 	            attributes[i-NUM_ARG]=SvIV(ST(i));
-
 	        }
-
 	        attributes[items-NUM_ARG]=None;
-
 	    }
-
 	    /* get a connection */
-
 	    dpy = XOpenDisplay(0);
-
 	    if (!dpy) { fprintf(stderr, "No display!\n");exit(-1);}
 
-
 	    /* get an appropriate visual */
-
 	    vi = glXChooseVisual(dpy, DefaultScreen(dpy),attributes);
-
 	    if(!vi) { fprintf(stderr, "No visual!\n");exit(-1);}
 
-
 	    /* create a GLX context */
-
 	    cx = glXCreateContext(dpy, vi, 0, GL_TRUE);
-
 	    if(!cx){fprintf(stderr, "No context!\n");exit(-1);}
 
-
 	    /* create a color map */
-
 	    cmap = XCreateColormap(dpy, RootWindow(dpy, vi->screen),
-
 				   vi->visual, AllocNone);
 
-
 	    /* create a window */
-
 	    swa.colormap = cmap;
-
 	    swa.border_pixel = 0;
-
 	    swa.event_mask = event_mask;
-
 	    if(!pwin){pwin=RootWindow(dpy, vi->screen);}
-
 	    win = XCreateWindow(dpy, pwin, 
-
 				x, y, w, h,
-
 				0, vi->depth, InputOutput, vi->visual,
-
 				CWBorderPixel|CWColormap|CWEventMask, &swa);
-
 	    if(!win) {
-
 	        fprintf(stderr, "No Window\n");
-
 	        exit(-1);
-
 	    }
-
 	    XMapWindow(dpy, win);
-
 	    if(event_mask & StructureNotifyMask) {
-
 	        XIfEvent(dpy, &event, WaitForNotify, (char*)win);
-
 	    }
-
 
 	    /* connect the context to the window */
-
 	    if(!glXMakeCurrent(dpy, win, cx)) {
-
 	        fprintf(stderr, "Non current\n");
-
 	        exit(-1);
-
 	    }
 
-
 	    /* clear the buffer */
-
 	    glClearColor(0,0,0,1);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -158,9 +108,8 @@ XS(XS_OpenGL_glpcOpenWindow)
 XS(XS_OpenGL_glXSwapBuffers)
 {
     dXSARGS;
-    if (items < 0 || items > 2) {
+    if (items < 0 || items > 2)
 	croak("Usage: OpenGL::glXSwapBuffers(d=dpy,w=win)");
-    }
     {
 	void *	d;
 	GLXDrawable	w;
@@ -177,11 +126,8 @@ XS(XS_OpenGL_glXSwapBuffers)
 	    w = (unsigned long)SvIV(ST(1));
 	}
 	{
-
 	    glXSwapBuffers(d,w);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -189,9 +135,8 @@ XS(XS_OpenGL_glXSwapBuffers)
 XS(XS_OpenGL_XPending)
 {
     dXSARGS;
-    if (items < 0 || items > 1) {
+    if (items < 0 || items > 1)
 	croak("Usage: OpenGL::XPending(d=dpy)");
-    }
     {
 	void *	d;
 	int	RETVAL;
@@ -202,11 +147,8 @@ XS(XS_OpenGL_XPending)
 	    d = (void *)SvIV(ST(0));
 	}
 	{
-
 		RETVAL = XPending(d);
-
 	}
-
 	ST(0) = sv_newmortal();
 	sv_setiv(ST(0), (IV)RETVAL);
     }
@@ -216,9 +158,8 @@ XS(XS_OpenGL_XPending)
 XS(XS_OpenGL_glpXNextEvent)
 {
     dXSARGS;
-    if (items < 0 || items > 1) {
+    if (items < 0 || items > 1)
 	croak("Usage: OpenGL::glpXNextEvent(d=dpy)");
-    }
     SP -= items;
     {
 	void *	d;
@@ -229,89 +170,47 @@ XS(XS_OpenGL_glpXNextEvent)
 	    d = (void *)SvIV(ST(0));
 	}
 	{
-
 		XEvent event;
-
 		char buf[10];
-
 		KeySym ks;
-
 		XNextEvent(d,&event);
-
 		switch(event.type) {
-
 			case ConfigureNotify:
-
 				EXTEND(sp,3);
-
 				PUSHs(sv_2mortal(newSViv(event.type)));
-
 				PUSHs(sv_2mortal(newSViv(event.xconfigure.width)));
-
 				PUSHs(sv_2mortal(newSViv(event.xconfigure.height)));				
-
 				break;
-
 			case KeyPress:
-
 			case KeyRelease:
-
 				EXTEND(sp,2);
-
 				PUSHs(sv_2mortal(newSViv(event.type)));
-
 				XLookupString(&event.xkey,buf,sizeof(buf),&ks,0);
-
 				buf[0]=(char)ks;buf[1]='\0';
-
 				PUSHs(sv_2mortal(newSVpv(buf,1)));
-
 				break;
-
 			case ButtonPress:
-
 			case ButtonRelease:
-
 				EXTEND(sp,4);
-
 				PUSHs(sv_2mortal(newSViv(event.type)));
-
 				PUSHs(sv_2mortal(newSViv(event.xbutton.button)));
-
 				PUSHs(sv_2mortal(newSViv(event.xbutton.x)));
-
 				PUSHs(sv_2mortal(newSViv(event.xbutton.y)));
-
 				break;
-
 			case MotionNotify:
-
 				EXTEND(sp,4);
-
 				PUSHs(sv_2mortal(newSViv(event.type)));
-
 				PUSHs(sv_2mortal(newSViv(event.xmotion.state)));
-
 				PUSHs(sv_2mortal(newSViv(event.xmotion.x)));
-
 				PUSHs(sv_2mortal(newSViv(event.xmotion.y)));
-
 				break;
-
 			case Expose:
-
 			default:
-
 				EXTEND(sp,1);
-
 				PUSHs(sv_2mortal(newSViv(event.type)));
-
 				break;
-
 		}
-
 	}
-
 	PUTBACK;
 	return;
     }
@@ -320,9 +219,8 @@ XS(XS_OpenGL_glpXNextEvent)
 XS(XS_OpenGL_glpXQueryPointer)
 {
     dXSARGS;
-    if (items < 0 || items > 2) {
+    if (items < 0 || items > 2)
 	croak("Usage: OpenGL::glpXQueryPointer(d=dpy,w=win)");
-    }
     SP -= items;
     {
 	void *	d;
@@ -340,25 +238,15 @@ XS(XS_OpenGL_glpXQueryPointer)
 	    w = (unsigned long)SvIV(ST(1));
 	}
 	{
-
 		int x,y,rx,ry;
-
 		Window r,c;
-
 		unsigned int m;
-
 		XQueryPointer(d,w,&r,&c,&rx,&ry,&x,&y,&m);
-
 		EXTEND(sp,3);
-
 		PUSHs(sv_2mortal(newSViv(x)));
-
 		PUSHs(sv_2mortal(newSViv(y)));
-
 		PUSHs(sv_2mortal(newSViv(m)));
-
 	}
-
 	PUTBACK;
 	return;
     }
@@ -367,9 +255,8 @@ XS(XS_OpenGL_glpXQueryPointer)
 XS(XS_OpenGL_glpClipPlane)
 {
     dXSARGS;
-    if (items != 5) {
+    if (items != 5)
 	croak("Usage: OpenGL::glpClipPlane(p,a,b,c,d)");
-    }
     {
 	GLenum	p = (unsigned int)SvIV(ST(0));
 	GLdouble	a = (double)SvNV(ST(1));
@@ -377,15 +264,10 @@ XS(XS_OpenGL_glpClipPlane)
 	GLdouble	c = (double)SvNV(ST(3));
 	GLdouble	d = (double)SvNV(ST(4));
 	{
-
 		GLdouble e[4];
-
 		e[0]=a;e[1]=b;e[2]=c;e[3]=d;
-
 		glClipPlane(p,e);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -393,30 +275,20 @@ XS(XS_OpenGL_glpClipPlane)
 XS(XS_OpenGL_glpGetClipPlane)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glpGetClipPlane(plane)");
-    }
     SP -= items;
     {
 	GLenum	plane = (unsigned int)SvIV(ST(0));
 	{
-
 	    GLdouble equation[4];
-
 	    glGetClipPlane(plane,equation);
-
 	    EXTEND(sp,4);
-
 	    PUSHs(sv_2mortal(newSVnv(equation[0])));
-
 	    PUSHs(sv_2mortal(newSVnv(equation[1])));
-
 	    PUSHs(sv_2mortal(newSVnv(equation[2])));
-
 	    PUSHs(sv_2mortal(newSVnv(equation[3])));
-
 	}
-
 	PUTBACK;
 	return;
     }
@@ -425,69 +297,39 @@ XS(XS_OpenGL_glpGetClipPlane)
 XS(XS_OpenGL_glpReadTex)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glpReadTex(file)");
-    }
     {
 	char *	file = (char *)SvPV(ST(0),na);
 	{
-
 	    GLsizei w,h;
-
 	    int d,i;
-
 	    char buf[250];
-
 	    unsigned char *image;
-
 	    FILE *fp;
-
 	    fp=fopen(file,"r");
-
 	    if(!fp) {
-
 	        fprintf(stderr,"couldn't open file %s\n",file);
-
 	        return;
-
 	    }
-
 	    fgets(buf,250,fp);
-
 	    fgets(buf,250,fp);
-
 	    fscanf(fp,"%d%d",&w,&h);
-
 	    fscanf(fp,"%d",&d);
-
 	    if(d != 255 || w<64 || h<64 || w>10000 || h>10000) {
-
 	        fprintf(stderr,"error reading %s\n",file);
-
 	        return;
-
 	    }
-
 	    image=(unsigned char *)malloc(w*h*3);
-
 	    for(i=0;i<w*h*3;i++) {
-
 		int v;
-
 	        fscanf(fp,"%d",&v);
-
 	        image[i]=(unsigned char) v;
-
 	    }
-
 	    fclose(fp);
-
 	    glTexImage2D(GL_TEXTURE_2D, 0, 3, w,h, 
-
 	                 0, GL_RGB, GL_UNSIGNED_BYTE,image);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -495,9 +337,8 @@ XS(XS_OpenGL_glpReadTex)
 XS(XS_OpenGL_glpLoadMatrixd)
 {
     dXSARGS;
-    if (items != 16) {
+    if (items != 16)
 	croak("Usage: OpenGL::glpLoadMatrixd(m0,m1,m2,m3,m4,m5,m6,m7,m8,m9,ma,mb,mc,md,me,mf)");
-    }
     {
 	GLdouble	m0 = (double)SvNV(ST(0));
 	GLdouble	m1 = (double)SvNV(ST(1));
@@ -516,21 +357,13 @@ XS(XS_OpenGL_glpLoadMatrixd)
 	GLdouble	me = (double)SvNV(ST(14));
 	GLdouble	mf = (double)SvNV(ST(15));
 	{
-
 		GLdouble m[16];
-
 		m[0]= m0; m[1]= m1; m[2]= m2; m[3]= m3;
-
 		m[4]= m4; m[5]= m5; m[6]= m6; m[7]= m7;
-
 		m[8]= m8; m[9]= m9; m[10]=ma; m[11]=mb;
-
 		m[12]=mc; m[13]=md; m[14]=me; m[15]=mf;
-
 		glLoadMatrixd(m);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -538,9 +371,8 @@ XS(XS_OpenGL_glpLoadMatrixd)
 XS(XS_OpenGL_glpMultMatrixd)
 {
     dXSARGS;
-    if (items != 16) {
+    if (items != 16)
 	croak("Usage: OpenGL::glpMultMatrixd(m0,m1,m2,m3,m4,m5,m6,m7,m8,m9,ma,mb,mc,md,me,mf)");
-    }
     {
 	GLdouble	m0 = (double)SvNV(ST(0));
 	GLdouble	m1 = (double)SvNV(ST(1));
@@ -559,21 +391,13 @@ XS(XS_OpenGL_glpMultMatrixd)
 	GLdouble	me = (double)SvNV(ST(14));
 	GLdouble	mf = (double)SvNV(ST(15));
 	{
-
 		GLdouble m[16];
-
 		m[0]= m0; m[1]= m1; m[2]= m2; m[3]= m3;
-
 		m[4]= m4; m[5]= m5; m[6]= m6; m[7]= m7;
-
 		m[8]= m8; m[9]= m9; m[10]=ma; m[11]=mb;
-
 		m[12]=mc; m[13]=md; m[14]=me; m[15]=mf;
-
 		glMultMatrixd(m);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -581,9 +405,8 @@ XS(XS_OpenGL_glpMultMatrixd)
 XS(XS_OpenGL_glpLoadMatrixf)
 {
     dXSARGS;
-    if (items != 16) {
+    if (items != 16)
 	croak("Usage: OpenGL::glpLoadMatrixf(m0,m1,m2,m3,m4,m5,m6,m7,m8,m9,ma,mb,mc,md,me,mf)");
-    }
     {
 	GLfloat	m0 = (float)SvNV(ST(0));
 	GLfloat	m1 = (float)SvNV(ST(1));
@@ -602,21 +425,13 @@ XS(XS_OpenGL_glpLoadMatrixf)
 	GLfloat	me = (float)SvNV(ST(14));
 	GLfloat	mf = (float)SvNV(ST(15));
 	{
-
 		GLfloat m[16];
-
 		m[0]= m0; m[1]= m1; m[2]= m2; m[3]= m3;
-
 		m[4]= m4; m[5]= m5; m[6]= m6; m[7]= m7;
-
 		m[8]= m8; m[9]= m9; m[10]=ma; m[11]=mb;
-
 		m[12]=mc; m[13]=md; m[14]=me; m[15]=mf;
-
 		glLoadMatrixf(m);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -624,9 +439,8 @@ XS(XS_OpenGL_glpLoadMatrixf)
 XS(XS_OpenGL_glpMultMatrixf)
 {
     dXSARGS;
-    if (items != 16) {
+    if (items != 16)
 	croak("Usage: OpenGL::glpMultMatrixf(m0,m1,m2,m3,m4,m5,m6,m7,m8,m9,ma,mb,mc,md,me,mf)");
-    }
     {
 	GLfloat	m0 = (float)SvNV(ST(0));
 	GLfloat	m1 = (float)SvNV(ST(1));
@@ -645,21 +459,13 @@ XS(XS_OpenGL_glpMultMatrixf)
 	GLfloat	me = (float)SvNV(ST(14));
 	GLfloat	mf = (float)SvNV(ST(15));
 	{
-
 		GLfloat m[16];
-
 		m[0]= m0; m[1]= m1; m[2]= m2; m[3]= m3;
-
 		m[4]= m4; m[5]= m5; m[6]= m6; m[7]= m7;
-
 		m[8]= m8; m[9]= m9; m[10]=ma; m[11]=mb;
-
 		m[12]=mc; m[13]=md; m[14]=me; m[15]=mf;
-
 		glMultMatrixf(m);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -667,9 +473,8 @@ XS(XS_OpenGL_glpMultMatrixf)
 XS(XS_OpenGL_gluOrtho2D)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::gluOrtho2D(left,right,bottom,top)");
-    }
     {
 	GLdouble	left = (double)SvNV(ST(0));
 	GLdouble	right = (double)SvNV(ST(1));
@@ -684,9 +489,8 @@ XS(XS_OpenGL_gluOrtho2D)
 XS(XS_OpenGL_gluPerspective)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::gluPerspective(fovy,aspect,zNear,zFar)");
-    }
     {
 	GLdouble	fovy = (double)SvNV(ST(0));
 	GLdouble	aspect = (double)SvNV(ST(1));
@@ -701,9 +505,8 @@ XS(XS_OpenGL_gluPerspective)
 XS(XS_OpenGL_gluLookAt)
 {
     dXSARGS;
-    if (items != 9) {
+    if (items != 9)
 	croak("Usage: OpenGL::gluLookAt(eyex,eyey,eyez,centerx,centery,centerz,upx,upy,upz)");
-    }
     {
 	GLdouble	eyex = (double)SvNV(ST(0));
 	GLdouble	eyey = (double)SvNV(ST(1));
@@ -723,9 +526,8 @@ XS(XS_OpenGL_gluLookAt)
 XS(XS_OpenGL_glAccum)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glAccum(op,value)");
-    }
     {
 	GLenum	op = (unsigned int)SvIV(ST(0));
 	GLfloat	value = (float)SvNV(ST(1));
@@ -738,9 +540,8 @@ XS(XS_OpenGL_glAccum)
 XS(XS_OpenGL_glAlphaFunc)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glAlphaFunc(func,ref)");
-    }
     {
 	GLenum	func = (unsigned int)SvIV(ST(0));
 	GLclampf	ref = (float)SvNV(ST(1));
@@ -753,9 +554,8 @@ XS(XS_OpenGL_glAlphaFunc)
 XS(XS_OpenGL_glBegin)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glBegin(mode)");
-    }
     {
 	GLenum	mode = (unsigned int)SvIV(ST(0));
 
@@ -767,9 +567,8 @@ XS(XS_OpenGL_glBegin)
 XS(XS_OpenGL_glBitmap)
 {
     dXSARGS;
-    if (items != 7) {
+    if (items != 7)
 	croak("Usage: OpenGL::glBitmap(width,height,xorig,yorig,xmove,ymove,bitmap)");
-    }
     {
 	GLsizei	width = (int)SvIV(ST(0));
 	GLsizei	height = (int)SvIV(ST(1));
@@ -779,11 +578,8 @@ XS(XS_OpenGL_glBitmap)
 	GLfloat	ymove = (float)SvNV(ST(5));
 	char *	bitmap = (char *)SvPV(ST(6),na);
 	{
-
 	   glBitmap(width,height,xorig,yorig,xmove,ymove,(GLubyte *)bitmap);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -791,9 +587,8 @@ XS(XS_OpenGL_glBitmap)
 XS(XS_OpenGL_glBlendColorEXT)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glBlendColorEXT(red,green,blue,alpha)");
-    }
     {
 	GLclampf	red = (float)SvNV(ST(0));
 	GLclampf	green = (float)SvNV(ST(1));
@@ -808,9 +603,8 @@ XS(XS_OpenGL_glBlendColorEXT)
 XS(XS_OpenGL_glBlendEquationEXT)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glBlendEquationEXT(mode)");
-    }
     {
 	GLenum	mode = (unsigned int)SvIV(ST(0));
 
@@ -822,9 +616,8 @@ XS(XS_OpenGL_glBlendEquationEXT)
 XS(XS_OpenGL_glBlendFunc)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glBlendFunc(sfactor,dfactor)");
-    }
     {
 	GLenum	sfactor = (unsigned int)SvIV(ST(0));
 	GLenum	dfactor = (unsigned int)SvIV(ST(1));
@@ -837,9 +630,8 @@ XS(XS_OpenGL_glBlendFunc)
 XS(XS_OpenGL_glCallList)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glCallList(list)");
-    }
     {
 	GLuint	list = (unsigned int)SvIV(ST(0));
 
@@ -851,19 +643,15 @@ XS(XS_OpenGL_glCallList)
 XS(XS_OpenGL_glCallLists)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glCallLists(n,type,lists)");
-    }
     {
 	GLsizei	n = (int)SvIV(ST(0));
 	GLenum	type = (unsigned int)SvIV(ST(1));
 	char *	lists = (char *)SvPV(ST(2),na);
 	{
-
 	   glCallLists(n,type,(GLvoid *)lists);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -871,9 +659,8 @@ XS(XS_OpenGL_glCallLists)
 XS(XS_OpenGL_glClear)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glClear(mask)");
-    }
     {
 	GLbitfield	mask = (unsigned int)SvIV(ST(0));
 
@@ -885,9 +672,8 @@ XS(XS_OpenGL_glClear)
 XS(XS_OpenGL_glClearAccum)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glClearAccum(red,green,blue,alpha)");
-    }
     {
 	GLfloat	red = (float)SvNV(ST(0));
 	GLfloat	green = (float)SvNV(ST(1));
@@ -902,9 +688,8 @@ XS(XS_OpenGL_glClearAccum)
 XS(XS_OpenGL_glClearColor)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glClearColor(red,green,blue,alpha)");
-    }
     {
 	GLclampf	red = (float)SvNV(ST(0));
 	GLclampf	green = (float)SvNV(ST(1));
@@ -919,9 +704,8 @@ XS(XS_OpenGL_glClearColor)
 XS(XS_OpenGL_glClearDepth)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glClearDepth(depth)");
-    }
     {
 	GLclampd	depth = (double)SvNV(ST(0));
 
@@ -933,9 +717,8 @@ XS(XS_OpenGL_glClearDepth)
 XS(XS_OpenGL_glClearIndex)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glClearIndex(c)");
-    }
     {
 	GLfloat	c = (float)SvNV(ST(0));
 
@@ -947,9 +730,8 @@ XS(XS_OpenGL_glClearIndex)
 XS(XS_OpenGL_glClearStencil)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glClearStencil(s)");
-    }
     {
 	GLint	s = (int)SvIV(ST(0));
 
@@ -961,18 +743,14 @@ XS(XS_OpenGL_glClearStencil)
 XS(XS_OpenGL_glClipPlane)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glClipPlane(plane,equation)");
-    }
     {
 	GLenum	plane = (unsigned int)SvIV(ST(0));
 	char *	equation = (char *)SvPV(ST(1),na);
 	{
-
 	   glClipPlane(plane,(GLdouble *)equation);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -980,9 +758,8 @@ XS(XS_OpenGL_glClipPlane)
 XS(XS_OpenGL_glColor3b)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glColor3b(red,green,blue)");
-    }
     {
 	GLbyte	red = (char)*SvPV(ST(0),na);
 	GLbyte	green = (char)*SvPV(ST(1),na);
@@ -996,17 +773,13 @@ XS(XS_OpenGL_glColor3b)
 XS(XS_OpenGL_glColor3bv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glColor3bv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glColor3bv((GLbyte *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1014,9 +787,8 @@ XS(XS_OpenGL_glColor3bv)
 XS(XS_OpenGL_glColor3d)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glColor3d(red,green,blue)");
-    }
     {
 	GLdouble	red = (double)SvNV(ST(0));
 	GLdouble	green = (double)SvNV(ST(1));
@@ -1030,17 +802,13 @@ XS(XS_OpenGL_glColor3d)
 XS(XS_OpenGL_glColor3dv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glColor3dv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glColor3dv((GLdouble *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1048,9 +816,8 @@ XS(XS_OpenGL_glColor3dv)
 XS(XS_OpenGL_glColor3f)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glColor3f(red,green,blue)");
-    }
     {
 	GLfloat	red = (float)SvNV(ST(0));
 	GLfloat	green = (float)SvNV(ST(1));
@@ -1064,17 +831,13 @@ XS(XS_OpenGL_glColor3f)
 XS(XS_OpenGL_glColor3fv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glColor3fv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glColor3fv((GLfloat *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1082,9 +845,8 @@ XS(XS_OpenGL_glColor3fv)
 XS(XS_OpenGL_glColor3i)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glColor3i(red,green,blue)");
-    }
     {
 	GLint	red = (int)SvIV(ST(0));
 	GLint	green = (int)SvIV(ST(1));
@@ -1098,17 +860,13 @@ XS(XS_OpenGL_glColor3i)
 XS(XS_OpenGL_glColor3iv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glColor3iv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glColor3iv((GLint *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1116,9 +874,8 @@ XS(XS_OpenGL_glColor3iv)
 XS(XS_OpenGL_glColor3s)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glColor3s(red,green,blue)");
-    }
     {
 	GLshort	red = (short)SvIV(ST(0));
 	GLshort	green = (short)SvIV(ST(1));
@@ -1132,17 +889,13 @@ XS(XS_OpenGL_glColor3s)
 XS(XS_OpenGL_glColor3sv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glColor3sv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glColor3sv((GLshort *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1150,9 +903,8 @@ XS(XS_OpenGL_glColor3sv)
 XS(XS_OpenGL_glColor3ub)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glColor3ub(red,green,blue)");
-    }
     {
 	GLubyte	red = (unsigned char)SvIV(ST(0));
 	GLubyte	green = (unsigned char)SvIV(ST(1));
@@ -1166,17 +918,13 @@ XS(XS_OpenGL_glColor3ub)
 XS(XS_OpenGL_glColor3ubv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glColor3ubv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glColor3ubv((GLubyte *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1184,9 +932,8 @@ XS(XS_OpenGL_glColor3ubv)
 XS(XS_OpenGL_glColor3ui)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glColor3ui(red,green,blue)");
-    }
     {
 	GLuint	red = (unsigned int)SvIV(ST(0));
 	GLuint	green = (unsigned int)SvIV(ST(1));
@@ -1200,17 +947,13 @@ XS(XS_OpenGL_glColor3ui)
 XS(XS_OpenGL_glColor3uiv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glColor3uiv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glColor3uiv((GLuint *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1218,9 +961,8 @@ XS(XS_OpenGL_glColor3uiv)
 XS(XS_OpenGL_glColor3us)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glColor3us(red,green,blue)");
-    }
     {
 	GLushort	red = (unsigned short)SvIV(ST(0));
 	GLushort	green = (unsigned short)SvIV(ST(1));
@@ -1234,17 +976,13 @@ XS(XS_OpenGL_glColor3us)
 XS(XS_OpenGL_glColor3usv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glColor3usv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glColor3usv((GLushort *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1252,9 +990,8 @@ XS(XS_OpenGL_glColor3usv)
 XS(XS_OpenGL_glColor4b)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glColor4b(red,green,blue,alpha)");
-    }
     {
 	GLbyte	red = (char)*SvPV(ST(0),na);
 	GLbyte	green = (char)*SvPV(ST(1),na);
@@ -1269,17 +1006,13 @@ XS(XS_OpenGL_glColor4b)
 XS(XS_OpenGL_glColor4bv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glColor4bv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glColor4bv((GLbyte *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1287,9 +1020,8 @@ XS(XS_OpenGL_glColor4bv)
 XS(XS_OpenGL_glColor4d)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glColor4d(red,green,blue,alpha)");
-    }
     {
 	GLdouble	red = (double)SvNV(ST(0));
 	GLdouble	green = (double)SvNV(ST(1));
@@ -1304,17 +1036,13 @@ XS(XS_OpenGL_glColor4d)
 XS(XS_OpenGL_glColor4dv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glColor4dv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glColor4dv((GLdouble *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1322,9 +1050,8 @@ XS(XS_OpenGL_glColor4dv)
 XS(XS_OpenGL_glColor4f)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glColor4f(red,green,blue,alpha)");
-    }
     {
 	GLfloat	red = (float)SvNV(ST(0));
 	GLfloat	green = (float)SvNV(ST(1));
@@ -1339,17 +1066,13 @@ XS(XS_OpenGL_glColor4f)
 XS(XS_OpenGL_glColor4fv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glColor4fv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glColor4fv((GLfloat *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1357,9 +1080,8 @@ XS(XS_OpenGL_glColor4fv)
 XS(XS_OpenGL_glColor4i)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glColor4i(red,green,blue,alpha)");
-    }
     {
 	GLint	red = (int)SvIV(ST(0));
 	GLint	green = (int)SvIV(ST(1));
@@ -1374,17 +1096,13 @@ XS(XS_OpenGL_glColor4i)
 XS(XS_OpenGL_glColor4iv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glColor4iv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glColor4iv((GLint *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1392,9 +1110,8 @@ XS(XS_OpenGL_glColor4iv)
 XS(XS_OpenGL_glColor4s)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glColor4s(red,green,blue,alpha)");
-    }
     {
 	GLshort	red = (short)SvIV(ST(0));
 	GLshort	green = (short)SvIV(ST(1));
@@ -1409,17 +1126,13 @@ XS(XS_OpenGL_glColor4s)
 XS(XS_OpenGL_glColor4sv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glColor4sv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glColor4sv((GLshort *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1427,9 +1140,8 @@ XS(XS_OpenGL_glColor4sv)
 XS(XS_OpenGL_glColor4ub)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glColor4ub(red,green,blue,alpha)");
-    }
     {
 	GLubyte	red = (unsigned char)SvIV(ST(0));
 	GLubyte	green = (unsigned char)SvIV(ST(1));
@@ -1444,17 +1156,13 @@ XS(XS_OpenGL_glColor4ub)
 XS(XS_OpenGL_glColor4ubv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glColor4ubv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glColor4ubv((GLubyte *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1462,9 +1170,8 @@ XS(XS_OpenGL_glColor4ubv)
 XS(XS_OpenGL_glColor4ui)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glColor4ui(red,green,blue,alpha)");
-    }
     {
 	GLuint	red = (unsigned int)SvIV(ST(0));
 	GLuint	green = (unsigned int)SvIV(ST(1));
@@ -1479,17 +1186,13 @@ XS(XS_OpenGL_glColor4ui)
 XS(XS_OpenGL_glColor4uiv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glColor4uiv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glColor4uiv((GLuint *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1497,9 +1200,8 @@ XS(XS_OpenGL_glColor4uiv)
 XS(XS_OpenGL_glColor4us)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glColor4us(red,green,blue,alpha)");
-    }
     {
 	GLushort	red = (unsigned short)SvIV(ST(0));
 	GLushort	green = (unsigned short)SvIV(ST(1));
@@ -1514,17 +1216,13 @@ XS(XS_OpenGL_glColor4us)
 XS(XS_OpenGL_glColor4usv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glColor4usv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glColor4usv((GLushort *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1532,9 +1230,8 @@ XS(XS_OpenGL_glColor4usv)
 XS(XS_OpenGL_glColorMask)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glColorMask(red,green,blue,alpha)");
-    }
     {
 	GLboolean	red = (unsigned char)SvIV(ST(0));
 	GLboolean	green = (unsigned char)SvIV(ST(1));
@@ -1549,9 +1246,8 @@ XS(XS_OpenGL_glColorMask)
 XS(XS_OpenGL_glColorMaterial)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glColorMaterial(face,mode)");
-    }
     {
 	GLenum	face = (unsigned int)SvIV(ST(0));
 	GLenum	mode = (unsigned int)SvIV(ST(1));
@@ -1564,9 +1260,8 @@ XS(XS_OpenGL_glColorMaterial)
 XS(XS_OpenGL_glConvolutionFilter1DEXT)
 {
     dXSARGS;
-    if (items != 6) {
+    if (items != 6)
 	croak("Usage: OpenGL::glConvolutionFilter1DEXT(target,internalformat,width,format,type,image)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	internalformat = (unsigned int)SvIV(ST(1));
@@ -1575,11 +1270,8 @@ XS(XS_OpenGL_glConvolutionFilter1DEXT)
 	GLenum	type = (unsigned int)SvIV(ST(4));
 	char *	image = (char *)SvPV(ST(5),na);
 	{
-
 	   glConvolutionFilter1DEXT(target,internalformat,width,format,type,(GLvoid *)image);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1587,9 +1279,8 @@ XS(XS_OpenGL_glConvolutionFilter1DEXT)
 XS(XS_OpenGL_glConvolutionFilter2DEXT)
 {
     dXSARGS;
-    if (items != 7) {
+    if (items != 7)
 	croak("Usage: OpenGL::glConvolutionFilter2DEXT(target,internalformat,width,height,format,type,image)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	internalformat = (unsigned int)SvIV(ST(1));
@@ -1599,11 +1290,8 @@ XS(XS_OpenGL_glConvolutionFilter2DEXT)
 	GLenum	type = (unsigned int)SvIV(ST(5));
 	char *	image = (char *)SvPV(ST(6),na);
 	{
-
 	   glConvolutionFilter2DEXT(target,internalformat,width,height,format,type,(GLvoid *)image);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1611,9 +1299,8 @@ XS(XS_OpenGL_glConvolutionFilter2DEXT)
 XS(XS_OpenGL_glConvolutionParameterfEXT)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glConvolutionParameterfEXT(target,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
@@ -1627,19 +1314,15 @@ XS(XS_OpenGL_glConvolutionParameterfEXT)
 XS(XS_OpenGL_glConvolutionParameterfvEXT)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glConvolutionParameterfvEXT(target,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glConvolutionParameterfvEXT(target,pname,(GLfloat *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1647,9 +1330,8 @@ XS(XS_OpenGL_glConvolutionParameterfvEXT)
 XS(XS_OpenGL_glConvolutionParameteriEXT)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glConvolutionParameteriEXT(target,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
@@ -1663,19 +1345,15 @@ XS(XS_OpenGL_glConvolutionParameteriEXT)
 XS(XS_OpenGL_glConvolutionParameterivEXT)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glConvolutionParameterivEXT(target,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glConvolutionParameterivEXT(target,pname,(GLint *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1683,9 +1361,8 @@ XS(XS_OpenGL_glConvolutionParameterivEXT)
 XS(XS_OpenGL_glCopyConvolutionFilter1DEXT)
 {
     dXSARGS;
-    if (items != 5) {
+    if (items != 5)
 	croak("Usage: OpenGL::glCopyConvolutionFilter1DEXT(target,internalformat,x,y,width)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	internalformat = (unsigned int)SvIV(ST(1));
@@ -1701,9 +1378,8 @@ XS(XS_OpenGL_glCopyConvolutionFilter1DEXT)
 XS(XS_OpenGL_glCopyConvolutionFilter2DEXT)
 {
     dXSARGS;
-    if (items != 6) {
+    if (items != 6)
 	croak("Usage: OpenGL::glCopyConvolutionFilter2DEXT(target,internalformat,x,y,width,height)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	internalformat = (unsigned int)SvIV(ST(1));
@@ -1720,9 +1396,8 @@ XS(XS_OpenGL_glCopyConvolutionFilter2DEXT)
 XS(XS_OpenGL_glCopyPixels)
 {
     dXSARGS;
-    if (items != 5) {
+    if (items != 5)
 	croak("Usage: OpenGL::glCopyPixels(x,y,width,height,type)");
-    }
     {
 	GLint	x = (int)SvIV(ST(0));
 	GLint	y = (int)SvIV(ST(1));
@@ -1738,9 +1413,8 @@ XS(XS_OpenGL_glCopyPixels)
 XS(XS_OpenGL_glCullFace)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glCullFace(mode)");
-    }
     {
 	GLenum	mode = (unsigned int)SvIV(ST(0));
 
@@ -1752,9 +1426,8 @@ XS(XS_OpenGL_glCullFace)
 XS(XS_OpenGL_glDeleteLists)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glDeleteLists(list,range)");
-    }
     {
 	GLuint	list = (unsigned int)SvIV(ST(0));
 	GLsizei	range = (int)SvIV(ST(1));
@@ -1767,9 +1440,8 @@ XS(XS_OpenGL_glDeleteLists)
 XS(XS_OpenGL_glDepthFunc)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glDepthFunc(func)");
-    }
     {
 	GLenum	func = (unsigned int)SvIV(ST(0));
 
@@ -1781,9 +1453,8 @@ XS(XS_OpenGL_glDepthFunc)
 XS(XS_OpenGL_glDepthMask)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glDepthMask(flag)");
-    }
     {
 	GLboolean	flag = (unsigned char)SvIV(ST(0));
 
@@ -1795,9 +1466,8 @@ XS(XS_OpenGL_glDepthMask)
 XS(XS_OpenGL_glDepthRange)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glDepthRange(near,far)");
-    }
     {
 	GLclampd	near = (double)SvNV(ST(0));
 	GLclampd	far = (double)SvNV(ST(1));
@@ -1810,19 +1480,15 @@ XS(XS_OpenGL_glDepthRange)
 XS(XS_OpenGL_glDetailTexFuncSGIS)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glDetailTexFuncSGIS(target,n,points)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLsizei	n = (int)SvIV(ST(1));
 	char *	points = (char *)SvPV(ST(2),na);
 	{
-
 	   glDetailTexFuncSGIS(target,n,(GLfloat *)points);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1830,9 +1496,8 @@ XS(XS_OpenGL_glDetailTexFuncSGIS)
 XS(XS_OpenGL_glDisable)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glDisable(cap)");
-    }
     {
 	GLenum	cap = (unsigned int)SvIV(ST(0));
 
@@ -1844,9 +1509,8 @@ XS(XS_OpenGL_glDisable)
 XS(XS_OpenGL_glDrawBuffer)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glDrawBuffer(mode)");
-    }
     {
 	GLenum	mode = (unsigned int)SvIV(ST(0));
 
@@ -1858,9 +1522,8 @@ XS(XS_OpenGL_glDrawBuffer)
 XS(XS_OpenGL_glDrawPixels)
 {
     dXSARGS;
-    if (items != 5) {
+    if (items != 5)
 	croak("Usage: OpenGL::glDrawPixels(width,height,format,type,pixels)");
-    }
     {
 	GLsizei	width = (int)SvIV(ST(0));
 	GLsizei	height = (int)SvIV(ST(1));
@@ -1868,11 +1531,8 @@ XS(XS_OpenGL_glDrawPixels)
 	GLenum	type = (unsigned int)SvIV(ST(3));
 	char *	pixels = (char *)SvPV(ST(4),na);
 	{
-
 	   glDrawPixels(width,height,format,type,(GLvoid *)pixels);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1880,9 +1540,8 @@ XS(XS_OpenGL_glDrawPixels)
 XS(XS_OpenGL_glEdgeFlag)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glEdgeFlag(flag)");
-    }
     {
 	GLboolean	flag = (unsigned char)SvIV(ST(0));
 
@@ -1894,17 +1553,13 @@ XS(XS_OpenGL_glEdgeFlag)
 XS(XS_OpenGL_glEdgeFlagv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glEdgeFlagv(flag)");
-    }
     {
 	char *	flag = (char *)SvPV(ST(0),na);
 	{
-
 	   glEdgeFlagv((GLboolean *)flag);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1912,9 +1567,8 @@ XS(XS_OpenGL_glEdgeFlagv)
 XS(XS_OpenGL_glEnable)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glEnable(cap)");
-    }
     {
 	GLenum	cap = (unsigned int)SvIV(ST(0));
 
@@ -1926,9 +1580,8 @@ XS(XS_OpenGL_glEnable)
 XS(XS_OpenGL_glEnd)
 {
     dXSARGS;
-    if (items != 0) {
+    if (items != 0)
 	croak("Usage: OpenGL::glEnd()");
-    }
     {
 
 	glEnd();
@@ -1939,9 +1592,8 @@ XS(XS_OpenGL_glEnd)
 XS(XS_OpenGL_glEndList)
 {
     dXSARGS;
-    if (items != 0) {
+    if (items != 0)
 	croak("Usage: OpenGL::glEndList()");
-    }
     {
 
 	glEndList();
@@ -1952,9 +1604,8 @@ XS(XS_OpenGL_glEndList)
 XS(XS_OpenGL_glEvalCoord1d)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glEvalCoord1d(u)");
-    }
     {
 	GLdouble	u = (double)SvNV(ST(0));
 
@@ -1966,17 +1617,13 @@ XS(XS_OpenGL_glEvalCoord1d)
 XS(XS_OpenGL_glEvalCoord1dv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glEvalCoord1dv(u)");
-    }
     {
 	char *	u = (char *)SvPV(ST(0),na);
 	{
-
 	   glEvalCoord1dv((GLdouble *)u);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -1984,9 +1631,8 @@ XS(XS_OpenGL_glEvalCoord1dv)
 XS(XS_OpenGL_glEvalCoord1f)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glEvalCoord1f(u)");
-    }
     {
 	GLfloat	u = (float)SvNV(ST(0));
 
@@ -1998,17 +1644,13 @@ XS(XS_OpenGL_glEvalCoord1f)
 XS(XS_OpenGL_glEvalCoord1fv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glEvalCoord1fv(u)");
-    }
     {
 	char *	u = (char *)SvPV(ST(0),na);
 	{
-
 	   glEvalCoord1fv((GLfloat *)u);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2016,9 +1658,8 @@ XS(XS_OpenGL_glEvalCoord1fv)
 XS(XS_OpenGL_glEvalCoord2d)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glEvalCoord2d(u,v)");
-    }
     {
 	GLdouble	u = (double)SvNV(ST(0));
 	GLdouble	v = (double)SvNV(ST(1));
@@ -2031,17 +1672,13 @@ XS(XS_OpenGL_glEvalCoord2d)
 XS(XS_OpenGL_glEvalCoord2dv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glEvalCoord2dv(u)");
-    }
     {
 	char *	u = (char *)SvPV(ST(0),na);
 	{
-
 	   glEvalCoord2dv((GLdouble *)u);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2049,9 +1686,8 @@ XS(XS_OpenGL_glEvalCoord2dv)
 XS(XS_OpenGL_glEvalCoord2f)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glEvalCoord2f(u,v)");
-    }
     {
 	GLfloat	u = (float)SvNV(ST(0));
 	GLfloat	v = (float)SvNV(ST(1));
@@ -2064,17 +1700,13 @@ XS(XS_OpenGL_glEvalCoord2f)
 XS(XS_OpenGL_glEvalCoord2fv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glEvalCoord2fv(u)");
-    }
     {
 	char *	u = (char *)SvPV(ST(0),na);
 	{
-
 	   glEvalCoord2fv((GLfloat *)u);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2082,9 +1714,8 @@ XS(XS_OpenGL_glEvalCoord2fv)
 XS(XS_OpenGL_glEvalMesh1)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glEvalMesh1(mode,i1,i2)");
-    }
     {
 	GLenum	mode = (unsigned int)SvIV(ST(0));
 	GLint	i1 = (int)SvIV(ST(1));
@@ -2098,9 +1729,8 @@ XS(XS_OpenGL_glEvalMesh1)
 XS(XS_OpenGL_glEvalMesh2)
 {
     dXSARGS;
-    if (items != 5) {
+    if (items != 5)
 	croak("Usage: OpenGL::glEvalMesh2(mode,i1,i2,j1,j2)");
-    }
     {
 	GLenum	mode = (unsigned int)SvIV(ST(0));
 	GLint	i1 = (int)SvIV(ST(1));
@@ -2116,9 +1746,8 @@ XS(XS_OpenGL_glEvalMesh2)
 XS(XS_OpenGL_glEvalPoint1)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glEvalPoint1(i)");
-    }
     {
 	GLint	i = (int)SvIV(ST(0));
 
@@ -2130,9 +1759,8 @@ XS(XS_OpenGL_glEvalPoint1)
 XS(XS_OpenGL_glEvalPoint2)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glEvalPoint2(i,j)");
-    }
     {
 	GLint	i = (int)SvIV(ST(0));
 	GLint	j = (int)SvIV(ST(1));
@@ -2145,19 +1773,15 @@ XS(XS_OpenGL_glEvalPoint2)
 XS(XS_OpenGL_glFeedbackBuffer)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glFeedbackBuffer(size,type,buffer)");
-    }
     {
 	GLsizei	size = (int)SvIV(ST(0));
 	GLenum	type = (unsigned int)SvIV(ST(1));
 	char *	buffer = (char *)SvPV(ST(2),na);
 	{
-
 	   glFeedbackBuffer(size,type,(GLfloat *)buffer);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2165,9 +1789,8 @@ XS(XS_OpenGL_glFeedbackBuffer)
 XS(XS_OpenGL_glFinish)
 {
     dXSARGS;
-    if (items != 0) {
+    if (items != 0)
 	croak("Usage: OpenGL::glFinish()");
-    }
     {
 
 	glFinish();
@@ -2178,9 +1801,8 @@ XS(XS_OpenGL_glFinish)
 XS(XS_OpenGL_glFlush)
 {
     dXSARGS;
-    if (items != 0) {
+    if (items != 0)
 	croak("Usage: OpenGL::glFlush()");
-    }
     {
 
 	glFlush();
@@ -2191,9 +1813,8 @@ XS(XS_OpenGL_glFlush)
 XS(XS_OpenGL_glFogf)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glFogf(pname,param)");
-    }
     {
 	GLenum	pname = (unsigned int)SvIV(ST(0));
 	GLfloat	param = (float)SvNV(ST(1));
@@ -2206,18 +1827,14 @@ XS(XS_OpenGL_glFogf)
 XS(XS_OpenGL_glFogfv)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glFogfv(pname,params)");
-    }
     {
 	GLenum	pname = (unsigned int)SvIV(ST(0));
 	char *	params = (char *)SvPV(ST(1),na);
 	{
-
 	   glFogfv(pname,(GLfloat *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2225,9 +1842,8 @@ XS(XS_OpenGL_glFogfv)
 XS(XS_OpenGL_glFogi)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glFogi(pname,param)");
-    }
     {
 	GLenum	pname = (unsigned int)SvIV(ST(0));
 	GLint	param = (int)SvIV(ST(1));
@@ -2240,18 +1856,14 @@ XS(XS_OpenGL_glFogi)
 XS(XS_OpenGL_glFogiv)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glFogiv(pname,params)");
-    }
     {
 	GLenum	pname = (unsigned int)SvIV(ST(0));
 	char *	params = (char *)SvPV(ST(1),na);
 	{
-
 	   glFogiv(pname,(GLint *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2259,9 +1871,8 @@ XS(XS_OpenGL_glFogiv)
 XS(XS_OpenGL_glFrontFace)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glFrontFace(mode)");
-    }
     {
 	GLenum	mode = (unsigned int)SvIV(ST(0));
 
@@ -2273,9 +1884,8 @@ XS(XS_OpenGL_glFrontFace)
 XS(XS_OpenGL_glFrustum)
 {
     dXSARGS;
-    if (items != 6) {
+    if (items != 6)
 	croak("Usage: OpenGL::glFrustum(left,right,bottom,top,near,far)");
-    }
     {
 	GLdouble	left = (double)SvNV(ST(0));
 	GLdouble	right = (double)SvNV(ST(1));
@@ -2292,9 +1902,8 @@ XS(XS_OpenGL_glFrustum)
 XS(XS_OpenGL_glGenLists)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glGenLists(range)");
-    }
     {
 	GLsizei	range = (int)SvIV(ST(0));
 	GLuint	RETVAL;
@@ -2309,18 +1918,14 @@ XS(XS_OpenGL_glGenLists)
 XS(XS_OpenGL_glGetBooleanv)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glGetBooleanv(pname,params)");
-    }
     {
 	GLenum	pname = (unsigned int)SvIV(ST(0));
 	char *	params = (char *)SvPV(ST(1),na);
 	{
-
 	   glGetBooleanv(pname,(GLboolean *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2328,18 +1933,14 @@ XS(XS_OpenGL_glGetBooleanv)
 XS(XS_OpenGL_glGetClipPlane)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glGetClipPlane(plane,equation)");
-    }
     {
 	GLenum	plane = (unsigned int)SvIV(ST(0));
 	char *	equation = (char *)SvPV(ST(1),na);
 	{
-
 	   glGetClipPlane(plane,(GLdouble *)equation);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2347,20 +1948,16 @@ XS(XS_OpenGL_glGetClipPlane)
 XS(XS_OpenGL_glGetConvolutionFilterEXT)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glGetConvolutionFilterEXT(target,format,type,image)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	format = (unsigned int)SvIV(ST(1));
 	GLenum	type = (unsigned int)SvIV(ST(2));
 	char *	image = (char *)SvPV(ST(3),na);
 	{
-
 	   glGetConvolutionFilterEXT(target,format,type,(GLvoid *)image);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2368,19 +1965,15 @@ XS(XS_OpenGL_glGetConvolutionFilterEXT)
 XS(XS_OpenGL_glGetConvolutionParameterfvEXT)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetConvolutionParameterfvEXT(target,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetConvolutionParameterfvEXT(target,pname,(GLfloat *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2388,19 +1981,15 @@ XS(XS_OpenGL_glGetConvolutionParameterfvEXT)
 XS(XS_OpenGL_glGetConvolutionParameterivEXT)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetConvolutionParameterivEXT(target,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetConvolutionParameterivEXT(target,pname,(GLint *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2408,18 +1997,14 @@ XS(XS_OpenGL_glGetConvolutionParameterivEXT)
 XS(XS_OpenGL_glGetDetailTexFuncSGIS)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glGetDetailTexFuncSGIS(target,points)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	char *	points = (char *)SvPV(ST(1),na);
 	{
-
 	   glGetDetailTexFuncSGIS(target,(GLfloat *)points);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2427,18 +2012,14 @@ XS(XS_OpenGL_glGetDetailTexFuncSGIS)
 XS(XS_OpenGL_glGetDoublev)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glGetDoublev(pname,params)");
-    }
     {
 	GLenum	pname = (unsigned int)SvIV(ST(0));
 	char *	params = (char *)SvPV(ST(1),na);
 	{
-
 	   glGetDoublev(pname,(GLdouble *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2446,9 +2027,8 @@ XS(XS_OpenGL_glGetDoublev)
 XS(XS_OpenGL_glGetError)
 {
     dXSARGS;
-    if (items != 0) {
+    if (items != 0)
 	croak("Usage: OpenGL::glGetError()");
-    }
     {
 	GLenum	RETVAL;
 
@@ -2462,18 +2042,14 @@ XS(XS_OpenGL_glGetError)
 XS(XS_OpenGL_glGetFloatv)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glGetFloatv(pname,params)");
-    }
     {
 	GLenum	pname = (unsigned int)SvIV(ST(0));
 	char *	params = (char *)SvPV(ST(1),na);
 	{
-
 	   glGetFloatv(pname,(GLfloat *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2481,9 +2057,8 @@ XS(XS_OpenGL_glGetFloatv)
 XS(XS_OpenGL_glGetHistogramEXT)
 {
     dXSARGS;
-    if (items != 5) {
+    if (items != 5)
 	croak("Usage: OpenGL::glGetHistogramEXT(target,reset,format,type,values)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLboolean	reset = (unsigned char)SvIV(ST(1));
@@ -2491,11 +2066,8 @@ XS(XS_OpenGL_glGetHistogramEXT)
 	GLenum	type = (unsigned int)SvIV(ST(3));
 	char *	values = (char *)SvPV(ST(4),na);
 	{
-
 	   glGetHistogramEXT(target,reset,format,type,(GLvoid *)values);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2503,19 +2075,15 @@ XS(XS_OpenGL_glGetHistogramEXT)
 XS(XS_OpenGL_glGetHistogramParameterfvEXT)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetHistogramParameterfvEXT(target,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetHistogramParameterfvEXT(target,pname,(GLfloat *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2523,19 +2091,15 @@ XS(XS_OpenGL_glGetHistogramParameterfvEXT)
 XS(XS_OpenGL_glGetHistogramParameterivEXT)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetHistogramParameterivEXT(target,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetHistogramParameterivEXT(target,pname,(GLint *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2543,18 +2107,14 @@ XS(XS_OpenGL_glGetHistogramParameterivEXT)
 XS(XS_OpenGL_glGetIntegerv)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glGetIntegerv(pname,params)");
-    }
     {
 	GLenum	pname = (unsigned int)SvIV(ST(0));
 	char *	params = (char *)SvPV(ST(1),na);
 	{
-
 	   glGetIntegerv(pname,(GLint *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2562,19 +2122,15 @@ XS(XS_OpenGL_glGetIntegerv)
 XS(XS_OpenGL_glGetLightfv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetLightfv(light,pname,params)");
-    }
     {
 	GLenum	light = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetLightfv(light,pname,(GLfloat *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2582,19 +2138,15 @@ XS(XS_OpenGL_glGetLightfv)
 XS(XS_OpenGL_glGetLightiv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetLightiv(light,pname,params)");
-    }
     {
 	GLenum	light = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetLightiv(light,pname,(GLint *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2602,19 +2154,15 @@ XS(XS_OpenGL_glGetLightiv)
 XS(XS_OpenGL_glGetMapdv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetMapdv(target,query,v)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	query = (unsigned int)SvIV(ST(1));
 	char *	v = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetMapdv(target,query,(GLdouble *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2622,19 +2170,15 @@ XS(XS_OpenGL_glGetMapdv)
 XS(XS_OpenGL_glGetMapfv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetMapfv(target,query,v)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	query = (unsigned int)SvIV(ST(1));
 	char *	v = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetMapfv(target,query,(GLfloat *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2642,19 +2186,15 @@ XS(XS_OpenGL_glGetMapfv)
 XS(XS_OpenGL_glGetMapiv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetMapiv(target,query,v)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	query = (unsigned int)SvIV(ST(1));
 	char *	v = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetMapiv(target,query,(GLint *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2662,19 +2202,15 @@ XS(XS_OpenGL_glGetMapiv)
 XS(XS_OpenGL_glGetMaterialfv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetMaterialfv(face,pname,params)");
-    }
     {
 	GLenum	face = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetMaterialfv(face,pname,(GLfloat *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2682,19 +2218,15 @@ XS(XS_OpenGL_glGetMaterialfv)
 XS(XS_OpenGL_glGetMaterialiv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetMaterialiv(face,pname,params)");
-    }
     {
 	GLenum	face = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetMaterialiv(face,pname,(GLint *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2702,9 +2234,8 @@ XS(XS_OpenGL_glGetMaterialiv)
 XS(XS_OpenGL_glGetMinmaxEXT)
 {
     dXSARGS;
-    if (items != 5) {
+    if (items != 5)
 	croak("Usage: OpenGL::glGetMinmaxEXT(target,reset,format,type,values)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLboolean	reset = (unsigned char)SvIV(ST(1));
@@ -2712,11 +2243,8 @@ XS(XS_OpenGL_glGetMinmaxEXT)
 	GLenum	type = (unsigned int)SvIV(ST(3));
 	char *	values = (char *)SvPV(ST(4),na);
 	{
-
 	   glGetMinmaxEXT(target,reset,format,type,(GLvoid *)values);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2724,19 +2252,15 @@ XS(XS_OpenGL_glGetMinmaxEXT)
 XS(XS_OpenGL_glGetMinmaxParameterfvEXT)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetMinmaxParameterfvEXT(target,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetMinmaxParameterfvEXT(target,pname,(GLfloat *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2744,19 +2268,15 @@ XS(XS_OpenGL_glGetMinmaxParameterfvEXT)
 XS(XS_OpenGL_glGetMinmaxParameterivEXT)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetMinmaxParameterivEXT(target,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetMinmaxParameterivEXT(target,pname,(GLint *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2764,18 +2284,14 @@ XS(XS_OpenGL_glGetMinmaxParameterivEXT)
 XS(XS_OpenGL_glGetPixelMapfv)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glGetPixelMapfv(map,values)");
-    }
     {
 	GLenum	map = (unsigned int)SvIV(ST(0));
 	char *	values = (char *)SvPV(ST(1),na);
 	{
-
 	   glGetPixelMapfv(map,(GLfloat *)values);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2783,18 +2299,14 @@ XS(XS_OpenGL_glGetPixelMapfv)
 XS(XS_OpenGL_glGetPixelMapuiv)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glGetPixelMapuiv(map,values)");
-    }
     {
 	GLenum	map = (unsigned int)SvIV(ST(0));
 	char *	values = (char *)SvPV(ST(1),na);
 	{
-
 	   glGetPixelMapuiv(map,(GLuint *)values);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2802,18 +2314,14 @@ XS(XS_OpenGL_glGetPixelMapuiv)
 XS(XS_OpenGL_glGetPixelMapusv)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glGetPixelMapusv(map,values)");
-    }
     {
 	GLenum	map = (unsigned int)SvIV(ST(0));
 	char *	values = (char *)SvPV(ST(1),na);
 	{
-
 	   glGetPixelMapusv(map,(GLushort *)values);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2821,17 +2329,13 @@ XS(XS_OpenGL_glGetPixelMapusv)
 XS(XS_OpenGL_glGetPolygonStipple)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glGetPolygonStipple(mask)");
-    }
     {
 	char *	mask = (char *)SvPV(ST(0),na);
 	{
-
 	   glGetPolygonStipple((GLubyte *)mask);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2839,9 +2343,8 @@ XS(XS_OpenGL_glGetPolygonStipple)
 XS(XS_OpenGL_glGetSeparableFilterEXT)
 {
     dXSARGS;
-    if (items != 6) {
+    if (items != 6)
 	croak("Usage: OpenGL::glGetSeparableFilterEXT(target,format,type,row,column,span)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	format = (unsigned int)SvIV(ST(1));
@@ -2850,11 +2353,8 @@ XS(XS_OpenGL_glGetSeparableFilterEXT)
 	char *	column = (char *)SvPV(ST(4),na);
 	char *	span = (char *)SvPV(ST(5),na);
 	{
-
 	   glGetSeparableFilterEXT(target,format,type,(GLvoid *)row,(GLvoid *)column,(GLvoid *)span);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2862,18 +2362,14 @@ XS(XS_OpenGL_glGetSeparableFilterEXT)
 XS(XS_OpenGL_glGetSharpenTexFuncSGIS)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glGetSharpenTexFuncSGIS(target,points)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	char *	points = (char *)SvPV(ST(1),na);
 	{
-
 	   glGetSharpenTexFuncSGIS(target,(GLfloat *)points);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2881,19 +2377,15 @@ XS(XS_OpenGL_glGetSharpenTexFuncSGIS)
 XS(XS_OpenGL_glGetTexEnvfv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetTexEnvfv(target,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetTexEnvfv(target,pname,(GLfloat *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2901,19 +2393,15 @@ XS(XS_OpenGL_glGetTexEnvfv)
 XS(XS_OpenGL_glGetTexEnviv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetTexEnviv(target,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetTexEnviv(target,pname,(GLint *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2921,19 +2409,15 @@ XS(XS_OpenGL_glGetTexEnviv)
 XS(XS_OpenGL_glGetTexGendv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetTexGendv(coord,pname,params)");
-    }
     {
 	GLenum	coord = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetTexGendv(coord,pname,(GLdouble *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2941,19 +2425,15 @@ XS(XS_OpenGL_glGetTexGendv)
 XS(XS_OpenGL_glGetTexGenfv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetTexGenfv(coord,pname,params)");
-    }
     {
 	GLenum	coord = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetTexGenfv(coord,pname,(GLfloat *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2961,19 +2441,15 @@ XS(XS_OpenGL_glGetTexGenfv)
 XS(XS_OpenGL_glGetTexGeniv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetTexGeniv(coord,pname,params)");
-    }
     {
 	GLenum	coord = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetTexGeniv(coord,pname,(GLint *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -2981,9 +2457,8 @@ XS(XS_OpenGL_glGetTexGeniv)
 XS(XS_OpenGL_glGetTexImage)
 {
     dXSARGS;
-    if (items != 5) {
+    if (items != 5)
 	croak("Usage: OpenGL::glGetTexImage(target,level,format,type,pixels)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLint	level = (int)SvIV(ST(1));
@@ -2991,11 +2466,8 @@ XS(XS_OpenGL_glGetTexImage)
 	GLenum	type = (unsigned int)SvIV(ST(3));
 	char *	pixels = (char *)SvPV(ST(4),na);
 	{
-
 	   glGetTexImage(target,level,format,type,(GLvoid *)pixels);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3003,20 +2475,16 @@ XS(XS_OpenGL_glGetTexImage)
 XS(XS_OpenGL_glGetTexLevelParameterfv)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glGetTexLevelParameterfv(target,level,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLint	level = (int)SvIV(ST(1));
 	GLenum	pname = (unsigned int)SvIV(ST(2));
 	char *	params = (char *)SvPV(ST(3),na);
 	{
-
 	   glGetTexLevelParameterfv(target,level,pname,(GLfloat *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3024,20 +2492,16 @@ XS(XS_OpenGL_glGetTexLevelParameterfv)
 XS(XS_OpenGL_glGetTexLevelParameteriv)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glGetTexLevelParameteriv(target,level,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLint	level = (int)SvIV(ST(1));
 	GLenum	pname = (unsigned int)SvIV(ST(2));
 	char *	params = (char *)SvPV(ST(3),na);
 	{
-
 	   glGetTexLevelParameteriv(target,level,pname,(GLint *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3045,19 +2509,15 @@ XS(XS_OpenGL_glGetTexLevelParameteriv)
 XS(XS_OpenGL_glGetTexParameterfv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetTexParameterfv(target,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetTexParameterfv(target,pname,(GLfloat *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3065,19 +2525,15 @@ XS(XS_OpenGL_glGetTexParameterfv)
 XS(XS_OpenGL_glGetTexParameteriv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glGetTexParameteriv(target,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glGetTexParameteriv(target,pname,(GLint *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3085,9 +2541,8 @@ XS(XS_OpenGL_glGetTexParameteriv)
 XS(XS_OpenGL_glHint)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glHint(target,mode)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	mode = (unsigned int)SvIV(ST(1));
@@ -3100,9 +2555,8 @@ XS(XS_OpenGL_glHint)
 XS(XS_OpenGL_glHistogramEXT)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glHistogramEXT(target,width,internalformat,sink)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLsizei	width = (int)SvIV(ST(1));
@@ -3117,9 +2571,8 @@ XS(XS_OpenGL_glHistogramEXT)
 XS(XS_OpenGL_glIndexMask)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glIndexMask(mask)");
-    }
     {
 	GLuint	mask = (unsigned int)SvIV(ST(0));
 
@@ -3131,9 +2584,8 @@ XS(XS_OpenGL_glIndexMask)
 XS(XS_OpenGL_glIndexd)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glIndexd(c)");
-    }
     {
 	GLdouble	c = (double)SvNV(ST(0));
 
@@ -3145,17 +2597,13 @@ XS(XS_OpenGL_glIndexd)
 XS(XS_OpenGL_glIndexdv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glIndexdv(c)");
-    }
     {
 	char *	c = (char *)SvPV(ST(0),na);
 	{
-
 	   glIndexdv((GLdouble *)c);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3163,9 +2611,8 @@ XS(XS_OpenGL_glIndexdv)
 XS(XS_OpenGL_glIndexf)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glIndexf(c)");
-    }
     {
 	GLfloat	c = (float)SvNV(ST(0));
 
@@ -3177,17 +2624,13 @@ XS(XS_OpenGL_glIndexf)
 XS(XS_OpenGL_glIndexfv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glIndexfv(c)");
-    }
     {
 	char *	c = (char *)SvPV(ST(0),na);
 	{
-
 	   glIndexfv((GLfloat *)c);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3195,9 +2638,8 @@ XS(XS_OpenGL_glIndexfv)
 XS(XS_OpenGL_glIndexi)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glIndexi(c)");
-    }
     {
 	GLint	c = (int)SvIV(ST(0));
 
@@ -3209,17 +2651,13 @@ XS(XS_OpenGL_glIndexi)
 XS(XS_OpenGL_glIndexiv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glIndexiv(c)");
-    }
     {
 	char *	c = (char *)SvPV(ST(0),na);
 	{
-
 	   glIndexiv((GLint *)c);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3227,9 +2665,8 @@ XS(XS_OpenGL_glIndexiv)
 XS(XS_OpenGL_glIndexs)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glIndexs(c)");
-    }
     {
 	GLshort	c = (short)SvIV(ST(0));
 
@@ -3241,17 +2678,13 @@ XS(XS_OpenGL_glIndexs)
 XS(XS_OpenGL_glIndexsv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glIndexsv(c)");
-    }
     {
 	char *	c = (char *)SvPV(ST(0),na);
 	{
-
 	   glIndexsv((GLshort *)c);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3259,9 +2692,8 @@ XS(XS_OpenGL_glIndexsv)
 XS(XS_OpenGL_glInitNames)
 {
     dXSARGS;
-    if (items != 0) {
+    if (items != 0)
 	croak("Usage: OpenGL::glInitNames()");
-    }
     {
 
 	glInitNames();
@@ -3272,9 +2704,8 @@ XS(XS_OpenGL_glInitNames)
 XS(XS_OpenGL_glIsEnabled)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glIsEnabled(cap)");
-    }
     {
 	GLenum	cap = (unsigned int)SvIV(ST(0));
 	GLboolean	RETVAL;
@@ -3289,9 +2720,8 @@ XS(XS_OpenGL_glIsEnabled)
 XS(XS_OpenGL_glIsList)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glIsList(list)");
-    }
     {
 	GLuint	list = (unsigned int)SvIV(ST(0));
 	GLboolean	RETVAL;
@@ -3306,9 +2736,8 @@ XS(XS_OpenGL_glIsList)
 XS(XS_OpenGL_glLightModelf)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glLightModelf(pname,param)");
-    }
     {
 	GLenum	pname = (unsigned int)SvIV(ST(0));
 	GLfloat	param = (float)SvNV(ST(1));
@@ -3321,18 +2750,14 @@ XS(XS_OpenGL_glLightModelf)
 XS(XS_OpenGL_glLightModelfv)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glLightModelfv(pname,params)");
-    }
     {
 	GLenum	pname = (unsigned int)SvIV(ST(0));
 	char *	params = (char *)SvPV(ST(1),na);
 	{
-
 	   glLightModelfv(pname,(GLfloat *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3340,9 +2765,8 @@ XS(XS_OpenGL_glLightModelfv)
 XS(XS_OpenGL_glLightModeli)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glLightModeli(pname,param)");
-    }
     {
 	GLenum	pname = (unsigned int)SvIV(ST(0));
 	GLint	param = (int)SvIV(ST(1));
@@ -3355,18 +2779,14 @@ XS(XS_OpenGL_glLightModeli)
 XS(XS_OpenGL_glLightModeliv)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glLightModeliv(pname,params)");
-    }
     {
 	GLenum	pname = (unsigned int)SvIV(ST(0));
 	char *	params = (char *)SvPV(ST(1),na);
 	{
-
 	   glLightModeliv(pname,(GLint *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3374,9 +2794,8 @@ XS(XS_OpenGL_glLightModeliv)
 XS(XS_OpenGL_glLightf)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glLightf(light,pname,param)");
-    }
     {
 	GLenum	light = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
@@ -3390,19 +2809,15 @@ XS(XS_OpenGL_glLightf)
 XS(XS_OpenGL_glLightfv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glLightfv(light,pname,params)");
-    }
     {
 	GLenum	light = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glLightfv(light,pname,(GLfloat *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3410,9 +2825,8 @@ XS(XS_OpenGL_glLightfv)
 XS(XS_OpenGL_glLighti)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glLighti(light,pname,param)");
-    }
     {
 	GLenum	light = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
@@ -3426,19 +2840,15 @@ XS(XS_OpenGL_glLighti)
 XS(XS_OpenGL_glLightiv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glLightiv(light,pname,params)");
-    }
     {
 	GLenum	light = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glLightiv(light,pname,(GLint *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3446,9 +2856,8 @@ XS(XS_OpenGL_glLightiv)
 XS(XS_OpenGL_glLineStipple)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glLineStipple(factor,pattern)");
-    }
     {
 	GLint	factor = (int)SvIV(ST(0));
 	GLushort	pattern = (unsigned short)SvIV(ST(1));
@@ -3461,9 +2870,8 @@ XS(XS_OpenGL_glLineStipple)
 XS(XS_OpenGL_glLineWidth)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glLineWidth(width)");
-    }
     {
 	GLfloat	width = (float)SvNV(ST(0));
 
@@ -3475,9 +2883,8 @@ XS(XS_OpenGL_glLineWidth)
 XS(XS_OpenGL_glListBase)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glListBase(base)");
-    }
     {
 	GLuint	base = (unsigned int)SvIV(ST(0));
 
@@ -3489,9 +2896,8 @@ XS(XS_OpenGL_glListBase)
 XS(XS_OpenGL_glLoadIdentity)
 {
     dXSARGS;
-    if (items != 0) {
+    if (items != 0)
 	croak("Usage: OpenGL::glLoadIdentity()");
-    }
     {
 
 	glLoadIdentity();
@@ -3502,17 +2908,13 @@ XS(XS_OpenGL_glLoadIdentity)
 XS(XS_OpenGL_glLoadMatrixd)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glLoadMatrixd(m)");
-    }
     {
 	char *	m = (char *)SvPV(ST(0),na);
 	{
-
 	   glLoadMatrixd((GLdouble *)m);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3520,17 +2922,13 @@ XS(XS_OpenGL_glLoadMatrixd)
 XS(XS_OpenGL_glLoadMatrixf)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glLoadMatrixf(m)");
-    }
     {
 	char *	m = (char *)SvPV(ST(0),na);
 	{
-
 	   glLoadMatrixf((GLfloat *)m);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3538,9 +2936,8 @@ XS(XS_OpenGL_glLoadMatrixf)
 XS(XS_OpenGL_glLoadName)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glLoadName(name)");
-    }
     {
 	GLuint	name = (unsigned int)SvIV(ST(0));
 
@@ -3552,9 +2949,8 @@ XS(XS_OpenGL_glLoadName)
 XS(XS_OpenGL_glLogicOp)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glLogicOp(opcode)");
-    }
     {
 	GLenum	opcode = (unsigned int)SvIV(ST(0));
 
@@ -3566,9 +2962,8 @@ XS(XS_OpenGL_glLogicOp)
 XS(XS_OpenGL_glMap1d)
 {
     dXSARGS;
-    if (items != 6) {
+    if (items != 6)
 	croak("Usage: OpenGL::glMap1d(target,u1,u2,stride,order,points)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLdouble	u1 = (double)SvNV(ST(1));
@@ -3577,11 +2972,8 @@ XS(XS_OpenGL_glMap1d)
 	GLint	order = (int)SvIV(ST(4));
 	char *	points = (char *)SvPV(ST(5),na);
 	{
-
 	   glMap1d(target,u1,u2,stride,order,(GLdouble *)points);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3589,9 +2981,8 @@ XS(XS_OpenGL_glMap1d)
 XS(XS_OpenGL_glMap1f)
 {
     dXSARGS;
-    if (items != 6) {
+    if (items != 6)
 	croak("Usage: OpenGL::glMap1f(target,u1,u2,stride,order,points)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLfloat	u1 = (float)SvNV(ST(1));
@@ -3600,11 +2991,8 @@ XS(XS_OpenGL_glMap1f)
 	GLint	order = (int)SvIV(ST(4));
 	char *	points = (char *)SvPV(ST(5),na);
 	{
-
 	   glMap1f(target,u1,u2,stride,order,(GLfloat *)points);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3612,9 +3000,8 @@ XS(XS_OpenGL_glMap1f)
 XS(XS_OpenGL_glMap2d)
 {
     dXSARGS;
-    if (items != 10) {
+    if (items != 10)
 	croak("Usage: OpenGL::glMap2d(target,u1,u2,ustride,uorder,v1,v2,vstride,vorder,points)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLdouble	u1 = (double)SvNV(ST(1));
@@ -3627,11 +3014,8 @@ XS(XS_OpenGL_glMap2d)
 	GLint	vorder = (int)SvIV(ST(8));
 	char *	points = (char *)SvPV(ST(9),na);
 	{
-
 	   glMap2d(target,u1,u2,ustride,uorder,v1,v2,vstride,vorder,(GLdouble *)points);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3639,9 +3023,8 @@ XS(XS_OpenGL_glMap2d)
 XS(XS_OpenGL_glMap2f)
 {
     dXSARGS;
-    if (items != 10) {
+    if (items != 10)
 	croak("Usage: OpenGL::glMap2f(target,u1,u2,ustride,uorder,v1,v2,vstride,vorder,points)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLfloat	u1 = (float)SvNV(ST(1));
@@ -3654,11 +3037,8 @@ XS(XS_OpenGL_glMap2f)
 	GLint	vorder = (int)SvIV(ST(8));
 	char *	points = (char *)SvPV(ST(9),na);
 	{
-
 	   glMap2f(target,u1,u2,ustride,uorder,v1,v2,vstride,vorder,(GLfloat *)points);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3666,9 +3046,8 @@ XS(XS_OpenGL_glMap2f)
 XS(XS_OpenGL_glMapGrid1d)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glMapGrid1d(un,u1,u2)");
-    }
     {
 	GLint	un = (int)SvIV(ST(0));
 	GLdouble	u1 = (double)SvNV(ST(1));
@@ -3682,9 +3061,8 @@ XS(XS_OpenGL_glMapGrid1d)
 XS(XS_OpenGL_glMapGrid1f)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glMapGrid1f(un,u1,u2)");
-    }
     {
 	GLint	un = (int)SvIV(ST(0));
 	GLfloat	u1 = (float)SvNV(ST(1));
@@ -3698,9 +3076,8 @@ XS(XS_OpenGL_glMapGrid1f)
 XS(XS_OpenGL_glMapGrid2d)
 {
     dXSARGS;
-    if (items != 6) {
+    if (items != 6)
 	croak("Usage: OpenGL::glMapGrid2d(un,u1,u2,vn,v1,v2)");
-    }
     {
 	GLint	un = (int)SvIV(ST(0));
 	GLdouble	u1 = (double)SvNV(ST(1));
@@ -3717,9 +3094,8 @@ XS(XS_OpenGL_glMapGrid2d)
 XS(XS_OpenGL_glMapGrid2f)
 {
     dXSARGS;
-    if (items != 6) {
+    if (items != 6)
 	croak("Usage: OpenGL::glMapGrid2f(un,u1,u2,vn,v1,v2)");
-    }
     {
 	GLint	un = (int)SvIV(ST(0));
 	GLfloat	u1 = (float)SvNV(ST(1));
@@ -3736,9 +3112,8 @@ XS(XS_OpenGL_glMapGrid2f)
 XS(XS_OpenGL_glMaterialf)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glMaterialf(face,pname,param)");
-    }
     {
 	GLenum	face = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
@@ -3752,19 +3127,15 @@ XS(XS_OpenGL_glMaterialf)
 XS(XS_OpenGL_glMaterialfv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glMaterialfv(face,pname,params)");
-    }
     {
 	GLenum	face = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glMaterialfv(face,pname,(GLfloat *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3772,9 +3143,8 @@ XS(XS_OpenGL_glMaterialfv)
 XS(XS_OpenGL_glMateriali)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glMateriali(face,pname,param)");
-    }
     {
 	GLenum	face = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
@@ -3788,19 +3158,15 @@ XS(XS_OpenGL_glMateriali)
 XS(XS_OpenGL_glMaterialiv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glMaterialiv(face,pname,params)");
-    }
     {
 	GLenum	face = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glMaterialiv(face,pname,(GLint *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3808,9 +3174,8 @@ XS(XS_OpenGL_glMaterialiv)
 XS(XS_OpenGL_glMatrixMode)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glMatrixMode(mode)");
-    }
     {
 	GLenum	mode = (unsigned int)SvIV(ST(0));
 
@@ -3822,9 +3187,8 @@ XS(XS_OpenGL_glMatrixMode)
 XS(XS_OpenGL_glMinmaxEXT)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glMinmaxEXT(target,internalformat,sink)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	internalformat = (unsigned int)SvIV(ST(1));
@@ -3838,17 +3202,13 @@ XS(XS_OpenGL_glMinmaxEXT)
 XS(XS_OpenGL_glMultMatrixd)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glMultMatrixd(m)");
-    }
     {
 	char *	m = (char *)SvPV(ST(0),na);
 	{
-
 	   glMultMatrixd((GLdouble *)m);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3856,17 +3216,13 @@ XS(XS_OpenGL_glMultMatrixd)
 XS(XS_OpenGL_glMultMatrixf)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glMultMatrixf(m)");
-    }
     {
 	char *	m = (char *)SvPV(ST(0),na);
 	{
-
 	   glMultMatrixf((GLfloat *)m);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3874,9 +3230,8 @@ XS(XS_OpenGL_glMultMatrixf)
 XS(XS_OpenGL_glNewList)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glNewList(list,mode)");
-    }
     {
 	GLuint	list = (unsigned int)SvIV(ST(0));
 	GLenum	mode = (unsigned int)SvIV(ST(1));
@@ -3889,9 +3244,8 @@ XS(XS_OpenGL_glNewList)
 XS(XS_OpenGL_glNormal3b)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glNormal3b(nx,ny,nz)");
-    }
     {
 	GLbyte	nx = (char)*SvPV(ST(0),na);
 	GLbyte	ny = (char)*SvPV(ST(1),na);
@@ -3905,17 +3259,13 @@ XS(XS_OpenGL_glNormal3b)
 XS(XS_OpenGL_glNormal3bv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glNormal3bv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glNormal3bv((GLbyte *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3923,9 +3273,8 @@ XS(XS_OpenGL_glNormal3bv)
 XS(XS_OpenGL_glNormal3d)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glNormal3d(nx,ny,nz)");
-    }
     {
 	GLdouble	nx = (double)SvNV(ST(0));
 	GLdouble	ny = (double)SvNV(ST(1));
@@ -3939,17 +3288,13 @@ XS(XS_OpenGL_glNormal3d)
 XS(XS_OpenGL_glNormal3dv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glNormal3dv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glNormal3dv((GLdouble *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3957,9 +3302,8 @@ XS(XS_OpenGL_glNormal3dv)
 XS(XS_OpenGL_glNormal3f)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glNormal3f(nx,ny,nz)");
-    }
     {
 	GLfloat	nx = (float)SvNV(ST(0));
 	GLfloat	ny = (float)SvNV(ST(1));
@@ -3973,17 +3317,13 @@ XS(XS_OpenGL_glNormal3f)
 XS(XS_OpenGL_glNormal3fv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glNormal3fv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glNormal3fv((GLfloat *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -3991,9 +3331,8 @@ XS(XS_OpenGL_glNormal3fv)
 XS(XS_OpenGL_glNormal3i)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glNormal3i(nx,ny,nz)");
-    }
     {
 	GLint	nx = (int)SvIV(ST(0));
 	GLint	ny = (int)SvIV(ST(1));
@@ -4007,17 +3346,13 @@ XS(XS_OpenGL_glNormal3i)
 XS(XS_OpenGL_glNormal3iv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glNormal3iv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glNormal3iv((GLint *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4025,9 +3360,8 @@ XS(XS_OpenGL_glNormal3iv)
 XS(XS_OpenGL_glNormal3s)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glNormal3s(nx,ny,nz)");
-    }
     {
 	GLshort	nx = (short)SvIV(ST(0));
 	GLshort	ny = (short)SvIV(ST(1));
@@ -4041,17 +3375,13 @@ XS(XS_OpenGL_glNormal3s)
 XS(XS_OpenGL_glNormal3sv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glNormal3sv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glNormal3sv((GLshort *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4059,9 +3389,8 @@ XS(XS_OpenGL_glNormal3sv)
 XS(XS_OpenGL_glOrtho)
 {
     dXSARGS;
-    if (items != 6) {
+    if (items != 6)
 	croak("Usage: OpenGL::glOrtho(left,right,bottom,top,near,far)");
-    }
     {
 	GLdouble	left = (double)SvNV(ST(0));
 	GLdouble	right = (double)SvNV(ST(1));
@@ -4078,9 +3407,8 @@ XS(XS_OpenGL_glOrtho)
 XS(XS_OpenGL_glPassThrough)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glPassThrough(token)");
-    }
     {
 	GLfloat	token = (float)SvNV(ST(0));
 
@@ -4092,19 +3420,15 @@ XS(XS_OpenGL_glPassThrough)
 XS(XS_OpenGL_glPixelMapfv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glPixelMapfv(map,mapsize,values)");
-    }
     {
 	GLenum	map = (unsigned int)SvIV(ST(0));
 	GLint	mapsize = (int)SvIV(ST(1));
 	char *	values = (char *)SvPV(ST(2),na);
 	{
-
 	   glPixelMapfv(map,mapsize,(GLfloat *)values);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4112,19 +3436,15 @@ XS(XS_OpenGL_glPixelMapfv)
 XS(XS_OpenGL_glPixelMapuiv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glPixelMapuiv(map,mapsize,values)");
-    }
     {
 	GLenum	map = (unsigned int)SvIV(ST(0));
 	GLint	mapsize = (int)SvIV(ST(1));
 	char *	values = (char *)SvPV(ST(2),na);
 	{
-
 	   glPixelMapuiv(map,mapsize,(GLuint *)values);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4132,19 +3452,15 @@ XS(XS_OpenGL_glPixelMapuiv)
 XS(XS_OpenGL_glPixelMapusv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glPixelMapusv(map,mapsize,values)");
-    }
     {
 	GLenum	map = (unsigned int)SvIV(ST(0));
 	GLint	mapsize = (int)SvIV(ST(1));
 	char *	values = (char *)SvPV(ST(2),na);
 	{
-
 	   glPixelMapusv(map,mapsize,(GLushort *)values);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4152,9 +3468,8 @@ XS(XS_OpenGL_glPixelMapusv)
 XS(XS_OpenGL_glPixelStoref)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glPixelStoref(pname,param)");
-    }
     {
 	GLenum	pname = (unsigned int)SvIV(ST(0));
 	GLfloat	param = (float)SvNV(ST(1));
@@ -4167,9 +3482,8 @@ XS(XS_OpenGL_glPixelStoref)
 XS(XS_OpenGL_glPixelStorei)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glPixelStorei(pname,param)");
-    }
     {
 	GLenum	pname = (unsigned int)SvIV(ST(0));
 	GLint	param = (int)SvIV(ST(1));
@@ -4182,9 +3496,8 @@ XS(XS_OpenGL_glPixelStorei)
 XS(XS_OpenGL_glPixelTransferf)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glPixelTransferf(pname,param)");
-    }
     {
 	GLenum	pname = (unsigned int)SvIV(ST(0));
 	GLfloat	param = (float)SvNV(ST(1));
@@ -4197,9 +3510,8 @@ XS(XS_OpenGL_glPixelTransferf)
 XS(XS_OpenGL_glPixelTransferi)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glPixelTransferi(pname,param)");
-    }
     {
 	GLenum	pname = (unsigned int)SvIV(ST(0));
 	GLint	param = (int)SvIV(ST(1));
@@ -4212,9 +3524,8 @@ XS(XS_OpenGL_glPixelTransferi)
 XS(XS_OpenGL_glPixelZoom)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glPixelZoom(xfactor,yfactor)");
-    }
     {
 	GLfloat	xfactor = (float)SvNV(ST(0));
 	GLfloat	yfactor = (float)SvNV(ST(1));
@@ -4227,9 +3538,8 @@ XS(XS_OpenGL_glPixelZoom)
 XS(XS_OpenGL_glPointSize)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glPointSize(size)");
-    }
     {
 	GLfloat	size = (float)SvNV(ST(0));
 
@@ -4241,9 +3551,8 @@ XS(XS_OpenGL_glPointSize)
 XS(XS_OpenGL_glPolygonMode)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glPolygonMode(face,mode)");
-    }
     {
 	GLenum	face = (unsigned int)SvIV(ST(0));
 	GLenum	mode = (unsigned int)SvIV(ST(1));
@@ -4256,9 +3565,8 @@ XS(XS_OpenGL_glPolygonMode)
 XS(XS_OpenGL_glPolygonOffsetEXT)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glPolygonOffsetEXT(factor,bias)");
-    }
     {
 	GLfloat	factor = (float)SvNV(ST(0));
 	GLfloat	bias = (float)SvNV(ST(1));
@@ -4271,17 +3579,13 @@ XS(XS_OpenGL_glPolygonOffsetEXT)
 XS(XS_OpenGL_glPolygonStipple)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glPolygonStipple(mask)");
-    }
     {
 	char *	mask = (char *)SvPV(ST(0),na);
 	{
-
 	   glPolygonStipple((GLubyte *)mask);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4289,9 +3593,8 @@ XS(XS_OpenGL_glPolygonStipple)
 XS(XS_OpenGL_glPopAttrib)
 {
     dXSARGS;
-    if (items != 0) {
+    if (items != 0)
 	croak("Usage: OpenGL::glPopAttrib()");
-    }
     {
 
 	glPopAttrib();
@@ -4302,9 +3605,8 @@ XS(XS_OpenGL_glPopAttrib)
 XS(XS_OpenGL_glPopMatrix)
 {
     dXSARGS;
-    if (items != 0) {
+    if (items != 0)
 	croak("Usage: OpenGL::glPopMatrix()");
-    }
     {
 
 	glPopMatrix();
@@ -4315,9 +3617,8 @@ XS(XS_OpenGL_glPopMatrix)
 XS(XS_OpenGL_glPopName)
 {
     dXSARGS;
-    if (items != 0) {
+    if (items != 0)
 	croak("Usage: OpenGL::glPopName()");
-    }
     {
 
 	glPopName();
@@ -4328,9 +3629,8 @@ XS(XS_OpenGL_glPopName)
 XS(XS_OpenGL_glPushAttrib)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glPushAttrib(mask)");
-    }
     {
 	GLbitfield	mask = (unsigned int)SvIV(ST(0));
 
@@ -4342,9 +3642,8 @@ XS(XS_OpenGL_glPushAttrib)
 XS(XS_OpenGL_glPushMatrix)
 {
     dXSARGS;
-    if (items != 0) {
+    if (items != 0)
 	croak("Usage: OpenGL::glPushMatrix()");
-    }
     {
 
 	glPushMatrix();
@@ -4355,9 +3654,8 @@ XS(XS_OpenGL_glPushMatrix)
 XS(XS_OpenGL_glPushName)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glPushName(name)");
-    }
     {
 	GLuint	name = (unsigned int)SvIV(ST(0));
 
@@ -4369,9 +3667,8 @@ XS(XS_OpenGL_glPushName)
 XS(XS_OpenGL_glRasterPos2d)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glRasterPos2d(x,y)");
-    }
     {
 	GLdouble	x = (double)SvNV(ST(0));
 	GLdouble	y = (double)SvNV(ST(1));
@@ -4384,17 +3681,13 @@ XS(XS_OpenGL_glRasterPos2d)
 XS(XS_OpenGL_glRasterPos2dv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glRasterPos2dv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glRasterPos2dv((GLdouble *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4402,9 +3695,8 @@ XS(XS_OpenGL_glRasterPos2dv)
 XS(XS_OpenGL_glRasterPos2f)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glRasterPos2f(x,y)");
-    }
     {
 	GLfloat	x = (float)SvNV(ST(0));
 	GLfloat	y = (float)SvNV(ST(1));
@@ -4417,17 +3709,13 @@ XS(XS_OpenGL_glRasterPos2f)
 XS(XS_OpenGL_glRasterPos2fv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glRasterPos2fv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glRasterPos2fv((GLfloat *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4435,9 +3723,8 @@ XS(XS_OpenGL_glRasterPos2fv)
 XS(XS_OpenGL_glRasterPos2i)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glRasterPos2i(x,y)");
-    }
     {
 	GLint	x = (int)SvIV(ST(0));
 	GLint	y = (int)SvIV(ST(1));
@@ -4450,17 +3737,13 @@ XS(XS_OpenGL_glRasterPos2i)
 XS(XS_OpenGL_glRasterPos2iv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glRasterPos2iv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glRasterPos2iv((GLint *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4468,9 +3751,8 @@ XS(XS_OpenGL_glRasterPos2iv)
 XS(XS_OpenGL_glRasterPos2s)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glRasterPos2s(x,y)");
-    }
     {
 	GLshort	x = (short)SvIV(ST(0));
 	GLshort	y = (short)SvIV(ST(1));
@@ -4483,17 +3765,13 @@ XS(XS_OpenGL_glRasterPos2s)
 XS(XS_OpenGL_glRasterPos2sv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glRasterPos2sv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glRasterPos2sv((GLshort *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4501,9 +3779,8 @@ XS(XS_OpenGL_glRasterPos2sv)
 XS(XS_OpenGL_glRasterPos3d)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glRasterPos3d(x,y,z)");
-    }
     {
 	GLdouble	x = (double)SvNV(ST(0));
 	GLdouble	y = (double)SvNV(ST(1));
@@ -4517,17 +3794,13 @@ XS(XS_OpenGL_glRasterPos3d)
 XS(XS_OpenGL_glRasterPos3dv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glRasterPos3dv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glRasterPos3dv((GLdouble *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4535,9 +3808,8 @@ XS(XS_OpenGL_glRasterPos3dv)
 XS(XS_OpenGL_glRasterPos3f)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glRasterPos3f(x,y,z)");
-    }
     {
 	GLfloat	x = (float)SvNV(ST(0));
 	GLfloat	y = (float)SvNV(ST(1));
@@ -4551,17 +3823,13 @@ XS(XS_OpenGL_glRasterPos3f)
 XS(XS_OpenGL_glRasterPos3fv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glRasterPos3fv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glRasterPos3fv((GLfloat *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4569,9 +3837,8 @@ XS(XS_OpenGL_glRasterPos3fv)
 XS(XS_OpenGL_glRasterPos3i)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glRasterPos3i(x,y,z)");
-    }
     {
 	GLint	x = (int)SvIV(ST(0));
 	GLint	y = (int)SvIV(ST(1));
@@ -4585,17 +3852,13 @@ XS(XS_OpenGL_glRasterPos3i)
 XS(XS_OpenGL_glRasterPos3iv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glRasterPos3iv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glRasterPos3iv((GLint *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4603,9 +3866,8 @@ XS(XS_OpenGL_glRasterPos3iv)
 XS(XS_OpenGL_glRasterPos3s)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glRasterPos3s(x,y,z)");
-    }
     {
 	GLshort	x = (short)SvIV(ST(0));
 	GLshort	y = (short)SvIV(ST(1));
@@ -4619,17 +3881,13 @@ XS(XS_OpenGL_glRasterPos3s)
 XS(XS_OpenGL_glRasterPos3sv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glRasterPos3sv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glRasterPos3sv((GLshort *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4637,9 +3895,8 @@ XS(XS_OpenGL_glRasterPos3sv)
 XS(XS_OpenGL_glRasterPos4d)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glRasterPos4d(x,y,z,w)");
-    }
     {
 	GLdouble	x = (double)SvNV(ST(0));
 	GLdouble	y = (double)SvNV(ST(1));
@@ -4654,17 +3911,13 @@ XS(XS_OpenGL_glRasterPos4d)
 XS(XS_OpenGL_glRasterPos4dv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glRasterPos4dv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glRasterPos4dv((GLdouble *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4672,9 +3925,8 @@ XS(XS_OpenGL_glRasterPos4dv)
 XS(XS_OpenGL_glRasterPos4f)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glRasterPos4f(x,y,z,w)");
-    }
     {
 	GLfloat	x = (float)SvNV(ST(0));
 	GLfloat	y = (float)SvNV(ST(1));
@@ -4689,17 +3941,13 @@ XS(XS_OpenGL_glRasterPos4f)
 XS(XS_OpenGL_glRasterPos4fv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glRasterPos4fv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glRasterPos4fv((GLfloat *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4707,9 +3955,8 @@ XS(XS_OpenGL_glRasterPos4fv)
 XS(XS_OpenGL_glRasterPos4i)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glRasterPos4i(x,y,z,w)");
-    }
     {
 	GLint	x = (int)SvIV(ST(0));
 	GLint	y = (int)SvIV(ST(1));
@@ -4724,17 +3971,13 @@ XS(XS_OpenGL_glRasterPos4i)
 XS(XS_OpenGL_glRasterPos4iv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glRasterPos4iv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glRasterPos4iv((GLint *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4742,9 +3985,8 @@ XS(XS_OpenGL_glRasterPos4iv)
 XS(XS_OpenGL_glRasterPos4s)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glRasterPos4s(x,y,z,w)");
-    }
     {
 	GLshort	x = (short)SvIV(ST(0));
 	GLshort	y = (short)SvIV(ST(1));
@@ -4759,17 +4001,13 @@ XS(XS_OpenGL_glRasterPos4s)
 XS(XS_OpenGL_glRasterPos4sv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glRasterPos4sv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glRasterPos4sv((GLshort *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4777,9 +4015,8 @@ XS(XS_OpenGL_glRasterPos4sv)
 XS(XS_OpenGL_glReadBuffer)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glReadBuffer(mode)");
-    }
     {
 	GLenum	mode = (unsigned int)SvIV(ST(0));
 
@@ -4791,9 +4028,8 @@ XS(XS_OpenGL_glReadBuffer)
 XS(XS_OpenGL_glReadPixels)
 {
     dXSARGS;
-    if (items != 7) {
+    if (items != 7)
 	croak("Usage: OpenGL::glReadPixels(x,y,width,height,format,type,pixels)");
-    }
     {
 	GLint	x = (int)SvIV(ST(0));
 	GLint	y = (int)SvIV(ST(1));
@@ -4803,11 +4039,8 @@ XS(XS_OpenGL_glReadPixels)
 	GLenum	type = (unsigned int)SvIV(ST(5));
 	char *	pixels = (char *)SvPV(ST(6),na);
 	{
-
 	   glReadPixels(x,y,width,height,format,type,(GLvoid *)pixels);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4815,9 +4048,8 @@ XS(XS_OpenGL_glReadPixels)
 XS(XS_OpenGL_glRectd)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glRectd(x1,y1,x2,y2)");
-    }
     {
 	GLdouble	x1 = (double)SvNV(ST(0));
 	GLdouble	y1 = (double)SvNV(ST(1));
@@ -4832,18 +4064,14 @@ XS(XS_OpenGL_glRectd)
 XS(XS_OpenGL_glRectdv)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glRectdv(v1,v2)");
-    }
     {
 	char *	v1 = (char *)SvPV(ST(0),na);
 	char *	v2 = (char *)SvPV(ST(1),na);
 	{
-
 	   glRectdv((GLdouble *)v1,(GLdouble *)v2);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4851,9 +4079,8 @@ XS(XS_OpenGL_glRectdv)
 XS(XS_OpenGL_glRectf)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glRectf(x1,y1,x2,y2)");
-    }
     {
 	GLfloat	x1 = (float)SvNV(ST(0));
 	GLfloat	y1 = (float)SvNV(ST(1));
@@ -4868,18 +4095,14 @@ XS(XS_OpenGL_glRectf)
 XS(XS_OpenGL_glRectfv)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glRectfv(v1,v2)");
-    }
     {
 	char *	v1 = (char *)SvPV(ST(0),na);
 	char *	v2 = (char *)SvPV(ST(1),na);
 	{
-
 	   glRectfv((GLfloat *)v1,(GLfloat *)v2);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4887,9 +4110,8 @@ XS(XS_OpenGL_glRectfv)
 XS(XS_OpenGL_glRecti)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glRecti(x1,y1,x2,y2)");
-    }
     {
 	GLint	x1 = (int)SvIV(ST(0));
 	GLint	y1 = (int)SvIV(ST(1));
@@ -4904,18 +4126,14 @@ XS(XS_OpenGL_glRecti)
 XS(XS_OpenGL_glRectiv)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glRectiv(v1,v2)");
-    }
     {
 	char *	v1 = (char *)SvPV(ST(0),na);
 	char *	v2 = (char *)SvPV(ST(1),na);
 	{
-
 	   glRectiv((GLint *)v1,(GLint *)v2);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4923,9 +4141,8 @@ XS(XS_OpenGL_glRectiv)
 XS(XS_OpenGL_glRects)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glRects(x1,y1,x2,y2)");
-    }
     {
 	GLshort	x1 = (short)SvIV(ST(0));
 	GLshort	y1 = (short)SvIV(ST(1));
@@ -4940,18 +4157,14 @@ XS(XS_OpenGL_glRects)
 XS(XS_OpenGL_glRectsv)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glRectsv(v1,v2)");
-    }
     {
 	char *	v1 = (char *)SvPV(ST(0),na);
 	char *	v2 = (char *)SvPV(ST(1),na);
 	{
-
 	   glRectsv((GLshort *)v1,(GLshort *)v2);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -4959,9 +4172,8 @@ XS(XS_OpenGL_glRectsv)
 XS(XS_OpenGL_glRenderMode)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glRenderMode(mode)");
-    }
     {
 	GLenum	mode = (unsigned int)SvIV(ST(0));
 	GLint	RETVAL;
@@ -4976,9 +4188,8 @@ XS(XS_OpenGL_glRenderMode)
 XS(XS_OpenGL_glResetHistogramEXT)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glResetHistogramEXT(target)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 
@@ -4990,9 +4201,8 @@ XS(XS_OpenGL_glResetHistogramEXT)
 XS(XS_OpenGL_glResetMinmaxEXT)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glResetMinmaxEXT(target)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 
@@ -5004,9 +4214,8 @@ XS(XS_OpenGL_glResetMinmaxEXT)
 XS(XS_OpenGL_glRotated)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glRotated(angle,x,y,z)");
-    }
     {
 	GLdouble	angle = (double)SvNV(ST(0));
 	GLdouble	x = (double)SvNV(ST(1));
@@ -5021,9 +4230,8 @@ XS(XS_OpenGL_glRotated)
 XS(XS_OpenGL_glRotatef)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glRotatef(angle,x,y,z)");
-    }
     {
 	GLfloat	angle = (float)SvNV(ST(0));
 	GLfloat	x = (float)SvNV(ST(1));
@@ -5038,9 +4246,8 @@ XS(XS_OpenGL_glRotatef)
 XS(XS_OpenGL_glSampleMaskSGIS)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glSampleMaskSGIS(value,invert)");
-    }
     {
 	GLfloat	value = (float)SvNV(ST(0));
 	GLboolean	invert = (unsigned char)SvIV(ST(1));
@@ -5053,9 +4260,8 @@ XS(XS_OpenGL_glSampleMaskSGIS)
 XS(XS_OpenGL_glSamplePatternSGIS)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glSamplePatternSGIS(pattern)");
-    }
     {
 	GLenum	pattern = (unsigned int)SvIV(ST(0));
 
@@ -5067,9 +4273,8 @@ XS(XS_OpenGL_glSamplePatternSGIS)
 XS(XS_OpenGL_glScaled)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glScaled(x,y,z)");
-    }
     {
 	GLdouble	x = (double)SvNV(ST(0));
 	GLdouble	y = (double)SvNV(ST(1));
@@ -5083,9 +4288,8 @@ XS(XS_OpenGL_glScaled)
 XS(XS_OpenGL_glScalef)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glScalef(x,y,z)");
-    }
     {
 	GLfloat	x = (float)SvNV(ST(0));
 	GLfloat	y = (float)SvNV(ST(1));
@@ -5099,9 +4303,8 @@ XS(XS_OpenGL_glScalef)
 XS(XS_OpenGL_glScissor)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glScissor(x,y,width,height)");
-    }
     {
 	GLint	x = (int)SvIV(ST(0));
 	GLint	y = (int)SvIV(ST(1));
@@ -5116,18 +4319,14 @@ XS(XS_OpenGL_glScissor)
 XS(XS_OpenGL_glSelectBuffer)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glSelectBuffer(size,buffer)");
-    }
     {
 	GLsizei	size = (int)SvIV(ST(0));
 	char *	buffer = (char *)SvPV(ST(1),na);
 	{
-
 	   glSelectBuffer(size,(GLuint *)buffer);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5135,9 +4334,8 @@ XS(XS_OpenGL_glSelectBuffer)
 XS(XS_OpenGL_glSeparableFilter2DEXT)
 {
     dXSARGS;
-    if (items != 8) {
+    if (items != 8)
 	croak("Usage: OpenGL::glSeparableFilter2DEXT(target,internalformat,width,height,format,type,row,column)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	internalformat = (unsigned int)SvIV(ST(1));
@@ -5148,11 +4346,8 @@ XS(XS_OpenGL_glSeparableFilter2DEXT)
 	char *	row = (char *)SvPV(ST(6),na);
 	char *	column = (char *)SvPV(ST(7),na);
 	{
-
 	   glSeparableFilter2DEXT(target,internalformat,width,height,format,type,(GLvoid *)row,(GLvoid *)column);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5160,9 +4355,8 @@ XS(XS_OpenGL_glSeparableFilter2DEXT)
 XS(XS_OpenGL_glShadeModel)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glShadeModel(mode)");
-    }
     {
 	GLenum	mode = (unsigned int)SvIV(ST(0));
 
@@ -5174,19 +4368,15 @@ XS(XS_OpenGL_glShadeModel)
 XS(XS_OpenGL_glSharpenTexFuncSGIS)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glSharpenTexFuncSGIS(target,n,points)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLsizei	n = (int)SvIV(ST(1));
 	char *	points = (char *)SvPV(ST(2),na);
 	{
-
 	   glSharpenTexFuncSGIS(target,n,(GLfloat *)points);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5194,9 +4384,8 @@ XS(XS_OpenGL_glSharpenTexFuncSGIS)
 XS(XS_OpenGL_glStencilFunc)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glStencilFunc(func,ref,mask)");
-    }
     {
 	GLenum	func = (unsigned int)SvIV(ST(0));
 	GLint	ref = (int)SvIV(ST(1));
@@ -5210,9 +4399,8 @@ XS(XS_OpenGL_glStencilFunc)
 XS(XS_OpenGL_glStencilMask)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glStencilMask(mask)");
-    }
     {
 	GLuint	mask = (unsigned int)SvIV(ST(0));
 
@@ -5224,9 +4412,8 @@ XS(XS_OpenGL_glStencilMask)
 XS(XS_OpenGL_glStencilOp)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glStencilOp(fail,zfail,zpass)");
-    }
     {
 	GLenum	fail = (unsigned int)SvIV(ST(0));
 	GLenum	zfail = (unsigned int)SvIV(ST(1));
@@ -5240,9 +4427,8 @@ XS(XS_OpenGL_glStencilOp)
 XS(XS_OpenGL_glTagSampleBufferSGIX)
 {
     dXSARGS;
-    if (items != 0) {
+    if (items != 0)
 	croak("Usage: OpenGL::glTagSampleBufferSGIX()");
-    }
     {
 
 	glTagSampleBufferSGIX();
@@ -5253,9 +4439,8 @@ XS(XS_OpenGL_glTagSampleBufferSGIX)
 XS(XS_OpenGL_glTexCoord1d)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord1d(s)");
-    }
     {
 	GLdouble	s = (double)SvNV(ST(0));
 
@@ -5267,17 +4452,13 @@ XS(XS_OpenGL_glTexCoord1d)
 XS(XS_OpenGL_glTexCoord1dv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord1dv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glTexCoord1dv((GLdouble *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5285,9 +4466,8 @@ XS(XS_OpenGL_glTexCoord1dv)
 XS(XS_OpenGL_glTexCoord1f)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord1f(s)");
-    }
     {
 	GLfloat	s = (float)SvNV(ST(0));
 
@@ -5299,17 +4479,13 @@ XS(XS_OpenGL_glTexCoord1f)
 XS(XS_OpenGL_glTexCoord1fv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord1fv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glTexCoord1fv((GLfloat *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5317,9 +4493,8 @@ XS(XS_OpenGL_glTexCoord1fv)
 XS(XS_OpenGL_glTexCoord1i)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord1i(s)");
-    }
     {
 	GLint	s = (int)SvIV(ST(0));
 
@@ -5331,17 +4506,13 @@ XS(XS_OpenGL_glTexCoord1i)
 XS(XS_OpenGL_glTexCoord1iv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord1iv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glTexCoord1iv((GLint *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5349,9 +4520,8 @@ XS(XS_OpenGL_glTexCoord1iv)
 XS(XS_OpenGL_glTexCoord1s)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord1s(s)");
-    }
     {
 	GLshort	s = (short)SvIV(ST(0));
 
@@ -5363,17 +4533,13 @@ XS(XS_OpenGL_glTexCoord1s)
 XS(XS_OpenGL_glTexCoord1sv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord1sv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glTexCoord1sv((GLshort *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5381,9 +4547,8 @@ XS(XS_OpenGL_glTexCoord1sv)
 XS(XS_OpenGL_glTexCoord2d)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glTexCoord2d(s,t)");
-    }
     {
 	GLdouble	s = (double)SvNV(ST(0));
 	GLdouble	t = (double)SvNV(ST(1));
@@ -5396,17 +4561,13 @@ XS(XS_OpenGL_glTexCoord2d)
 XS(XS_OpenGL_glTexCoord2dv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord2dv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glTexCoord2dv((GLdouble *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5414,9 +4575,8 @@ XS(XS_OpenGL_glTexCoord2dv)
 XS(XS_OpenGL_glTexCoord2f)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glTexCoord2f(s,t)");
-    }
     {
 	GLfloat	s = (float)SvNV(ST(0));
 	GLfloat	t = (float)SvNV(ST(1));
@@ -5429,17 +4589,13 @@ XS(XS_OpenGL_glTexCoord2f)
 XS(XS_OpenGL_glTexCoord2fv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord2fv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glTexCoord2fv((GLfloat *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5447,9 +4603,8 @@ XS(XS_OpenGL_glTexCoord2fv)
 XS(XS_OpenGL_glTexCoord2i)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glTexCoord2i(s,t)");
-    }
     {
 	GLint	s = (int)SvIV(ST(0));
 	GLint	t = (int)SvIV(ST(1));
@@ -5462,17 +4617,13 @@ XS(XS_OpenGL_glTexCoord2i)
 XS(XS_OpenGL_glTexCoord2iv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord2iv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glTexCoord2iv((GLint *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5480,9 +4631,8 @@ XS(XS_OpenGL_glTexCoord2iv)
 XS(XS_OpenGL_glTexCoord2s)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glTexCoord2s(s,t)");
-    }
     {
 	GLshort	s = (short)SvIV(ST(0));
 	GLshort	t = (short)SvIV(ST(1));
@@ -5495,17 +4645,13 @@ XS(XS_OpenGL_glTexCoord2s)
 XS(XS_OpenGL_glTexCoord2sv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord2sv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glTexCoord2sv((GLshort *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5513,9 +4659,8 @@ XS(XS_OpenGL_glTexCoord2sv)
 XS(XS_OpenGL_glTexCoord3d)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTexCoord3d(s,t,r)");
-    }
     {
 	GLdouble	s = (double)SvNV(ST(0));
 	GLdouble	t = (double)SvNV(ST(1));
@@ -5529,17 +4674,13 @@ XS(XS_OpenGL_glTexCoord3d)
 XS(XS_OpenGL_glTexCoord3dv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord3dv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glTexCoord3dv((GLdouble *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5547,9 +4688,8 @@ XS(XS_OpenGL_glTexCoord3dv)
 XS(XS_OpenGL_glTexCoord3f)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTexCoord3f(s,t,r)");
-    }
     {
 	GLfloat	s = (float)SvNV(ST(0));
 	GLfloat	t = (float)SvNV(ST(1));
@@ -5563,17 +4703,13 @@ XS(XS_OpenGL_glTexCoord3f)
 XS(XS_OpenGL_glTexCoord3fv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord3fv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glTexCoord3fv((GLfloat *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5581,9 +4717,8 @@ XS(XS_OpenGL_glTexCoord3fv)
 XS(XS_OpenGL_glTexCoord3i)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTexCoord3i(s,t,r)");
-    }
     {
 	GLint	s = (int)SvIV(ST(0));
 	GLint	t = (int)SvIV(ST(1));
@@ -5597,17 +4732,13 @@ XS(XS_OpenGL_glTexCoord3i)
 XS(XS_OpenGL_glTexCoord3iv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord3iv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glTexCoord3iv((GLint *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5615,9 +4746,8 @@ XS(XS_OpenGL_glTexCoord3iv)
 XS(XS_OpenGL_glTexCoord3s)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTexCoord3s(s,t,r)");
-    }
     {
 	GLshort	s = (short)SvIV(ST(0));
 	GLshort	t = (short)SvIV(ST(1));
@@ -5631,17 +4761,13 @@ XS(XS_OpenGL_glTexCoord3s)
 XS(XS_OpenGL_glTexCoord3sv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord3sv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glTexCoord3sv((GLshort *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5649,9 +4775,8 @@ XS(XS_OpenGL_glTexCoord3sv)
 XS(XS_OpenGL_glTexCoord4d)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glTexCoord4d(s,t,r,q)");
-    }
     {
 	GLdouble	s = (double)SvNV(ST(0));
 	GLdouble	t = (double)SvNV(ST(1));
@@ -5666,17 +4791,13 @@ XS(XS_OpenGL_glTexCoord4d)
 XS(XS_OpenGL_glTexCoord4dv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord4dv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glTexCoord4dv((GLdouble *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5684,9 +4805,8 @@ XS(XS_OpenGL_glTexCoord4dv)
 XS(XS_OpenGL_glTexCoord4f)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glTexCoord4f(s,t,r,q)");
-    }
     {
 	GLfloat	s = (float)SvNV(ST(0));
 	GLfloat	t = (float)SvNV(ST(1));
@@ -5701,17 +4821,13 @@ XS(XS_OpenGL_glTexCoord4f)
 XS(XS_OpenGL_glTexCoord4fv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord4fv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glTexCoord4fv((GLfloat *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5719,9 +4835,8 @@ XS(XS_OpenGL_glTexCoord4fv)
 XS(XS_OpenGL_glTexCoord4i)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glTexCoord4i(s,t,r,q)");
-    }
     {
 	GLint	s = (int)SvIV(ST(0));
 	GLint	t = (int)SvIV(ST(1));
@@ -5736,17 +4851,13 @@ XS(XS_OpenGL_glTexCoord4i)
 XS(XS_OpenGL_glTexCoord4iv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord4iv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glTexCoord4iv((GLint *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5754,9 +4865,8 @@ XS(XS_OpenGL_glTexCoord4iv)
 XS(XS_OpenGL_glTexCoord4s)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glTexCoord4s(s,t,r,q)");
-    }
     {
 	GLshort	s = (short)SvIV(ST(0));
 	GLshort	t = (short)SvIV(ST(1));
@@ -5771,17 +4881,13 @@ XS(XS_OpenGL_glTexCoord4s)
 XS(XS_OpenGL_glTexCoord4sv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glTexCoord4sv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glTexCoord4sv((GLshort *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5789,9 +4895,8 @@ XS(XS_OpenGL_glTexCoord4sv)
 XS(XS_OpenGL_glTexEnvf)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTexEnvf(target,pname,param)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
@@ -5805,19 +4910,15 @@ XS(XS_OpenGL_glTexEnvf)
 XS(XS_OpenGL_glTexEnvfv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTexEnvfv(target,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glTexEnvfv(target,pname,(GLfloat *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5825,9 +4926,8 @@ XS(XS_OpenGL_glTexEnvfv)
 XS(XS_OpenGL_glTexEnvi)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTexEnvi(target,pname,param)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
@@ -5841,19 +4941,15 @@ XS(XS_OpenGL_glTexEnvi)
 XS(XS_OpenGL_glTexEnviv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTexEnviv(target,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glTexEnviv(target,pname,(GLint *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5861,9 +4957,8 @@ XS(XS_OpenGL_glTexEnviv)
 XS(XS_OpenGL_glTexGend)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTexGend(coord,pname,param)");
-    }
     {
 	GLenum	coord = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
@@ -5877,19 +4972,15 @@ XS(XS_OpenGL_glTexGend)
 XS(XS_OpenGL_glTexGendv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTexGendv(coord,pname,params)");
-    }
     {
 	GLenum	coord = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glTexGendv(coord,pname,(GLdouble *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5897,9 +4988,8 @@ XS(XS_OpenGL_glTexGendv)
 XS(XS_OpenGL_glTexGenf)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTexGenf(coord,pname,param)");
-    }
     {
 	GLenum	coord = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
@@ -5913,19 +5003,15 @@ XS(XS_OpenGL_glTexGenf)
 XS(XS_OpenGL_glTexGenfv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTexGenfv(coord,pname,params)");
-    }
     {
 	GLenum	coord = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glTexGenfv(coord,pname,(GLfloat *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5933,9 +5019,8 @@ XS(XS_OpenGL_glTexGenfv)
 XS(XS_OpenGL_glTexGeni)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTexGeni(coord,pname,param)");
-    }
     {
 	GLenum	coord = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
@@ -5949,19 +5034,15 @@ XS(XS_OpenGL_glTexGeni)
 XS(XS_OpenGL_glTexGeniv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTexGeniv(coord,pname,params)");
-    }
     {
 	GLenum	coord = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glTexGeniv(coord,pname,(GLint *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5969,9 +5050,8 @@ XS(XS_OpenGL_glTexGeniv)
 XS(XS_OpenGL_glTexImage1D)
 {
     dXSARGS;
-    if (items != 8) {
+    if (items != 8)
 	croak("Usage: OpenGL::glTexImage1D(target,level,components,width,border,format,type,pixels)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLint	level = (int)SvIV(ST(1));
@@ -5982,11 +5062,8 @@ XS(XS_OpenGL_glTexImage1D)
 	GLenum	type = (unsigned int)SvIV(ST(6));
 	char *	pixels = (char *)SvPV(ST(7),na);
 	{
-
 	   glTexImage1D(target,level,components,width,border,format,type,(GLvoid *)pixels);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -5994,9 +5071,8 @@ XS(XS_OpenGL_glTexImage1D)
 XS(XS_OpenGL_glTexImage2D)
 {
     dXSARGS;
-    if (items != 9) {
+    if (items != 9)
 	croak("Usage: OpenGL::glTexImage2D(target,level,components,width,height,border,format,type,pixels)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLint	level = (int)SvIV(ST(1));
@@ -6008,11 +5084,8 @@ XS(XS_OpenGL_glTexImage2D)
 	GLenum	type = (unsigned int)SvIV(ST(7));
 	char *	pixels = (char *)SvPV(ST(8),na);
 	{
-
 	   glTexImage2D(target,level,components,width,height,border,format,type,(GLvoid *)pixels);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -6020,9 +5093,8 @@ XS(XS_OpenGL_glTexImage2D)
 XS(XS_OpenGL_glTexImage3DEXT)
 {
     dXSARGS;
-    if (items != 10) {
+    if (items != 10)
 	croak("Usage: OpenGL::glTexImage3DEXT(target,level,internalformat,width,height,depth,border,format,type,pixels)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLint	level = (int)SvIV(ST(1));
@@ -6035,11 +5107,8 @@ XS(XS_OpenGL_glTexImage3DEXT)
 	GLenum	type = (unsigned int)SvIV(ST(8));
 	char *	pixels = (char *)SvPV(ST(9),na);
 	{
-
 	   glTexImage3DEXT(target,level,internalformat,width,height,depth,border,format,type,(GLvoid *)pixels);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -6047,9 +5116,8 @@ XS(XS_OpenGL_glTexImage3DEXT)
 XS(XS_OpenGL_glTexParameterf)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTexParameterf(target,pname,param)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
@@ -6063,19 +5131,15 @@ XS(XS_OpenGL_glTexParameterf)
 XS(XS_OpenGL_glTexParameterfv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTexParameterfv(target,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glTexParameterfv(target,pname,(GLfloat *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -6083,9 +5147,8 @@ XS(XS_OpenGL_glTexParameterfv)
 XS(XS_OpenGL_glTexParameteri)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTexParameteri(target,pname,param)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
@@ -6099,19 +5162,15 @@ XS(XS_OpenGL_glTexParameteri)
 XS(XS_OpenGL_glTexParameteriv)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTexParameteriv(target,pname,params)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLenum	pname = (unsigned int)SvIV(ST(1));
 	char *	params = (char *)SvPV(ST(2),na);
 	{
-
 	   glTexParameteriv(target,pname,(GLint *)params);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -6119,9 +5178,8 @@ XS(XS_OpenGL_glTexParameteriv)
 XS(XS_OpenGL_glTexSubImage1DEXT)
 {
     dXSARGS;
-    if (items != 7) {
+    if (items != 7)
 	croak("Usage: OpenGL::glTexSubImage1DEXT(target,level,xoffset,width,format,type,pixels)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLint	level = (int)SvIV(ST(1));
@@ -6131,11 +5189,8 @@ XS(XS_OpenGL_glTexSubImage1DEXT)
 	GLenum	type = (unsigned int)SvIV(ST(5));
 	char *	pixels = (char *)SvPV(ST(6),na);
 	{
-
 	   glTexSubImage1DEXT(target,level,xoffset,width,format,type,(GLvoid *)pixels);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -6143,9 +5198,8 @@ XS(XS_OpenGL_glTexSubImage1DEXT)
 XS(XS_OpenGL_glTexSubImage2DEXT)
 {
     dXSARGS;
-    if (items != 9) {
+    if (items != 9)
 	croak("Usage: OpenGL::glTexSubImage2DEXT(target,level,xoffset,yoffset,width,height,format,type,pixels)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLint	level = (int)SvIV(ST(1));
@@ -6157,11 +5211,8 @@ XS(XS_OpenGL_glTexSubImage2DEXT)
 	GLenum	type = (unsigned int)SvIV(ST(7));
 	char *	pixels = (char *)SvPV(ST(8),na);
 	{
-
 	   glTexSubImage2DEXT(target,level,xoffset,yoffset,width,height,format,type,(GLvoid *)pixels);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -6169,9 +5220,8 @@ XS(XS_OpenGL_glTexSubImage2DEXT)
 XS(XS_OpenGL_glTexSubImage3DEXT)
 {
     dXSARGS;
-    if (items != 11) {
+    if (items != 11)
 	croak("Usage: OpenGL::glTexSubImage3DEXT(target,level,xoffset,yoffset,zoffset,width,height,depth,format,type,pixels)");
-    }
     {
 	GLenum	target = (unsigned int)SvIV(ST(0));
 	GLint	level = (int)SvIV(ST(1));
@@ -6185,11 +5235,8 @@ XS(XS_OpenGL_glTexSubImage3DEXT)
 	GLenum	type = (unsigned int)SvIV(ST(9));
 	char *	pixels = (char *)SvPV(ST(10),na);
 	{
-
 	   glTexSubImage3DEXT(target,level,xoffset,yoffset,zoffset,width,height,depth,format,type,(GLvoid *)pixels);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -6197,9 +5244,8 @@ XS(XS_OpenGL_glTexSubImage3DEXT)
 XS(XS_OpenGL_glTranslated)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTranslated(x,y,z)");
-    }
     {
 	GLdouble	x = (double)SvNV(ST(0));
 	GLdouble	y = (double)SvNV(ST(1));
@@ -6213,9 +5259,8 @@ XS(XS_OpenGL_glTranslated)
 XS(XS_OpenGL_glTranslatef)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glTranslatef(x,y,z)");
-    }
     {
 	GLfloat	x = (float)SvNV(ST(0));
 	GLfloat	y = (float)SvNV(ST(1));
@@ -6229,9 +5274,8 @@ XS(XS_OpenGL_glTranslatef)
 XS(XS_OpenGL_glVertex2d)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glVertex2d(x,y)");
-    }
     {
 	GLdouble	x = (double)SvNV(ST(0));
 	GLdouble	y = (double)SvNV(ST(1));
@@ -6244,17 +5288,13 @@ XS(XS_OpenGL_glVertex2d)
 XS(XS_OpenGL_glVertex2dv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glVertex2dv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glVertex2dv((GLdouble *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -6262,9 +5302,8 @@ XS(XS_OpenGL_glVertex2dv)
 XS(XS_OpenGL_glVertex2f)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glVertex2f(x,y)");
-    }
     {
 	GLfloat	x = (float)SvNV(ST(0));
 	GLfloat	y = (float)SvNV(ST(1));
@@ -6277,17 +5316,13 @@ XS(XS_OpenGL_glVertex2f)
 XS(XS_OpenGL_glVertex2fv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glVertex2fv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glVertex2fv((GLfloat *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -6295,9 +5330,8 @@ XS(XS_OpenGL_glVertex2fv)
 XS(XS_OpenGL_glVertex2i)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glVertex2i(x,y)");
-    }
     {
 	GLint	x = (int)SvIV(ST(0));
 	GLint	y = (int)SvIV(ST(1));
@@ -6310,17 +5344,13 @@ XS(XS_OpenGL_glVertex2i)
 XS(XS_OpenGL_glVertex2iv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glVertex2iv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glVertex2iv((GLint *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -6328,9 +5358,8 @@ XS(XS_OpenGL_glVertex2iv)
 XS(XS_OpenGL_glVertex2s)
 {
     dXSARGS;
-    if (items != 2) {
+    if (items != 2)
 	croak("Usage: OpenGL::glVertex2s(x,y)");
-    }
     {
 	GLshort	x = (short)SvIV(ST(0));
 	GLshort	y = (short)SvIV(ST(1));
@@ -6343,17 +5372,13 @@ XS(XS_OpenGL_glVertex2s)
 XS(XS_OpenGL_glVertex2sv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glVertex2sv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glVertex2sv((GLshort *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -6361,9 +5386,8 @@ XS(XS_OpenGL_glVertex2sv)
 XS(XS_OpenGL_glVertex3d)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glVertex3d(x,y,z)");
-    }
     {
 	GLdouble	x = (double)SvNV(ST(0));
 	GLdouble	y = (double)SvNV(ST(1));
@@ -6377,17 +5401,13 @@ XS(XS_OpenGL_glVertex3d)
 XS(XS_OpenGL_glVertex3dv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glVertex3dv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glVertex3dv((GLdouble *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -6395,9 +5415,8 @@ XS(XS_OpenGL_glVertex3dv)
 XS(XS_OpenGL_glVertex3f)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glVertex3f(x,y,z)");
-    }
     {
 	GLfloat	x = (float)SvNV(ST(0));
 	GLfloat	y = (float)SvNV(ST(1));
@@ -6411,17 +5430,13 @@ XS(XS_OpenGL_glVertex3f)
 XS(XS_OpenGL_glVertex3fv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glVertex3fv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glVertex3fv((GLfloat *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -6429,9 +5444,8 @@ XS(XS_OpenGL_glVertex3fv)
 XS(XS_OpenGL_glVertex3i)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glVertex3i(x,y,z)");
-    }
     {
 	GLint	x = (int)SvIV(ST(0));
 	GLint	y = (int)SvIV(ST(1));
@@ -6445,17 +5459,13 @@ XS(XS_OpenGL_glVertex3i)
 XS(XS_OpenGL_glVertex3iv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glVertex3iv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glVertex3iv((GLint *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -6463,9 +5473,8 @@ XS(XS_OpenGL_glVertex3iv)
 XS(XS_OpenGL_glVertex3s)
 {
     dXSARGS;
-    if (items != 3) {
+    if (items != 3)
 	croak("Usage: OpenGL::glVertex3s(x,y,z)");
-    }
     {
 	GLshort	x = (short)SvIV(ST(0));
 	GLshort	y = (short)SvIV(ST(1));
@@ -6479,17 +5488,13 @@ XS(XS_OpenGL_glVertex3s)
 XS(XS_OpenGL_glVertex3sv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glVertex3sv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glVertex3sv((GLshort *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -6497,9 +5502,8 @@ XS(XS_OpenGL_glVertex3sv)
 XS(XS_OpenGL_glVertex4d)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glVertex4d(x,y,z,w)");
-    }
     {
 	GLdouble	x = (double)SvNV(ST(0));
 	GLdouble	y = (double)SvNV(ST(1));
@@ -6514,17 +5518,13 @@ XS(XS_OpenGL_glVertex4d)
 XS(XS_OpenGL_glVertex4dv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glVertex4dv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glVertex4dv((GLdouble *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -6532,9 +5532,8 @@ XS(XS_OpenGL_glVertex4dv)
 XS(XS_OpenGL_glVertex4f)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glVertex4f(x,y,z,w)");
-    }
     {
 	GLfloat	x = (float)SvNV(ST(0));
 	GLfloat	y = (float)SvNV(ST(1));
@@ -6549,17 +5548,13 @@ XS(XS_OpenGL_glVertex4f)
 XS(XS_OpenGL_glVertex4fv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glVertex4fv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glVertex4fv((GLfloat *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -6567,9 +5562,8 @@ XS(XS_OpenGL_glVertex4fv)
 XS(XS_OpenGL_glVertex4i)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glVertex4i(x,y,z,w)");
-    }
     {
 	GLint	x = (int)SvIV(ST(0));
 	GLint	y = (int)SvIV(ST(1));
@@ -6584,17 +5578,13 @@ XS(XS_OpenGL_glVertex4i)
 XS(XS_OpenGL_glVertex4iv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glVertex4iv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glVertex4iv((GLint *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -6602,9 +5592,8 @@ XS(XS_OpenGL_glVertex4iv)
 XS(XS_OpenGL_glVertex4s)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glVertex4s(x,y,z,w)");
-    }
     {
 	GLshort	x = (short)SvIV(ST(0));
 	GLshort	y = (short)SvIV(ST(1));
@@ -6619,17 +5608,13 @@ XS(XS_OpenGL_glVertex4s)
 XS(XS_OpenGL_glVertex4sv)
 {
     dXSARGS;
-    if (items != 1) {
+    if (items != 1)
 	croak("Usage: OpenGL::glVertex4sv(v)");
-    }
     {
 	char *	v = (char *)SvPV(ST(0),na);
 	{
-
 	   glVertex4sv((GLshort *)v);
-
 	}
-
     }
     XSRETURN(1);
 }
@@ -6637,9 +5622,8 @@ XS(XS_OpenGL_glVertex4sv)
 XS(XS_OpenGL_glViewport)
 {
     dXSARGS;
-    if (items != 4) {
+    if (items != 4)
 	croak("Usage: OpenGL::glViewport(x,y,width,height)");
-    }
     {
 	GLint	x = (int)SvIV(ST(0));
 	GLint	y = (int)SvIV(ST(1));
@@ -6651,368 +5635,373 @@ XS(XS_OpenGL_glViewport)
     XSRETURN(1);
 }
 
+#ifdef __cplusplus
+extern "C"
+#endif
 XS(boot_OpenGL)
 {
     dXSARGS;
     char* file = __FILE__;
 
-    newXS("OpenGL::glpcOpenWindow", XS_OpenGL_glpcOpenWindow, file);
-    newXS("OpenGL::glXSwapBuffers", XS_OpenGL_glXSwapBuffers, file);
-    newXS("OpenGL::XPending", XS_OpenGL_XPending, file);
-    newXS("OpenGL::glpXNextEvent", XS_OpenGL_glpXNextEvent, file);
-    newXS("OpenGL::glpXQueryPointer", XS_OpenGL_glpXQueryPointer, file);
-    newXS("OpenGL::glpClipPlane", XS_OpenGL_glpClipPlane, file);
-    newXS("OpenGL::glpGetClipPlane", XS_OpenGL_glpGetClipPlane, file);
-    newXS("OpenGL::glpReadTex", XS_OpenGL_glpReadTex, file);
-    newXS("OpenGL::glpLoadMatrixd", XS_OpenGL_glpLoadMatrixd, file);
-    newXS("OpenGL::glpMultMatrixd", XS_OpenGL_glpMultMatrixd, file);
-    newXS("OpenGL::glpLoadMatrixf", XS_OpenGL_glpLoadMatrixf, file);
-    newXS("OpenGL::glpMultMatrixf", XS_OpenGL_glpMultMatrixf, file);
-    newXS("OpenGL::gluOrtho2D", XS_OpenGL_gluOrtho2D, file);
-    newXS("OpenGL::gluPerspective", XS_OpenGL_gluPerspective, file);
-    newXS("OpenGL::gluLookAt", XS_OpenGL_gluLookAt, file);
-    newXS("OpenGL::glAccum", XS_OpenGL_glAccum, file);
-    newXS("OpenGL::glAlphaFunc", XS_OpenGL_glAlphaFunc, file);
-    newXS("OpenGL::glBegin", XS_OpenGL_glBegin, file);
-    newXS("OpenGL::glBitmap", XS_OpenGL_glBitmap, file);
-    newXS("OpenGL::glBlendColorEXT", XS_OpenGL_glBlendColorEXT, file);
-    newXS("OpenGL::glBlendEquationEXT", XS_OpenGL_glBlendEquationEXT, file);
-    newXS("OpenGL::glBlendFunc", XS_OpenGL_glBlendFunc, file);
-    newXS("OpenGL::glCallList", XS_OpenGL_glCallList, file);
-    newXS("OpenGL::glCallLists", XS_OpenGL_glCallLists, file);
-    newXS("OpenGL::glClear", XS_OpenGL_glClear, file);
-    newXS("OpenGL::glClearAccum", XS_OpenGL_glClearAccum, file);
-    newXS("OpenGL::glClearColor", XS_OpenGL_glClearColor, file);
-    newXS("OpenGL::glClearDepth", XS_OpenGL_glClearDepth, file);
-    newXS("OpenGL::glClearIndex", XS_OpenGL_glClearIndex, file);
-    newXS("OpenGL::glClearStencil", XS_OpenGL_glClearStencil, file);
-    newXS("OpenGL::glClipPlane", XS_OpenGL_glClipPlane, file);
-    newXS("OpenGL::glColor3b", XS_OpenGL_glColor3b, file);
-    newXS("OpenGL::glColor3bv", XS_OpenGL_glColor3bv, file);
-    newXS("OpenGL::glColor3d", XS_OpenGL_glColor3d, file);
-    newXS("OpenGL::glColor3dv", XS_OpenGL_glColor3dv, file);
-    newXS("OpenGL::glColor3f", XS_OpenGL_glColor3f, file);
-    newXS("OpenGL::glColor3fv", XS_OpenGL_glColor3fv, file);
-    newXS("OpenGL::glColor3i", XS_OpenGL_glColor3i, file);
-    newXS("OpenGL::glColor3iv", XS_OpenGL_glColor3iv, file);
-    newXS("OpenGL::glColor3s", XS_OpenGL_glColor3s, file);
-    newXS("OpenGL::glColor3sv", XS_OpenGL_glColor3sv, file);
-    newXS("OpenGL::glColor3ub", XS_OpenGL_glColor3ub, file);
-    newXS("OpenGL::glColor3ubv", XS_OpenGL_glColor3ubv, file);
-    newXS("OpenGL::glColor3ui", XS_OpenGL_glColor3ui, file);
-    newXS("OpenGL::glColor3uiv", XS_OpenGL_glColor3uiv, file);
-    newXS("OpenGL::glColor3us", XS_OpenGL_glColor3us, file);
-    newXS("OpenGL::glColor3usv", XS_OpenGL_glColor3usv, file);
-    newXS("OpenGL::glColor4b", XS_OpenGL_glColor4b, file);
-    newXS("OpenGL::glColor4bv", XS_OpenGL_glColor4bv, file);
-    newXS("OpenGL::glColor4d", XS_OpenGL_glColor4d, file);
-    newXS("OpenGL::glColor4dv", XS_OpenGL_glColor4dv, file);
-    newXS("OpenGL::glColor4f", XS_OpenGL_glColor4f, file);
-    newXS("OpenGL::glColor4fv", XS_OpenGL_glColor4fv, file);
-    newXS("OpenGL::glColor4i", XS_OpenGL_glColor4i, file);
-    newXS("OpenGL::glColor4iv", XS_OpenGL_glColor4iv, file);
-    newXS("OpenGL::glColor4s", XS_OpenGL_glColor4s, file);
-    newXS("OpenGL::glColor4sv", XS_OpenGL_glColor4sv, file);
-    newXS("OpenGL::glColor4ub", XS_OpenGL_glColor4ub, file);
-    newXS("OpenGL::glColor4ubv", XS_OpenGL_glColor4ubv, file);
-    newXS("OpenGL::glColor4ui", XS_OpenGL_glColor4ui, file);
-    newXS("OpenGL::glColor4uiv", XS_OpenGL_glColor4uiv, file);
-    newXS("OpenGL::glColor4us", XS_OpenGL_glColor4us, file);
-    newXS("OpenGL::glColor4usv", XS_OpenGL_glColor4usv, file);
-    newXS("OpenGL::glColorMask", XS_OpenGL_glColorMask, file);
-    newXS("OpenGL::glColorMaterial", XS_OpenGL_glColorMaterial, file);
-    newXS("OpenGL::glConvolutionFilter1DEXT", XS_OpenGL_glConvolutionFilter1DEXT, file);
-    newXS("OpenGL::glConvolutionFilter2DEXT", XS_OpenGL_glConvolutionFilter2DEXT, file);
-    newXS("OpenGL::glConvolutionParameterfEXT", XS_OpenGL_glConvolutionParameterfEXT, file);
-    newXS("OpenGL::glConvolutionParameterfvEXT", XS_OpenGL_glConvolutionParameterfvEXT, file);
-    newXS("OpenGL::glConvolutionParameteriEXT", XS_OpenGL_glConvolutionParameteriEXT, file);
-    newXS("OpenGL::glConvolutionParameterivEXT", XS_OpenGL_glConvolutionParameterivEXT, file);
-    newXS("OpenGL::glCopyConvolutionFilter1DEXT", XS_OpenGL_glCopyConvolutionFilter1DEXT, file);
-    newXS("OpenGL::glCopyConvolutionFilter2DEXT", XS_OpenGL_glCopyConvolutionFilter2DEXT, file);
-    newXS("OpenGL::glCopyPixels", XS_OpenGL_glCopyPixels, file);
-    newXS("OpenGL::glCullFace", XS_OpenGL_glCullFace, file);
-    newXS("OpenGL::glDeleteLists", XS_OpenGL_glDeleteLists, file);
-    newXS("OpenGL::glDepthFunc", XS_OpenGL_glDepthFunc, file);
-    newXS("OpenGL::glDepthMask", XS_OpenGL_glDepthMask, file);
-    newXS("OpenGL::glDepthRange", XS_OpenGL_glDepthRange, file);
-    newXS("OpenGL::glDetailTexFuncSGIS", XS_OpenGL_glDetailTexFuncSGIS, file);
-    newXS("OpenGL::glDisable", XS_OpenGL_glDisable, file);
-    newXS("OpenGL::glDrawBuffer", XS_OpenGL_glDrawBuffer, file);
-    newXS("OpenGL::glDrawPixels", XS_OpenGL_glDrawPixels, file);
-    newXS("OpenGL::glEdgeFlag", XS_OpenGL_glEdgeFlag, file);
-    newXS("OpenGL::glEdgeFlagv", XS_OpenGL_glEdgeFlagv, file);
-    newXS("OpenGL::glEnable", XS_OpenGL_glEnable, file);
-    newXS("OpenGL::glEnd", XS_OpenGL_glEnd, file);
-    newXS("OpenGL::glEndList", XS_OpenGL_glEndList, file);
-    newXS("OpenGL::glEvalCoord1d", XS_OpenGL_glEvalCoord1d, file);
-    newXS("OpenGL::glEvalCoord1dv", XS_OpenGL_glEvalCoord1dv, file);
-    newXS("OpenGL::glEvalCoord1f", XS_OpenGL_glEvalCoord1f, file);
-    newXS("OpenGL::glEvalCoord1fv", XS_OpenGL_glEvalCoord1fv, file);
-    newXS("OpenGL::glEvalCoord2d", XS_OpenGL_glEvalCoord2d, file);
-    newXS("OpenGL::glEvalCoord2dv", XS_OpenGL_glEvalCoord2dv, file);
-    newXS("OpenGL::glEvalCoord2f", XS_OpenGL_glEvalCoord2f, file);
-    newXS("OpenGL::glEvalCoord2fv", XS_OpenGL_glEvalCoord2fv, file);
-    newXS("OpenGL::glEvalMesh1", XS_OpenGL_glEvalMesh1, file);
-    newXS("OpenGL::glEvalMesh2", XS_OpenGL_glEvalMesh2, file);
-    newXS("OpenGL::glEvalPoint1", XS_OpenGL_glEvalPoint1, file);
-    newXS("OpenGL::glEvalPoint2", XS_OpenGL_glEvalPoint2, file);
-    newXS("OpenGL::glFeedbackBuffer", XS_OpenGL_glFeedbackBuffer, file);
-    newXS("OpenGL::glFinish", XS_OpenGL_glFinish, file);
-    newXS("OpenGL::glFlush", XS_OpenGL_glFlush, file);
-    newXS("OpenGL::glFogf", XS_OpenGL_glFogf, file);
-    newXS("OpenGL::glFogfv", XS_OpenGL_glFogfv, file);
-    newXS("OpenGL::glFogi", XS_OpenGL_glFogi, file);
-    newXS("OpenGL::glFogiv", XS_OpenGL_glFogiv, file);
-    newXS("OpenGL::glFrontFace", XS_OpenGL_glFrontFace, file);
-    newXS("OpenGL::glFrustum", XS_OpenGL_glFrustum, file);
-    newXS("OpenGL::glGenLists", XS_OpenGL_glGenLists, file);
-    newXS("OpenGL::glGetBooleanv", XS_OpenGL_glGetBooleanv, file);
-    newXS("OpenGL::glGetClipPlane", XS_OpenGL_glGetClipPlane, file);
-    newXS("OpenGL::glGetConvolutionFilterEXT", XS_OpenGL_glGetConvolutionFilterEXT, file);
-    newXS("OpenGL::glGetConvolutionParameterfvEXT", XS_OpenGL_glGetConvolutionParameterfvEXT, file);
-    newXS("OpenGL::glGetConvolutionParameterivEXT", XS_OpenGL_glGetConvolutionParameterivEXT, file);
-    newXS("OpenGL::glGetDetailTexFuncSGIS", XS_OpenGL_glGetDetailTexFuncSGIS, file);
-    newXS("OpenGL::glGetDoublev", XS_OpenGL_glGetDoublev, file);
-    newXS("OpenGL::glGetError", XS_OpenGL_glGetError, file);
-    newXS("OpenGL::glGetFloatv", XS_OpenGL_glGetFloatv, file);
-    newXS("OpenGL::glGetHistogramEXT", XS_OpenGL_glGetHistogramEXT, file);
-    newXS("OpenGL::glGetHistogramParameterfvEXT", XS_OpenGL_glGetHistogramParameterfvEXT, file);
-    newXS("OpenGL::glGetHistogramParameterivEXT", XS_OpenGL_glGetHistogramParameterivEXT, file);
-    newXS("OpenGL::glGetIntegerv", XS_OpenGL_glGetIntegerv, file);
-    newXS("OpenGL::glGetLightfv", XS_OpenGL_glGetLightfv, file);
-    newXS("OpenGL::glGetLightiv", XS_OpenGL_glGetLightiv, file);
-    newXS("OpenGL::glGetMapdv", XS_OpenGL_glGetMapdv, file);
-    newXS("OpenGL::glGetMapfv", XS_OpenGL_glGetMapfv, file);
-    newXS("OpenGL::glGetMapiv", XS_OpenGL_glGetMapiv, file);
-    newXS("OpenGL::glGetMaterialfv", XS_OpenGL_glGetMaterialfv, file);
-    newXS("OpenGL::glGetMaterialiv", XS_OpenGL_glGetMaterialiv, file);
-    newXS("OpenGL::glGetMinmaxEXT", XS_OpenGL_glGetMinmaxEXT, file);
-    newXS("OpenGL::glGetMinmaxParameterfvEXT", XS_OpenGL_glGetMinmaxParameterfvEXT, file);
-    newXS("OpenGL::glGetMinmaxParameterivEXT", XS_OpenGL_glGetMinmaxParameterivEXT, file);
-    newXS("OpenGL::glGetPixelMapfv", XS_OpenGL_glGetPixelMapfv, file);
-    newXS("OpenGL::glGetPixelMapuiv", XS_OpenGL_glGetPixelMapuiv, file);
-    newXS("OpenGL::glGetPixelMapusv", XS_OpenGL_glGetPixelMapusv, file);
-    newXS("OpenGL::glGetPolygonStipple", XS_OpenGL_glGetPolygonStipple, file);
-    newXS("OpenGL::glGetSeparableFilterEXT", XS_OpenGL_glGetSeparableFilterEXT, file);
-    newXS("OpenGL::glGetSharpenTexFuncSGIS", XS_OpenGL_glGetSharpenTexFuncSGIS, file);
-    newXS("OpenGL::glGetTexEnvfv", XS_OpenGL_glGetTexEnvfv, file);
-    newXS("OpenGL::glGetTexEnviv", XS_OpenGL_glGetTexEnviv, file);
-    newXS("OpenGL::glGetTexGendv", XS_OpenGL_glGetTexGendv, file);
-    newXS("OpenGL::glGetTexGenfv", XS_OpenGL_glGetTexGenfv, file);
-    newXS("OpenGL::glGetTexGeniv", XS_OpenGL_glGetTexGeniv, file);
-    newXS("OpenGL::glGetTexImage", XS_OpenGL_glGetTexImage, file);
-    newXS("OpenGL::glGetTexLevelParameterfv", XS_OpenGL_glGetTexLevelParameterfv, file);
-    newXS("OpenGL::glGetTexLevelParameteriv", XS_OpenGL_glGetTexLevelParameteriv, file);
-    newXS("OpenGL::glGetTexParameterfv", XS_OpenGL_glGetTexParameterfv, file);
-    newXS("OpenGL::glGetTexParameteriv", XS_OpenGL_glGetTexParameteriv, file);
-    newXS("OpenGL::glHint", XS_OpenGL_glHint, file);
-    newXS("OpenGL::glHistogramEXT", XS_OpenGL_glHistogramEXT, file);
-    newXS("OpenGL::glIndexMask", XS_OpenGL_glIndexMask, file);
-    newXS("OpenGL::glIndexd", XS_OpenGL_glIndexd, file);
-    newXS("OpenGL::glIndexdv", XS_OpenGL_glIndexdv, file);
-    newXS("OpenGL::glIndexf", XS_OpenGL_glIndexf, file);
-    newXS("OpenGL::glIndexfv", XS_OpenGL_glIndexfv, file);
-    newXS("OpenGL::glIndexi", XS_OpenGL_glIndexi, file);
-    newXS("OpenGL::glIndexiv", XS_OpenGL_glIndexiv, file);
-    newXS("OpenGL::glIndexs", XS_OpenGL_glIndexs, file);
-    newXS("OpenGL::glIndexsv", XS_OpenGL_glIndexsv, file);
-    newXS("OpenGL::glInitNames", XS_OpenGL_glInitNames, file);
-    newXS("OpenGL::glIsEnabled", XS_OpenGL_glIsEnabled, file);
-    newXS("OpenGL::glIsList", XS_OpenGL_glIsList, file);
-    newXS("OpenGL::glLightModelf", XS_OpenGL_glLightModelf, file);
-    newXS("OpenGL::glLightModelfv", XS_OpenGL_glLightModelfv, file);
-    newXS("OpenGL::glLightModeli", XS_OpenGL_glLightModeli, file);
-    newXS("OpenGL::glLightModeliv", XS_OpenGL_glLightModeliv, file);
-    newXS("OpenGL::glLightf", XS_OpenGL_glLightf, file);
-    newXS("OpenGL::glLightfv", XS_OpenGL_glLightfv, file);
-    newXS("OpenGL::glLighti", XS_OpenGL_glLighti, file);
-    newXS("OpenGL::glLightiv", XS_OpenGL_glLightiv, file);
-    newXS("OpenGL::glLineStipple", XS_OpenGL_glLineStipple, file);
-    newXS("OpenGL::glLineWidth", XS_OpenGL_glLineWidth, file);
-    newXS("OpenGL::glListBase", XS_OpenGL_glListBase, file);
-    newXS("OpenGL::glLoadIdentity", XS_OpenGL_glLoadIdentity, file);
-    newXS("OpenGL::glLoadMatrixd", XS_OpenGL_glLoadMatrixd, file);
-    newXS("OpenGL::glLoadMatrixf", XS_OpenGL_glLoadMatrixf, file);
-    newXS("OpenGL::glLoadName", XS_OpenGL_glLoadName, file);
-    newXS("OpenGL::glLogicOp", XS_OpenGL_glLogicOp, file);
-    newXS("OpenGL::glMap1d", XS_OpenGL_glMap1d, file);
-    newXS("OpenGL::glMap1f", XS_OpenGL_glMap1f, file);
-    newXS("OpenGL::glMap2d", XS_OpenGL_glMap2d, file);
-    newXS("OpenGL::glMap2f", XS_OpenGL_glMap2f, file);
-    newXS("OpenGL::glMapGrid1d", XS_OpenGL_glMapGrid1d, file);
-    newXS("OpenGL::glMapGrid1f", XS_OpenGL_glMapGrid1f, file);
-    newXS("OpenGL::glMapGrid2d", XS_OpenGL_glMapGrid2d, file);
-    newXS("OpenGL::glMapGrid2f", XS_OpenGL_glMapGrid2f, file);
-    newXS("OpenGL::glMaterialf", XS_OpenGL_glMaterialf, file);
-    newXS("OpenGL::glMaterialfv", XS_OpenGL_glMaterialfv, file);
-    newXS("OpenGL::glMateriali", XS_OpenGL_glMateriali, file);
-    newXS("OpenGL::glMaterialiv", XS_OpenGL_glMaterialiv, file);
-    newXS("OpenGL::glMatrixMode", XS_OpenGL_glMatrixMode, file);
-    newXS("OpenGL::glMinmaxEXT", XS_OpenGL_glMinmaxEXT, file);
-    newXS("OpenGL::glMultMatrixd", XS_OpenGL_glMultMatrixd, file);
-    newXS("OpenGL::glMultMatrixf", XS_OpenGL_glMultMatrixf, file);
-    newXS("OpenGL::glNewList", XS_OpenGL_glNewList, file);
-    newXS("OpenGL::glNormal3b", XS_OpenGL_glNormal3b, file);
-    newXS("OpenGL::glNormal3bv", XS_OpenGL_glNormal3bv, file);
-    newXS("OpenGL::glNormal3d", XS_OpenGL_glNormal3d, file);
-    newXS("OpenGL::glNormal3dv", XS_OpenGL_glNormal3dv, file);
-    newXS("OpenGL::glNormal3f", XS_OpenGL_glNormal3f, file);
-    newXS("OpenGL::glNormal3fv", XS_OpenGL_glNormal3fv, file);
-    newXS("OpenGL::glNormal3i", XS_OpenGL_glNormal3i, file);
-    newXS("OpenGL::glNormal3iv", XS_OpenGL_glNormal3iv, file);
-    newXS("OpenGL::glNormal3s", XS_OpenGL_glNormal3s, file);
-    newXS("OpenGL::glNormal3sv", XS_OpenGL_glNormal3sv, file);
-    newXS("OpenGL::glOrtho", XS_OpenGL_glOrtho, file);
-    newXS("OpenGL::glPassThrough", XS_OpenGL_glPassThrough, file);
-    newXS("OpenGL::glPixelMapfv", XS_OpenGL_glPixelMapfv, file);
-    newXS("OpenGL::glPixelMapuiv", XS_OpenGL_glPixelMapuiv, file);
-    newXS("OpenGL::glPixelMapusv", XS_OpenGL_glPixelMapusv, file);
-    newXS("OpenGL::glPixelStoref", XS_OpenGL_glPixelStoref, file);
-    newXS("OpenGL::glPixelStorei", XS_OpenGL_glPixelStorei, file);
-    newXS("OpenGL::glPixelTransferf", XS_OpenGL_glPixelTransferf, file);
-    newXS("OpenGL::glPixelTransferi", XS_OpenGL_glPixelTransferi, file);
-    newXS("OpenGL::glPixelZoom", XS_OpenGL_glPixelZoom, file);
-    newXS("OpenGL::glPointSize", XS_OpenGL_glPointSize, file);
-    newXS("OpenGL::glPolygonMode", XS_OpenGL_glPolygonMode, file);
-    newXS("OpenGL::glPolygonOffsetEXT", XS_OpenGL_glPolygonOffsetEXT, file);
-    newXS("OpenGL::glPolygonStipple", XS_OpenGL_glPolygonStipple, file);
-    newXS("OpenGL::glPopAttrib", XS_OpenGL_glPopAttrib, file);
-    newXS("OpenGL::glPopMatrix", XS_OpenGL_glPopMatrix, file);
-    newXS("OpenGL::glPopName", XS_OpenGL_glPopName, file);
-    newXS("OpenGL::glPushAttrib", XS_OpenGL_glPushAttrib, file);
-    newXS("OpenGL::glPushMatrix", XS_OpenGL_glPushMatrix, file);
-    newXS("OpenGL::glPushName", XS_OpenGL_glPushName, file);
-    newXS("OpenGL::glRasterPos2d", XS_OpenGL_glRasterPos2d, file);
-    newXS("OpenGL::glRasterPos2dv", XS_OpenGL_glRasterPos2dv, file);
-    newXS("OpenGL::glRasterPos2f", XS_OpenGL_glRasterPos2f, file);
-    newXS("OpenGL::glRasterPos2fv", XS_OpenGL_glRasterPos2fv, file);
-    newXS("OpenGL::glRasterPos2i", XS_OpenGL_glRasterPos2i, file);
-    newXS("OpenGL::glRasterPos2iv", XS_OpenGL_glRasterPos2iv, file);
-    newXS("OpenGL::glRasterPos2s", XS_OpenGL_glRasterPos2s, file);
-    newXS("OpenGL::glRasterPos2sv", XS_OpenGL_glRasterPos2sv, file);
-    newXS("OpenGL::glRasterPos3d", XS_OpenGL_glRasterPos3d, file);
-    newXS("OpenGL::glRasterPos3dv", XS_OpenGL_glRasterPos3dv, file);
-    newXS("OpenGL::glRasterPos3f", XS_OpenGL_glRasterPos3f, file);
-    newXS("OpenGL::glRasterPos3fv", XS_OpenGL_glRasterPos3fv, file);
-    newXS("OpenGL::glRasterPos3i", XS_OpenGL_glRasterPos3i, file);
-    newXS("OpenGL::glRasterPos3iv", XS_OpenGL_glRasterPos3iv, file);
-    newXS("OpenGL::glRasterPos3s", XS_OpenGL_glRasterPos3s, file);
-    newXS("OpenGL::glRasterPos3sv", XS_OpenGL_glRasterPos3sv, file);
-    newXS("OpenGL::glRasterPos4d", XS_OpenGL_glRasterPos4d, file);
-    newXS("OpenGL::glRasterPos4dv", XS_OpenGL_glRasterPos4dv, file);
-    newXS("OpenGL::glRasterPos4f", XS_OpenGL_glRasterPos4f, file);
-    newXS("OpenGL::glRasterPos4fv", XS_OpenGL_glRasterPos4fv, file);
-    newXS("OpenGL::glRasterPos4i", XS_OpenGL_glRasterPos4i, file);
-    newXS("OpenGL::glRasterPos4iv", XS_OpenGL_glRasterPos4iv, file);
-    newXS("OpenGL::glRasterPos4s", XS_OpenGL_glRasterPos4s, file);
-    newXS("OpenGL::glRasterPos4sv", XS_OpenGL_glRasterPos4sv, file);
-    newXS("OpenGL::glReadBuffer", XS_OpenGL_glReadBuffer, file);
-    newXS("OpenGL::glReadPixels", XS_OpenGL_glReadPixels, file);
-    newXS("OpenGL::glRectd", XS_OpenGL_glRectd, file);
-    newXS("OpenGL::glRectdv", XS_OpenGL_glRectdv, file);
-    newXS("OpenGL::glRectf", XS_OpenGL_glRectf, file);
-    newXS("OpenGL::glRectfv", XS_OpenGL_glRectfv, file);
-    newXS("OpenGL::glRecti", XS_OpenGL_glRecti, file);
-    newXS("OpenGL::glRectiv", XS_OpenGL_glRectiv, file);
-    newXS("OpenGL::glRects", XS_OpenGL_glRects, file);
-    newXS("OpenGL::glRectsv", XS_OpenGL_glRectsv, file);
-    newXS("OpenGL::glRenderMode", XS_OpenGL_glRenderMode, file);
-    newXS("OpenGL::glResetHistogramEXT", XS_OpenGL_glResetHistogramEXT, file);
-    newXS("OpenGL::glResetMinmaxEXT", XS_OpenGL_glResetMinmaxEXT, file);
-    newXS("OpenGL::glRotated", XS_OpenGL_glRotated, file);
-    newXS("OpenGL::glRotatef", XS_OpenGL_glRotatef, file);
-    newXS("OpenGL::glSampleMaskSGIS", XS_OpenGL_glSampleMaskSGIS, file);
-    newXS("OpenGL::glSamplePatternSGIS", XS_OpenGL_glSamplePatternSGIS, file);
-    newXS("OpenGL::glScaled", XS_OpenGL_glScaled, file);
-    newXS("OpenGL::glScalef", XS_OpenGL_glScalef, file);
-    newXS("OpenGL::glScissor", XS_OpenGL_glScissor, file);
-    newXS("OpenGL::glSelectBuffer", XS_OpenGL_glSelectBuffer, file);
-    newXS("OpenGL::glSeparableFilter2DEXT", XS_OpenGL_glSeparableFilter2DEXT, file);
-    newXS("OpenGL::glShadeModel", XS_OpenGL_glShadeModel, file);
-    newXS("OpenGL::glSharpenTexFuncSGIS", XS_OpenGL_glSharpenTexFuncSGIS, file);
-    newXS("OpenGL::glStencilFunc", XS_OpenGL_glStencilFunc, file);
-    newXS("OpenGL::glStencilMask", XS_OpenGL_glStencilMask, file);
-    newXS("OpenGL::glStencilOp", XS_OpenGL_glStencilOp, file);
-    newXS("OpenGL::glTagSampleBufferSGIX", XS_OpenGL_glTagSampleBufferSGIX, file);
-    newXS("OpenGL::glTexCoord1d", XS_OpenGL_glTexCoord1d, file);
-    newXS("OpenGL::glTexCoord1dv", XS_OpenGL_glTexCoord1dv, file);
-    newXS("OpenGL::glTexCoord1f", XS_OpenGL_glTexCoord1f, file);
-    newXS("OpenGL::glTexCoord1fv", XS_OpenGL_glTexCoord1fv, file);
-    newXS("OpenGL::glTexCoord1i", XS_OpenGL_glTexCoord1i, file);
-    newXS("OpenGL::glTexCoord1iv", XS_OpenGL_glTexCoord1iv, file);
-    newXS("OpenGL::glTexCoord1s", XS_OpenGL_glTexCoord1s, file);
-    newXS("OpenGL::glTexCoord1sv", XS_OpenGL_glTexCoord1sv, file);
-    newXS("OpenGL::glTexCoord2d", XS_OpenGL_glTexCoord2d, file);
-    newXS("OpenGL::glTexCoord2dv", XS_OpenGL_glTexCoord2dv, file);
-    newXS("OpenGL::glTexCoord2f", XS_OpenGL_glTexCoord2f, file);
-    newXS("OpenGL::glTexCoord2fv", XS_OpenGL_glTexCoord2fv, file);
-    newXS("OpenGL::glTexCoord2i", XS_OpenGL_glTexCoord2i, file);
-    newXS("OpenGL::glTexCoord2iv", XS_OpenGL_glTexCoord2iv, file);
-    newXS("OpenGL::glTexCoord2s", XS_OpenGL_glTexCoord2s, file);
-    newXS("OpenGL::glTexCoord2sv", XS_OpenGL_glTexCoord2sv, file);
-    newXS("OpenGL::glTexCoord3d", XS_OpenGL_glTexCoord3d, file);
-    newXS("OpenGL::glTexCoord3dv", XS_OpenGL_glTexCoord3dv, file);
-    newXS("OpenGL::glTexCoord3f", XS_OpenGL_glTexCoord3f, file);
-    newXS("OpenGL::glTexCoord3fv", XS_OpenGL_glTexCoord3fv, file);
-    newXS("OpenGL::glTexCoord3i", XS_OpenGL_glTexCoord3i, file);
-    newXS("OpenGL::glTexCoord3iv", XS_OpenGL_glTexCoord3iv, file);
-    newXS("OpenGL::glTexCoord3s", XS_OpenGL_glTexCoord3s, file);
-    newXS("OpenGL::glTexCoord3sv", XS_OpenGL_glTexCoord3sv, file);
-    newXS("OpenGL::glTexCoord4d", XS_OpenGL_glTexCoord4d, file);
-    newXS("OpenGL::glTexCoord4dv", XS_OpenGL_glTexCoord4dv, file);
-    newXS("OpenGL::glTexCoord4f", XS_OpenGL_glTexCoord4f, file);
-    newXS("OpenGL::glTexCoord4fv", XS_OpenGL_glTexCoord4fv, file);
-    newXS("OpenGL::glTexCoord4i", XS_OpenGL_glTexCoord4i, file);
-    newXS("OpenGL::glTexCoord4iv", XS_OpenGL_glTexCoord4iv, file);
-    newXS("OpenGL::glTexCoord4s", XS_OpenGL_glTexCoord4s, file);
-    newXS("OpenGL::glTexCoord4sv", XS_OpenGL_glTexCoord4sv, file);
-    newXS("OpenGL::glTexEnvf", XS_OpenGL_glTexEnvf, file);
-    newXS("OpenGL::glTexEnvfv", XS_OpenGL_glTexEnvfv, file);
-    newXS("OpenGL::glTexEnvi", XS_OpenGL_glTexEnvi, file);
-    newXS("OpenGL::glTexEnviv", XS_OpenGL_glTexEnviv, file);
-    newXS("OpenGL::glTexGend", XS_OpenGL_glTexGend, file);
-    newXS("OpenGL::glTexGendv", XS_OpenGL_glTexGendv, file);
-    newXS("OpenGL::glTexGenf", XS_OpenGL_glTexGenf, file);
-    newXS("OpenGL::glTexGenfv", XS_OpenGL_glTexGenfv, file);
-    newXS("OpenGL::glTexGeni", XS_OpenGL_glTexGeni, file);
-    newXS("OpenGL::glTexGeniv", XS_OpenGL_glTexGeniv, file);
-    newXS("OpenGL::glTexImage1D", XS_OpenGL_glTexImage1D, file);
-    newXS("OpenGL::glTexImage2D", XS_OpenGL_glTexImage2D, file);
-    newXS("OpenGL::glTexImage3DEXT", XS_OpenGL_glTexImage3DEXT, file);
-    newXS("OpenGL::glTexParameterf", XS_OpenGL_glTexParameterf, file);
-    newXS("OpenGL::glTexParameterfv", XS_OpenGL_glTexParameterfv, file);
-    newXS("OpenGL::glTexParameteri", XS_OpenGL_glTexParameteri, file);
-    newXS("OpenGL::glTexParameteriv", XS_OpenGL_glTexParameteriv, file);
-    newXS("OpenGL::glTexSubImage1DEXT", XS_OpenGL_glTexSubImage1DEXT, file);
-    newXS("OpenGL::glTexSubImage2DEXT", XS_OpenGL_glTexSubImage2DEXT, file);
-    newXS("OpenGL::glTexSubImage3DEXT", XS_OpenGL_glTexSubImage3DEXT, file);
-    newXS("OpenGL::glTranslated", XS_OpenGL_glTranslated, file);
-    newXS("OpenGL::glTranslatef", XS_OpenGL_glTranslatef, file);
-    newXS("OpenGL::glVertex2d", XS_OpenGL_glVertex2d, file);
-    newXS("OpenGL::glVertex2dv", XS_OpenGL_glVertex2dv, file);
-    newXS("OpenGL::glVertex2f", XS_OpenGL_glVertex2f, file);
-    newXS("OpenGL::glVertex2fv", XS_OpenGL_glVertex2fv, file);
-    newXS("OpenGL::glVertex2i", XS_OpenGL_glVertex2i, file);
-    newXS("OpenGL::glVertex2iv", XS_OpenGL_glVertex2iv, file);
-    newXS("OpenGL::glVertex2s", XS_OpenGL_glVertex2s, file);
-    newXS("OpenGL::glVertex2sv", XS_OpenGL_glVertex2sv, file);
-    newXS("OpenGL::glVertex3d", XS_OpenGL_glVertex3d, file);
-    newXS("OpenGL::glVertex3dv", XS_OpenGL_glVertex3dv, file);
-    newXS("OpenGL::glVertex3f", XS_OpenGL_glVertex3f, file);
-    newXS("OpenGL::glVertex3fv", XS_OpenGL_glVertex3fv, file);
-    newXS("OpenGL::glVertex3i", XS_OpenGL_glVertex3i, file);
-    newXS("OpenGL::glVertex3iv", XS_OpenGL_glVertex3iv, file);
-    newXS("OpenGL::glVertex3s", XS_OpenGL_glVertex3s, file);
-    newXS("OpenGL::glVertex3sv", XS_OpenGL_glVertex3sv, file);
-    newXS("OpenGL::glVertex4d", XS_OpenGL_glVertex4d, file);
-    newXS("OpenGL::glVertex4dv", XS_OpenGL_glVertex4dv, file);
-    newXS("OpenGL::glVertex4f", XS_OpenGL_glVertex4f, file);
-    newXS("OpenGL::glVertex4fv", XS_OpenGL_glVertex4fv, file);
-    newXS("OpenGL::glVertex4i", XS_OpenGL_glVertex4i, file);
-    newXS("OpenGL::glVertex4iv", XS_OpenGL_glVertex4iv, file);
-    newXS("OpenGL::glVertex4s", XS_OpenGL_glVertex4s, file);
-    newXS("OpenGL::glVertex4sv", XS_OpenGL_glVertex4sv, file);
-    newXS("OpenGL::glViewport", XS_OpenGL_glViewport, file);
+    XS_VERSION_BOOTCHECK ;
+
+        newXS("OpenGL::glpcOpenWindow", XS_OpenGL_glpcOpenWindow, file);
+        newXS("OpenGL::glXSwapBuffers", XS_OpenGL_glXSwapBuffers, file);
+        newXS("OpenGL::XPending", XS_OpenGL_XPending, file);
+        newXS("OpenGL::glpXNextEvent", XS_OpenGL_glpXNextEvent, file);
+        newXS("OpenGL::glpXQueryPointer", XS_OpenGL_glpXQueryPointer, file);
+        newXS("OpenGL::glpClipPlane", XS_OpenGL_glpClipPlane, file);
+        newXS("OpenGL::glpGetClipPlane", XS_OpenGL_glpGetClipPlane, file);
+        newXS("OpenGL::glpReadTex", XS_OpenGL_glpReadTex, file);
+        newXS("OpenGL::glpLoadMatrixd", XS_OpenGL_glpLoadMatrixd, file);
+        newXS("OpenGL::glpMultMatrixd", XS_OpenGL_glpMultMatrixd, file);
+        newXS("OpenGL::glpLoadMatrixf", XS_OpenGL_glpLoadMatrixf, file);
+        newXS("OpenGL::glpMultMatrixf", XS_OpenGL_glpMultMatrixf, file);
+        newXS("OpenGL::gluOrtho2D", XS_OpenGL_gluOrtho2D, file);
+        newXS("OpenGL::gluPerspective", XS_OpenGL_gluPerspective, file);
+        newXS("OpenGL::gluLookAt", XS_OpenGL_gluLookAt, file);
+        newXS("OpenGL::glAccum", XS_OpenGL_glAccum, file);
+        newXS("OpenGL::glAlphaFunc", XS_OpenGL_glAlphaFunc, file);
+        newXS("OpenGL::glBegin", XS_OpenGL_glBegin, file);
+        newXS("OpenGL::glBitmap", XS_OpenGL_glBitmap, file);
+        newXS("OpenGL::glBlendColorEXT", XS_OpenGL_glBlendColorEXT, file);
+        newXS("OpenGL::glBlendEquationEXT", XS_OpenGL_glBlendEquationEXT, file);
+        newXS("OpenGL::glBlendFunc", XS_OpenGL_glBlendFunc, file);
+        newXS("OpenGL::glCallList", XS_OpenGL_glCallList, file);
+        newXS("OpenGL::glCallLists", XS_OpenGL_glCallLists, file);
+        newXS("OpenGL::glClear", XS_OpenGL_glClear, file);
+        newXS("OpenGL::glClearAccum", XS_OpenGL_glClearAccum, file);
+        newXS("OpenGL::glClearColor", XS_OpenGL_glClearColor, file);
+        newXS("OpenGL::glClearDepth", XS_OpenGL_glClearDepth, file);
+        newXS("OpenGL::glClearIndex", XS_OpenGL_glClearIndex, file);
+        newXS("OpenGL::glClearStencil", XS_OpenGL_glClearStencil, file);
+        newXS("OpenGL::glClipPlane", XS_OpenGL_glClipPlane, file);
+        newXS("OpenGL::glColor3b", XS_OpenGL_glColor3b, file);
+        newXS("OpenGL::glColor3bv", XS_OpenGL_glColor3bv, file);
+        newXS("OpenGL::glColor3d", XS_OpenGL_glColor3d, file);
+        newXS("OpenGL::glColor3dv", XS_OpenGL_glColor3dv, file);
+        newXS("OpenGL::glColor3f", XS_OpenGL_glColor3f, file);
+        newXS("OpenGL::glColor3fv", XS_OpenGL_glColor3fv, file);
+        newXS("OpenGL::glColor3i", XS_OpenGL_glColor3i, file);
+        newXS("OpenGL::glColor3iv", XS_OpenGL_glColor3iv, file);
+        newXS("OpenGL::glColor3s", XS_OpenGL_glColor3s, file);
+        newXS("OpenGL::glColor3sv", XS_OpenGL_glColor3sv, file);
+        newXS("OpenGL::glColor3ub", XS_OpenGL_glColor3ub, file);
+        newXS("OpenGL::glColor3ubv", XS_OpenGL_glColor3ubv, file);
+        newXS("OpenGL::glColor3ui", XS_OpenGL_glColor3ui, file);
+        newXS("OpenGL::glColor3uiv", XS_OpenGL_glColor3uiv, file);
+        newXS("OpenGL::glColor3us", XS_OpenGL_glColor3us, file);
+        newXS("OpenGL::glColor3usv", XS_OpenGL_glColor3usv, file);
+        newXS("OpenGL::glColor4b", XS_OpenGL_glColor4b, file);
+        newXS("OpenGL::glColor4bv", XS_OpenGL_glColor4bv, file);
+        newXS("OpenGL::glColor4d", XS_OpenGL_glColor4d, file);
+        newXS("OpenGL::glColor4dv", XS_OpenGL_glColor4dv, file);
+        newXS("OpenGL::glColor4f", XS_OpenGL_glColor4f, file);
+        newXS("OpenGL::glColor4fv", XS_OpenGL_glColor4fv, file);
+        newXS("OpenGL::glColor4i", XS_OpenGL_glColor4i, file);
+        newXS("OpenGL::glColor4iv", XS_OpenGL_glColor4iv, file);
+        newXS("OpenGL::glColor4s", XS_OpenGL_glColor4s, file);
+        newXS("OpenGL::glColor4sv", XS_OpenGL_glColor4sv, file);
+        newXS("OpenGL::glColor4ub", XS_OpenGL_glColor4ub, file);
+        newXS("OpenGL::glColor4ubv", XS_OpenGL_glColor4ubv, file);
+        newXS("OpenGL::glColor4ui", XS_OpenGL_glColor4ui, file);
+        newXS("OpenGL::glColor4uiv", XS_OpenGL_glColor4uiv, file);
+        newXS("OpenGL::glColor4us", XS_OpenGL_glColor4us, file);
+        newXS("OpenGL::glColor4usv", XS_OpenGL_glColor4usv, file);
+        newXS("OpenGL::glColorMask", XS_OpenGL_glColorMask, file);
+        newXS("OpenGL::glColorMaterial", XS_OpenGL_glColorMaterial, file);
+        newXS("OpenGL::glConvolutionFilter1DEXT", XS_OpenGL_glConvolutionFilter1DEXT, file);
+        newXS("OpenGL::glConvolutionFilter2DEXT", XS_OpenGL_glConvolutionFilter2DEXT, file);
+        newXS("OpenGL::glConvolutionParameterfEXT", XS_OpenGL_glConvolutionParameterfEXT, file);
+        newXS("OpenGL::glConvolutionParameterfvEXT", XS_OpenGL_glConvolutionParameterfvEXT, file);
+        newXS("OpenGL::glConvolutionParameteriEXT", XS_OpenGL_glConvolutionParameteriEXT, file);
+        newXS("OpenGL::glConvolutionParameterivEXT", XS_OpenGL_glConvolutionParameterivEXT, file);
+        newXS("OpenGL::glCopyConvolutionFilter1DEXT", XS_OpenGL_glCopyConvolutionFilter1DEXT, file);
+        newXS("OpenGL::glCopyConvolutionFilter2DEXT", XS_OpenGL_glCopyConvolutionFilter2DEXT, file);
+        newXS("OpenGL::glCopyPixels", XS_OpenGL_glCopyPixels, file);
+        newXS("OpenGL::glCullFace", XS_OpenGL_glCullFace, file);
+        newXS("OpenGL::glDeleteLists", XS_OpenGL_glDeleteLists, file);
+        newXS("OpenGL::glDepthFunc", XS_OpenGL_glDepthFunc, file);
+        newXS("OpenGL::glDepthMask", XS_OpenGL_glDepthMask, file);
+        newXS("OpenGL::glDepthRange", XS_OpenGL_glDepthRange, file);
+        newXS("OpenGL::glDetailTexFuncSGIS", XS_OpenGL_glDetailTexFuncSGIS, file);
+        newXS("OpenGL::glDisable", XS_OpenGL_glDisable, file);
+        newXS("OpenGL::glDrawBuffer", XS_OpenGL_glDrawBuffer, file);
+        newXS("OpenGL::glDrawPixels", XS_OpenGL_glDrawPixels, file);
+        newXS("OpenGL::glEdgeFlag", XS_OpenGL_glEdgeFlag, file);
+        newXS("OpenGL::glEdgeFlagv", XS_OpenGL_glEdgeFlagv, file);
+        newXS("OpenGL::glEnable", XS_OpenGL_glEnable, file);
+        newXS("OpenGL::glEnd", XS_OpenGL_glEnd, file);
+        newXS("OpenGL::glEndList", XS_OpenGL_glEndList, file);
+        newXS("OpenGL::glEvalCoord1d", XS_OpenGL_glEvalCoord1d, file);
+        newXS("OpenGL::glEvalCoord1dv", XS_OpenGL_glEvalCoord1dv, file);
+        newXS("OpenGL::glEvalCoord1f", XS_OpenGL_glEvalCoord1f, file);
+        newXS("OpenGL::glEvalCoord1fv", XS_OpenGL_glEvalCoord1fv, file);
+        newXS("OpenGL::glEvalCoord2d", XS_OpenGL_glEvalCoord2d, file);
+        newXS("OpenGL::glEvalCoord2dv", XS_OpenGL_glEvalCoord2dv, file);
+        newXS("OpenGL::glEvalCoord2f", XS_OpenGL_glEvalCoord2f, file);
+        newXS("OpenGL::glEvalCoord2fv", XS_OpenGL_glEvalCoord2fv, file);
+        newXS("OpenGL::glEvalMesh1", XS_OpenGL_glEvalMesh1, file);
+        newXS("OpenGL::glEvalMesh2", XS_OpenGL_glEvalMesh2, file);
+        newXS("OpenGL::glEvalPoint1", XS_OpenGL_glEvalPoint1, file);
+        newXS("OpenGL::glEvalPoint2", XS_OpenGL_glEvalPoint2, file);
+        newXS("OpenGL::glFeedbackBuffer", XS_OpenGL_glFeedbackBuffer, file);
+        newXS("OpenGL::glFinish", XS_OpenGL_glFinish, file);
+        newXS("OpenGL::glFlush", XS_OpenGL_glFlush, file);
+        newXS("OpenGL::glFogf", XS_OpenGL_glFogf, file);
+        newXS("OpenGL::glFogfv", XS_OpenGL_glFogfv, file);
+        newXS("OpenGL::glFogi", XS_OpenGL_glFogi, file);
+        newXS("OpenGL::glFogiv", XS_OpenGL_glFogiv, file);
+        newXS("OpenGL::glFrontFace", XS_OpenGL_glFrontFace, file);
+        newXS("OpenGL::glFrustum", XS_OpenGL_glFrustum, file);
+        newXS("OpenGL::glGenLists", XS_OpenGL_glGenLists, file);
+        newXS("OpenGL::glGetBooleanv", XS_OpenGL_glGetBooleanv, file);
+        newXS("OpenGL::glGetClipPlane", XS_OpenGL_glGetClipPlane, file);
+        newXS("OpenGL::glGetConvolutionFilterEXT", XS_OpenGL_glGetConvolutionFilterEXT, file);
+        newXS("OpenGL::glGetConvolutionParameterfvEXT", XS_OpenGL_glGetConvolutionParameterfvEXT, file);
+        newXS("OpenGL::glGetConvolutionParameterivEXT", XS_OpenGL_glGetConvolutionParameterivEXT, file);
+        newXS("OpenGL::glGetDetailTexFuncSGIS", XS_OpenGL_glGetDetailTexFuncSGIS, file);
+        newXS("OpenGL::glGetDoublev", XS_OpenGL_glGetDoublev, file);
+        newXS("OpenGL::glGetError", XS_OpenGL_glGetError, file);
+        newXS("OpenGL::glGetFloatv", XS_OpenGL_glGetFloatv, file);
+        newXS("OpenGL::glGetHistogramEXT", XS_OpenGL_glGetHistogramEXT, file);
+        newXS("OpenGL::glGetHistogramParameterfvEXT", XS_OpenGL_glGetHistogramParameterfvEXT, file);
+        newXS("OpenGL::glGetHistogramParameterivEXT", XS_OpenGL_glGetHistogramParameterivEXT, file);
+        newXS("OpenGL::glGetIntegerv", XS_OpenGL_glGetIntegerv, file);
+        newXS("OpenGL::glGetLightfv", XS_OpenGL_glGetLightfv, file);
+        newXS("OpenGL::glGetLightiv", XS_OpenGL_glGetLightiv, file);
+        newXS("OpenGL::glGetMapdv", XS_OpenGL_glGetMapdv, file);
+        newXS("OpenGL::glGetMapfv", XS_OpenGL_glGetMapfv, file);
+        newXS("OpenGL::glGetMapiv", XS_OpenGL_glGetMapiv, file);
+        newXS("OpenGL::glGetMaterialfv", XS_OpenGL_glGetMaterialfv, file);
+        newXS("OpenGL::glGetMaterialiv", XS_OpenGL_glGetMaterialiv, file);
+        newXS("OpenGL::glGetMinmaxEXT", XS_OpenGL_glGetMinmaxEXT, file);
+        newXS("OpenGL::glGetMinmaxParameterfvEXT", XS_OpenGL_glGetMinmaxParameterfvEXT, file);
+        newXS("OpenGL::glGetMinmaxParameterivEXT", XS_OpenGL_glGetMinmaxParameterivEXT, file);
+        newXS("OpenGL::glGetPixelMapfv", XS_OpenGL_glGetPixelMapfv, file);
+        newXS("OpenGL::glGetPixelMapuiv", XS_OpenGL_glGetPixelMapuiv, file);
+        newXS("OpenGL::glGetPixelMapusv", XS_OpenGL_glGetPixelMapusv, file);
+        newXS("OpenGL::glGetPolygonStipple", XS_OpenGL_glGetPolygonStipple, file);
+        newXS("OpenGL::glGetSeparableFilterEXT", XS_OpenGL_glGetSeparableFilterEXT, file);
+        newXS("OpenGL::glGetSharpenTexFuncSGIS", XS_OpenGL_glGetSharpenTexFuncSGIS, file);
+        newXS("OpenGL::glGetTexEnvfv", XS_OpenGL_glGetTexEnvfv, file);
+        newXS("OpenGL::glGetTexEnviv", XS_OpenGL_glGetTexEnviv, file);
+        newXS("OpenGL::glGetTexGendv", XS_OpenGL_glGetTexGendv, file);
+        newXS("OpenGL::glGetTexGenfv", XS_OpenGL_glGetTexGenfv, file);
+        newXS("OpenGL::glGetTexGeniv", XS_OpenGL_glGetTexGeniv, file);
+        newXS("OpenGL::glGetTexImage", XS_OpenGL_glGetTexImage, file);
+        newXS("OpenGL::glGetTexLevelParameterfv", XS_OpenGL_glGetTexLevelParameterfv, file);
+        newXS("OpenGL::glGetTexLevelParameteriv", XS_OpenGL_glGetTexLevelParameteriv, file);
+        newXS("OpenGL::glGetTexParameterfv", XS_OpenGL_glGetTexParameterfv, file);
+        newXS("OpenGL::glGetTexParameteriv", XS_OpenGL_glGetTexParameteriv, file);
+        newXS("OpenGL::glHint", XS_OpenGL_glHint, file);
+        newXS("OpenGL::glHistogramEXT", XS_OpenGL_glHistogramEXT, file);
+        newXS("OpenGL::glIndexMask", XS_OpenGL_glIndexMask, file);
+        newXS("OpenGL::glIndexd", XS_OpenGL_glIndexd, file);
+        newXS("OpenGL::glIndexdv", XS_OpenGL_glIndexdv, file);
+        newXS("OpenGL::glIndexf", XS_OpenGL_glIndexf, file);
+        newXS("OpenGL::glIndexfv", XS_OpenGL_glIndexfv, file);
+        newXS("OpenGL::glIndexi", XS_OpenGL_glIndexi, file);
+        newXS("OpenGL::glIndexiv", XS_OpenGL_glIndexiv, file);
+        newXS("OpenGL::glIndexs", XS_OpenGL_glIndexs, file);
+        newXS("OpenGL::glIndexsv", XS_OpenGL_glIndexsv, file);
+        newXS("OpenGL::glInitNames", XS_OpenGL_glInitNames, file);
+        newXS("OpenGL::glIsEnabled", XS_OpenGL_glIsEnabled, file);
+        newXS("OpenGL::glIsList", XS_OpenGL_glIsList, file);
+        newXS("OpenGL::glLightModelf", XS_OpenGL_glLightModelf, file);
+        newXS("OpenGL::glLightModelfv", XS_OpenGL_glLightModelfv, file);
+        newXS("OpenGL::glLightModeli", XS_OpenGL_glLightModeli, file);
+        newXS("OpenGL::glLightModeliv", XS_OpenGL_glLightModeliv, file);
+        newXS("OpenGL::glLightf", XS_OpenGL_glLightf, file);
+        newXS("OpenGL::glLightfv", XS_OpenGL_glLightfv, file);
+        newXS("OpenGL::glLighti", XS_OpenGL_glLighti, file);
+        newXS("OpenGL::glLightiv", XS_OpenGL_glLightiv, file);
+        newXS("OpenGL::glLineStipple", XS_OpenGL_glLineStipple, file);
+        newXS("OpenGL::glLineWidth", XS_OpenGL_glLineWidth, file);
+        newXS("OpenGL::glListBase", XS_OpenGL_glListBase, file);
+        newXS("OpenGL::glLoadIdentity", XS_OpenGL_glLoadIdentity, file);
+        newXS("OpenGL::glLoadMatrixd", XS_OpenGL_glLoadMatrixd, file);
+        newXS("OpenGL::glLoadMatrixf", XS_OpenGL_glLoadMatrixf, file);
+        newXS("OpenGL::glLoadName", XS_OpenGL_glLoadName, file);
+        newXS("OpenGL::glLogicOp", XS_OpenGL_glLogicOp, file);
+        newXS("OpenGL::glMap1d", XS_OpenGL_glMap1d, file);
+        newXS("OpenGL::glMap1f", XS_OpenGL_glMap1f, file);
+        newXS("OpenGL::glMap2d", XS_OpenGL_glMap2d, file);
+        newXS("OpenGL::glMap2f", XS_OpenGL_glMap2f, file);
+        newXS("OpenGL::glMapGrid1d", XS_OpenGL_glMapGrid1d, file);
+        newXS("OpenGL::glMapGrid1f", XS_OpenGL_glMapGrid1f, file);
+        newXS("OpenGL::glMapGrid2d", XS_OpenGL_glMapGrid2d, file);
+        newXS("OpenGL::glMapGrid2f", XS_OpenGL_glMapGrid2f, file);
+        newXS("OpenGL::glMaterialf", XS_OpenGL_glMaterialf, file);
+        newXS("OpenGL::glMaterialfv", XS_OpenGL_glMaterialfv, file);
+        newXS("OpenGL::glMateriali", XS_OpenGL_glMateriali, file);
+        newXS("OpenGL::glMaterialiv", XS_OpenGL_glMaterialiv, file);
+        newXS("OpenGL::glMatrixMode", XS_OpenGL_glMatrixMode, file);
+        newXS("OpenGL::glMinmaxEXT", XS_OpenGL_glMinmaxEXT, file);
+        newXS("OpenGL::glMultMatrixd", XS_OpenGL_glMultMatrixd, file);
+        newXS("OpenGL::glMultMatrixf", XS_OpenGL_glMultMatrixf, file);
+        newXS("OpenGL::glNewList", XS_OpenGL_glNewList, file);
+        newXS("OpenGL::glNormal3b", XS_OpenGL_glNormal3b, file);
+        newXS("OpenGL::glNormal3bv", XS_OpenGL_glNormal3bv, file);
+        newXS("OpenGL::glNormal3d", XS_OpenGL_glNormal3d, file);
+        newXS("OpenGL::glNormal3dv", XS_OpenGL_glNormal3dv, file);
+        newXS("OpenGL::glNormal3f", XS_OpenGL_glNormal3f, file);
+        newXS("OpenGL::glNormal3fv", XS_OpenGL_glNormal3fv, file);
+        newXS("OpenGL::glNormal3i", XS_OpenGL_glNormal3i, file);
+        newXS("OpenGL::glNormal3iv", XS_OpenGL_glNormal3iv, file);
+        newXS("OpenGL::glNormal3s", XS_OpenGL_glNormal3s, file);
+        newXS("OpenGL::glNormal3sv", XS_OpenGL_glNormal3sv, file);
+        newXS("OpenGL::glOrtho", XS_OpenGL_glOrtho, file);
+        newXS("OpenGL::glPassThrough", XS_OpenGL_glPassThrough, file);
+        newXS("OpenGL::glPixelMapfv", XS_OpenGL_glPixelMapfv, file);
+        newXS("OpenGL::glPixelMapuiv", XS_OpenGL_glPixelMapuiv, file);
+        newXS("OpenGL::glPixelMapusv", XS_OpenGL_glPixelMapusv, file);
+        newXS("OpenGL::glPixelStoref", XS_OpenGL_glPixelStoref, file);
+        newXS("OpenGL::glPixelStorei", XS_OpenGL_glPixelStorei, file);
+        newXS("OpenGL::glPixelTransferf", XS_OpenGL_glPixelTransferf, file);
+        newXS("OpenGL::glPixelTransferi", XS_OpenGL_glPixelTransferi, file);
+        newXS("OpenGL::glPixelZoom", XS_OpenGL_glPixelZoom, file);
+        newXS("OpenGL::glPointSize", XS_OpenGL_glPointSize, file);
+        newXS("OpenGL::glPolygonMode", XS_OpenGL_glPolygonMode, file);
+        newXS("OpenGL::glPolygonOffsetEXT", XS_OpenGL_glPolygonOffsetEXT, file);
+        newXS("OpenGL::glPolygonStipple", XS_OpenGL_glPolygonStipple, file);
+        newXS("OpenGL::glPopAttrib", XS_OpenGL_glPopAttrib, file);
+        newXS("OpenGL::glPopMatrix", XS_OpenGL_glPopMatrix, file);
+        newXS("OpenGL::glPopName", XS_OpenGL_glPopName, file);
+        newXS("OpenGL::glPushAttrib", XS_OpenGL_glPushAttrib, file);
+        newXS("OpenGL::glPushMatrix", XS_OpenGL_glPushMatrix, file);
+        newXS("OpenGL::glPushName", XS_OpenGL_glPushName, file);
+        newXS("OpenGL::glRasterPos2d", XS_OpenGL_glRasterPos2d, file);
+        newXS("OpenGL::glRasterPos2dv", XS_OpenGL_glRasterPos2dv, file);
+        newXS("OpenGL::glRasterPos2f", XS_OpenGL_glRasterPos2f, file);
+        newXS("OpenGL::glRasterPos2fv", XS_OpenGL_glRasterPos2fv, file);
+        newXS("OpenGL::glRasterPos2i", XS_OpenGL_glRasterPos2i, file);
+        newXS("OpenGL::glRasterPos2iv", XS_OpenGL_glRasterPos2iv, file);
+        newXS("OpenGL::glRasterPos2s", XS_OpenGL_glRasterPos2s, file);
+        newXS("OpenGL::glRasterPos2sv", XS_OpenGL_glRasterPos2sv, file);
+        newXS("OpenGL::glRasterPos3d", XS_OpenGL_glRasterPos3d, file);
+        newXS("OpenGL::glRasterPos3dv", XS_OpenGL_glRasterPos3dv, file);
+        newXS("OpenGL::glRasterPos3f", XS_OpenGL_glRasterPos3f, file);
+        newXS("OpenGL::glRasterPos3fv", XS_OpenGL_glRasterPos3fv, file);
+        newXS("OpenGL::glRasterPos3i", XS_OpenGL_glRasterPos3i, file);
+        newXS("OpenGL::glRasterPos3iv", XS_OpenGL_glRasterPos3iv, file);
+        newXS("OpenGL::glRasterPos3s", XS_OpenGL_glRasterPos3s, file);
+        newXS("OpenGL::glRasterPos3sv", XS_OpenGL_glRasterPos3sv, file);
+        newXS("OpenGL::glRasterPos4d", XS_OpenGL_glRasterPos4d, file);
+        newXS("OpenGL::glRasterPos4dv", XS_OpenGL_glRasterPos4dv, file);
+        newXS("OpenGL::glRasterPos4f", XS_OpenGL_glRasterPos4f, file);
+        newXS("OpenGL::glRasterPos4fv", XS_OpenGL_glRasterPos4fv, file);
+        newXS("OpenGL::glRasterPos4i", XS_OpenGL_glRasterPos4i, file);
+        newXS("OpenGL::glRasterPos4iv", XS_OpenGL_glRasterPos4iv, file);
+        newXS("OpenGL::glRasterPos4s", XS_OpenGL_glRasterPos4s, file);
+        newXS("OpenGL::glRasterPos4sv", XS_OpenGL_glRasterPos4sv, file);
+        newXS("OpenGL::glReadBuffer", XS_OpenGL_glReadBuffer, file);
+        newXS("OpenGL::glReadPixels", XS_OpenGL_glReadPixels, file);
+        newXS("OpenGL::glRectd", XS_OpenGL_glRectd, file);
+        newXS("OpenGL::glRectdv", XS_OpenGL_glRectdv, file);
+        newXS("OpenGL::glRectf", XS_OpenGL_glRectf, file);
+        newXS("OpenGL::glRectfv", XS_OpenGL_glRectfv, file);
+        newXS("OpenGL::glRecti", XS_OpenGL_glRecti, file);
+        newXS("OpenGL::glRectiv", XS_OpenGL_glRectiv, file);
+        newXS("OpenGL::glRects", XS_OpenGL_glRects, file);
+        newXS("OpenGL::glRectsv", XS_OpenGL_glRectsv, file);
+        newXS("OpenGL::glRenderMode", XS_OpenGL_glRenderMode, file);
+        newXS("OpenGL::glResetHistogramEXT", XS_OpenGL_glResetHistogramEXT, file);
+        newXS("OpenGL::glResetMinmaxEXT", XS_OpenGL_glResetMinmaxEXT, file);
+        newXS("OpenGL::glRotated", XS_OpenGL_glRotated, file);
+        newXS("OpenGL::glRotatef", XS_OpenGL_glRotatef, file);
+        newXS("OpenGL::glSampleMaskSGIS", XS_OpenGL_glSampleMaskSGIS, file);
+        newXS("OpenGL::glSamplePatternSGIS", XS_OpenGL_glSamplePatternSGIS, file);
+        newXS("OpenGL::glScaled", XS_OpenGL_glScaled, file);
+        newXS("OpenGL::glScalef", XS_OpenGL_glScalef, file);
+        newXS("OpenGL::glScissor", XS_OpenGL_glScissor, file);
+        newXS("OpenGL::glSelectBuffer", XS_OpenGL_glSelectBuffer, file);
+        newXS("OpenGL::glSeparableFilter2DEXT", XS_OpenGL_glSeparableFilter2DEXT, file);
+        newXS("OpenGL::glShadeModel", XS_OpenGL_glShadeModel, file);
+        newXS("OpenGL::glSharpenTexFuncSGIS", XS_OpenGL_glSharpenTexFuncSGIS, file);
+        newXS("OpenGL::glStencilFunc", XS_OpenGL_glStencilFunc, file);
+        newXS("OpenGL::glStencilMask", XS_OpenGL_glStencilMask, file);
+        newXS("OpenGL::glStencilOp", XS_OpenGL_glStencilOp, file);
+        newXS("OpenGL::glTagSampleBufferSGIX", XS_OpenGL_glTagSampleBufferSGIX, file);
+        newXS("OpenGL::glTexCoord1d", XS_OpenGL_glTexCoord1d, file);
+        newXS("OpenGL::glTexCoord1dv", XS_OpenGL_glTexCoord1dv, file);
+        newXS("OpenGL::glTexCoord1f", XS_OpenGL_glTexCoord1f, file);
+        newXS("OpenGL::glTexCoord1fv", XS_OpenGL_glTexCoord1fv, file);
+        newXS("OpenGL::glTexCoord1i", XS_OpenGL_glTexCoord1i, file);
+        newXS("OpenGL::glTexCoord1iv", XS_OpenGL_glTexCoord1iv, file);
+        newXS("OpenGL::glTexCoord1s", XS_OpenGL_glTexCoord1s, file);
+        newXS("OpenGL::glTexCoord1sv", XS_OpenGL_glTexCoord1sv, file);
+        newXS("OpenGL::glTexCoord2d", XS_OpenGL_glTexCoord2d, file);
+        newXS("OpenGL::glTexCoord2dv", XS_OpenGL_glTexCoord2dv, file);
+        newXS("OpenGL::glTexCoord2f", XS_OpenGL_glTexCoord2f, file);
+        newXS("OpenGL::glTexCoord2fv", XS_OpenGL_glTexCoord2fv, file);
+        newXS("OpenGL::glTexCoord2i", XS_OpenGL_glTexCoord2i, file);
+        newXS("OpenGL::glTexCoord2iv", XS_OpenGL_glTexCoord2iv, file);
+        newXS("OpenGL::glTexCoord2s", XS_OpenGL_glTexCoord2s, file);
+        newXS("OpenGL::glTexCoord2sv", XS_OpenGL_glTexCoord2sv, file);
+        newXS("OpenGL::glTexCoord3d", XS_OpenGL_glTexCoord3d, file);
+        newXS("OpenGL::glTexCoord3dv", XS_OpenGL_glTexCoord3dv, file);
+        newXS("OpenGL::glTexCoord3f", XS_OpenGL_glTexCoord3f, file);
+        newXS("OpenGL::glTexCoord3fv", XS_OpenGL_glTexCoord3fv, file);
+        newXS("OpenGL::glTexCoord3i", XS_OpenGL_glTexCoord3i, file);
+        newXS("OpenGL::glTexCoord3iv", XS_OpenGL_glTexCoord3iv, file);
+        newXS("OpenGL::glTexCoord3s", XS_OpenGL_glTexCoord3s, file);
+        newXS("OpenGL::glTexCoord3sv", XS_OpenGL_glTexCoord3sv, file);
+        newXS("OpenGL::glTexCoord4d", XS_OpenGL_glTexCoord4d, file);
+        newXS("OpenGL::glTexCoord4dv", XS_OpenGL_glTexCoord4dv, file);
+        newXS("OpenGL::glTexCoord4f", XS_OpenGL_glTexCoord4f, file);
+        newXS("OpenGL::glTexCoord4fv", XS_OpenGL_glTexCoord4fv, file);
+        newXS("OpenGL::glTexCoord4i", XS_OpenGL_glTexCoord4i, file);
+        newXS("OpenGL::glTexCoord4iv", XS_OpenGL_glTexCoord4iv, file);
+        newXS("OpenGL::glTexCoord4s", XS_OpenGL_glTexCoord4s, file);
+        newXS("OpenGL::glTexCoord4sv", XS_OpenGL_glTexCoord4sv, file);
+        newXS("OpenGL::glTexEnvf", XS_OpenGL_glTexEnvf, file);
+        newXS("OpenGL::glTexEnvfv", XS_OpenGL_glTexEnvfv, file);
+        newXS("OpenGL::glTexEnvi", XS_OpenGL_glTexEnvi, file);
+        newXS("OpenGL::glTexEnviv", XS_OpenGL_glTexEnviv, file);
+        newXS("OpenGL::glTexGend", XS_OpenGL_glTexGend, file);
+        newXS("OpenGL::glTexGendv", XS_OpenGL_glTexGendv, file);
+        newXS("OpenGL::glTexGenf", XS_OpenGL_glTexGenf, file);
+        newXS("OpenGL::glTexGenfv", XS_OpenGL_glTexGenfv, file);
+        newXS("OpenGL::glTexGeni", XS_OpenGL_glTexGeni, file);
+        newXS("OpenGL::glTexGeniv", XS_OpenGL_glTexGeniv, file);
+        newXS("OpenGL::glTexImage1D", XS_OpenGL_glTexImage1D, file);
+        newXS("OpenGL::glTexImage2D", XS_OpenGL_glTexImage2D, file);
+        newXS("OpenGL::glTexImage3DEXT", XS_OpenGL_glTexImage3DEXT, file);
+        newXS("OpenGL::glTexParameterf", XS_OpenGL_glTexParameterf, file);
+        newXS("OpenGL::glTexParameterfv", XS_OpenGL_glTexParameterfv, file);
+        newXS("OpenGL::glTexParameteri", XS_OpenGL_glTexParameteri, file);
+        newXS("OpenGL::glTexParameteriv", XS_OpenGL_glTexParameteriv, file);
+        newXS("OpenGL::glTexSubImage1DEXT", XS_OpenGL_glTexSubImage1DEXT, file);
+        newXS("OpenGL::glTexSubImage2DEXT", XS_OpenGL_glTexSubImage2DEXT, file);
+        newXS("OpenGL::glTexSubImage3DEXT", XS_OpenGL_glTexSubImage3DEXT, file);
+        newXS("OpenGL::glTranslated", XS_OpenGL_glTranslated, file);
+        newXS("OpenGL::glTranslatef", XS_OpenGL_glTranslatef, file);
+        newXS("OpenGL::glVertex2d", XS_OpenGL_glVertex2d, file);
+        newXS("OpenGL::glVertex2dv", XS_OpenGL_glVertex2dv, file);
+        newXS("OpenGL::glVertex2f", XS_OpenGL_glVertex2f, file);
+        newXS("OpenGL::glVertex2fv", XS_OpenGL_glVertex2fv, file);
+        newXS("OpenGL::glVertex2i", XS_OpenGL_glVertex2i, file);
+        newXS("OpenGL::glVertex2iv", XS_OpenGL_glVertex2iv, file);
+        newXS("OpenGL::glVertex2s", XS_OpenGL_glVertex2s, file);
+        newXS("OpenGL::glVertex2sv", XS_OpenGL_glVertex2sv, file);
+        newXS("OpenGL::glVertex3d", XS_OpenGL_glVertex3d, file);
+        newXS("OpenGL::glVertex3dv", XS_OpenGL_glVertex3dv, file);
+        newXS("OpenGL::glVertex3f", XS_OpenGL_glVertex3f, file);
+        newXS("OpenGL::glVertex3fv", XS_OpenGL_glVertex3fv, file);
+        newXS("OpenGL::glVertex3i", XS_OpenGL_glVertex3i, file);
+        newXS("OpenGL::glVertex3iv", XS_OpenGL_glVertex3iv, file);
+        newXS("OpenGL::glVertex3s", XS_OpenGL_glVertex3s, file);
+        newXS("OpenGL::glVertex3sv", XS_OpenGL_glVertex3sv, file);
+        newXS("OpenGL::glVertex4d", XS_OpenGL_glVertex4d, file);
+        newXS("OpenGL::glVertex4dv", XS_OpenGL_glVertex4dv, file);
+        newXS("OpenGL::glVertex4f", XS_OpenGL_glVertex4f, file);
+        newXS("OpenGL::glVertex4fv", XS_OpenGL_glVertex4fv, file);
+        newXS("OpenGL::glVertex4i", XS_OpenGL_glVertex4i, file);
+        newXS("OpenGL::glVertex4iv", XS_OpenGL_glVertex4iv, file);
+        newXS("OpenGL::glVertex4s", XS_OpenGL_glVertex4s, file);
+        newXS("OpenGL::glVertex4sv", XS_OpenGL_glVertex4sv, file);
+        newXS("OpenGL::glViewport", XS_OpenGL_glViewport, file);
     ST(0) = &sv_yes;
     XSRETURN(1);
 }

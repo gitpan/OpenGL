@@ -7,7 +7,7 @@
 use ExtUtils::MakeMaker;
 WriteMakefile(
     'NAME'	=> 'OpenGL',
-    'VERSION'	=> '0.3',
+    'VERSION'	=> '0.4',
     'LIBS'	=> '-lXext -lX11 -lGL -lGLU',    
     # 'LIBS'	=> '-L/usr/local/Mesa/lib -lXext -lX11 -lGL -lGLU',    
     'DEFINE'	=> '',     # e.g., '-DHAVE_SOMETHING' 

@@ -18,6 +18,8 @@ The following program "simple" can be found in the examples directory:
         #
 
         BEGIN{ unshift(@INC,"../blib");} # in case OpenGL is built but not installed
+	BEGIN{ unshift(@INC,"../blib/lib");}
+	BEGIN{ unshift(@INC,"../blib/arch");}
         use OpenGL;
 
         glpOpenWindow;
@@ -65,9 +67,11 @@ Alternatively, the program can be run:
 
 Including the Module
 --------------------
-The next line:
+The next lines:
 
         BEGIN{ unshift(@INC,"../blib"); }
+        BEGIN{ unshift(@INC,"../blib/lib");}
+        BEGIN{ unshift(@INC,"../blib/arch");}
 
 is present in the example so that the program can find the compiled module
 if OpenGL is built but not installed. i.e. you did a "make" but not a "make
@@ -228,4 +232,4 @@ array as argument to change the defaults of the window.
 
 
 ----------------------------------------------------------------------------
-Last Updated: stan Dec 10 1995
+

@@ -1,0 +1,3 @@
+AddType application/perl .perl
+AddType application/perl-opengl .glp
+

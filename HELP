@@ -1,38 +1,58 @@
 Perl OpenGL Module Help
 =======================
+
 You're probably here because things aint goin so great, right? Hopefully
 information here will help solve your problem.
 
 For the latest information, please see:
-	http://www.arc.ab.ca/vr/opengl/help.html
+        http://www.arc.ab.ca/vr/opengl/help.html
+
+Standard Xt Command Line Options
+--------------------------------
+You may try to run a program one one machine and display on another by using
+the standard Xt option -display:
+
+        simple -display my_machine:0
+
+This wont work since the OpenGL module doesn't use the Xt or any widget
+library (software layers that reside on top of X). The only way to specify
+which X server to run on is to use the DISPLAY environment variable. For
+people using the csh or tcsh shell:
+
+        setenv DISPLAY my_machine:0
+        simple
+
+For people using sh or bash:
+
+        DISPLAY=my_machine:0 simple
+
 
 Configure
 ---------
-If stuff cant be found when you are building the module it may because things
-aren't in easy to find places. You may have to add "-L" and "-I" directives to
-the file Makefile.PL and then regenerate the Makefile.
-
+If stuff cant be found when you are building the module it may because
+things aren't in easy to find places. You may have to add "-L" and "-I"
+directives to the file Makefile.PL and then regenerate the Makefile.
 
 The Create Subdirectory
------------------------
+
 The files in the create/ subdirectory are:
 
-   *  OpenGL.pm.gen -> generates OpenGL.pm
-   *  OpenGL.xs.gen -> generates OpenGL.xs
-   *  typemap.gen -> generates typemap
-   *  generatefile -> script to create file from ".gen" file
-   *  gettypes -> used in generating typemap
-   *  getfunctions -> used in generating OpenGL.xs
-   *  Makefile -> makefile to do the generation
-   *  X.h -> the X header file (with parts taken out)
+   * OpenGL.pm.gen -> generates OpenGL.pm
+   * OpenGL.xs.gen -> generates OpenGL.xs
+   * typemap.gen -> generates typemap
+   * generatefile -> script to create file from ".gen" file
+   * gettypes -> used in generating typemap
+   * getfunctions -> used in generating OpenGL.xs
+   * Makefile -> makefile to do the generation
+   * X.h -> the X header file (with parts taken out)
 
-Unlike most other perl modules, the files typemap, OpenGL.pm, and OpenGL.xs are
-generated from the opengl and X ".h" (header) files and the ".gen" files.
-However, in an attempt minimize the fragileness of the distribution, this isn't
-done in the default build. The reason is that your header files might be buried
-in some obscure place, or your vendor might have added something that will make
-these scripts break. Instead the files OpenGL.pm, OpenGL.xs, and typemap are
-supplied.
+Unlike most other perl modules, the files typemap, OpenGL.pm, and OpenGL.xs
+are generated from the opengl and X ".h" (header) files and the ".gen"
+files. However, in an attempt minimize the fragileness of the distribution,
+this isn't done in the default build. The reason is that your header files
+might be buried in some obscure place, or your vendor might have added
+something that will make these scripts break. Instead the files OpenGL.pm,
+OpenGL.xs, and typemap are supplied.
 
 If you are having difficulty building/installing the module or some other
 general problem, then it might be helpful to try to create the files on your
@@ -42,15 +62,15 @@ system and see if there are any differences:
         make
         diff OpenGL.pm OpenGL.xs typemap ../
 
-In case you are wondering, OpenGL.c is then generated from OpenGL.xs using the
-xsubpp compiler as part of the regular build process.
+In case you are wondering, OpenGL.c is then generated from OpenGL.xs using
+the xsubpp compiler as part of the regular build process.
 
 Some of the files will have hard-coded pathnames like:
 
         /usr/include/GL/gl.h
 
-If OpenGL (libs, includes, etc.) is installed in a different location on your
-system then you will have to modify some of the files. Do a:
+If OpenGL (libs, includes, etc.) is installed in a different location on
+your system then you will have to modify some of the files. Do a:
 
         grep "/usr/include" create/*
 
@@ -61,26 +81,25 @@ maintenance of the module. Its good to have things as small as possible -
 redundancy is bad.
 
 
-
 Sample Generated Files
 ----------------------
-In the subdirectory "ilib/" is a sample build that was generated on an IRIX 5.3
-SGI system.
+In the subdirectory "ilib/" is a sample build that was generated on an IRIX
+5.3 SGI system. In version 0.4 of the module perl 5.002 beta2 was used.
 
-By comparing these files with files produced during your build process you may
-be able to diagnose any problems you have making the module work. For example,
-to check differences in the ".c" file and the Makefile, go into the main OpenGL
-module directory and execute:
+By comparing these files with files produced during your build process you
+may be able to diagnose any problems you have making the module work. For
+example, to check differences in the ".c" file and the Makefile, go into the
+main OpenGL module directory and execute:
 
         diff OpenGL.c Makefile ilib/
 
 Common sense should tell you whether any differences are major problems or a
-consequence of different systems, pathnames, etc.. To help you understand, the
-following facts about these files might be useful:
+consequence of different systems, pathnames, etc.. To help you understand,
+the following facts about these files might be useful:
 
-   *  files were generated on an SGI Indigo running IRIX 5.3
-   *  Perl 5.001m (patch level m) was used.
-   *  The pathname for perl was: /usr/local/bin/perl
+   * files were generated on an SGI Indigo running IRIX 5.3
+   * Perl 5.001m (patch level m) was used.
+   * The pathname for perl was: /usr/local/bin/perl
 
 If you have an IRIX 5.3 system you may be able to run the example programs
 using the pre built module in
@@ -93,9 +112,39 @@ To try this, make a copy of the examples you want to try:
         cd ilib/
         ../examples/clip
 
-Remember that the examples search the directory "../blib/" for the module, so
-doing a clobber makes sure that the demo is using the build in ilib/.
+Remember that the examples search the directory "../blib/" for the module,
+so doing a clobber makes sure that the demo is using the build in ilib/.
 
+
+Cant Find Object
+----------------
+Under perl 5.002 beta and with the OpenGL module built but not installed,
+running one of the examples may give you the following error:
+
+        Can't find loadable object for module OpenGL
+        in @INC (../blib /usr/local/lib/perl5/IP22-irix/5.002
+        /usr/local/lib/perl5 /usr/local/lib/perl5/site_perl/IP22-irix
+        /usr/local/lib/perl5/site_perl .) at ../blib/OpenGL.pm line 1218
+
+On an SGI I was able to make it work by adding the line
+
+        BEGIN{ unshift(@INC,"../blib/IP22-irix"); }
+
+before the "use OpenGL" statement in the example program I was running. On
+other systems the fix may be similar.
+
+If you have perl 5.002 gamma you may get:
+
+        > simple
+        Can't locate OpenGL.pm in @INC at ./simple line 7.
+        BEGIN failed--compilation aborted at ./simple line 7.
+
+In this case add the lines:
+
+        BEGIN{ unshift(@INC,"../blib/arch"); }
+        BEGIN{ unshift(@INC,"../blib/lib"); }
+
+before the "use OpenGL" statement.
 
 
 MESA
@@ -107,18 +156,18 @@ One person trying with Mesa wrote:
         displays except for the main window.
         (All examples the same)
 
-I tried using MESA 1.2.2 on an SGI and found the following differences in how
-the constants were defined:
+I tried using MESA 1.2.2 on an SGI and found the following differences in
+how the constants were defined:
 
         ../Mesa/include/GL/gl.h:     GL_COLOR_BUFFER_BIT   0x2,
         /usr/include/GL/gl.h:        GL_COLOR_BUFFER_BIT   0x00004000
 
-The solution is to use a version later than 1.2.3. The values in the .h files
-were modified to be equal to those used by sgi's opengl headers, which is what
-was used to generate the perl module.
+The solution is to use a version later than 1.2.3. The values in the .h
+files were modified to be equal to those used by sgi's opengl headers, which
+is what was used to generate the perl module.
 
-Note that the format that the Mesa include files are in are unparseable by the
-scripts in the create/ directory.
+Note that the format that the Mesa include files are in are unparseable by
+the scripts in the create/ directory.
 
 If you are using mesa you might have to edit Makefile.PL:
 
@@ -130,17 +179,17 @@ Makefile and build the module:
         perl Makefile.PL
         make
 
-It may be necessary to add "-lm" (the math library) to the LIBS.
-
+It may be necessary to add "-lm" (the math library) to the LIBS. If you see
+unresolved references like _acos than thats probably why.
 
 
 Loading Problems
 ----------------
 (this section is likely to be SGI specific.) If your workstation has native
 OpenGL, but occasionally you may want to have your program display on an
-X-server that doesn't have GLX on it then the best way is to have your program
-link with the MESA libraries at run time. For most programs (like the OpenGL
-demos that come with your machine) you can do something like:
+X-server that doesn't have GLX on it then the best way is to have your
+program link with the MESA libraries at run time. For most programs (like
+the OpenGL demos that come with your machine) you can do something like:
 
         setenv DISPLAY that_x_station:0
         setenv _RLD_LIST /usr/local/Mesa/lib/libMesaGL.so:DEFAULT
@@ -158,10 +207,10 @@ libraries too:
         setenv _RLD_LIST /usr/local/Mesa/lib/libGL.so:/usr/lib/libXext.so:/usr/lib/libX11.so:DEFAULT
 
 Another related problem I had was trying to build the module using the Mesa
-libraries instead of the regular ones (/usr/lib/libGL.so). It worked fine when
-I built the Mesa libraries as regular libraries (*.a). But after building the
-Mesa library as shared objects (*.so) and then building the opengl perl module,
-I go the following message when trying to run an demo:
+libraries instead of the regular ones (/usr/lib/libGL.so). It worked fine
+when I built the Mesa libraries as regular libraries (*.a). But after
+building the Mesa library as shared objects (*.so) and then building the
+opengl perl module, I go the following message when trying to run an demo:
 
         Can't load '../blib/auto/OpenGL/OpenGL.so' for module OpenGL:
         4888:/usr/local/bin/perl: rld: Fatal Error:
@@ -176,7 +225,6 @@ building, but no luck. Something didn't work here. I was able to run the
 program by setting _RLD_LIST, but there should be a better way.
 
 
-
 No WriteMakefile
 ----------------
 One dude did a:
@@ -187,15 +235,13 @@ and got:
 
         Undefined subroutine &main::WriteMakefile ...
 
-I assume the problem is an older version of perl. If you know, can you email me
-stan@arc.ab.ca so I can update this document -thanks.
-
-
+I assume the problem is an older version of perl. If you know, can you email
+me stan@arc.ab.ca so I can update this document -thanks.
 
 Incorrect Perl Pathname
-------------------------
-You try to execute an OpenGL perl program but it doesn't work. For example, you
-are in the examples directory and you execute:
+
+You try to execute an OpenGL perl program but it doesn't work. For example,
+you are in the examples directory and you execute:
 
         simple
 
@@ -220,8 +266,6 @@ pathname. Note that the full absolute pathname (beginning with "/") is
 required.
 
 
-
-
 No Execute Permission
 ---------------------
 If you try to run a program but get a response similar to:
@@ -235,7 +279,6 @@ then it could be a problem with the file permissions. Try:
 and re-execute the program.
 
 
-
 Cant Find OpenGL Module
 -----------------------
 You run your perl program but it errors:
@@ -247,9 +290,9 @@ The problem here is that it cant find the OpenGL module.
 
 If you haven't built the module then you must build it.
 
-If you did "make" the module but did not install (by doing a "make install"),
-then your program might need help finding where it is. This can be done by
-adding to the include path:
+If you did "make" the module but did not install (by doing a "make
+install"), then your program might need help finding where it is. This can
+be done by adding to the include path:
 
         BEGIN{ unshift(@INC,"/my/home/directory/OpenGL-0.3/blib"); }
 
@@ -269,62 +312,39 @@ in order form them to work.
 
 
 
-zcat doesn't understand ".gz"
------------------------------
-You execute the command:
-
-        zcat OpenGL-0.3.tar.gz | tar xvf -
-
-But get an error message like:
-
-        .../OpenGL-0.3.tar.gz.Z: No such file or directory
-
-The problem is that your version of zcat only understands files with the ".Z"
-suffix but not the ".gz" suffix.
-
-Instead of using zcat, use gunzip -c as in:
-
-        gunzip -c OpenGL-0.3.tar.gz | tar xvf -
-
-The -c option tells gunzip to send output to stdout instead of creating the
-file "OpenGL-0.3.tar".
-
-
-
 No Visual
 ---------
-You run an OpenGL perl program or example and it halts with the error message:
+You run an OpenGL perl program or example and it halts with the error
+message:
 
         No Visual!
 
 This shouldn't be a symptom of all the examples.
 
-The problem is likely that the program is request particular attributes in the
-window/glx-context that aren't available on your hardware. Perhaps double
-buffering isn't supported, or mabye its the number of colors requested, etc..
-Check the arguments to the function glpOpenWindow(). The 'No Visual' message
-you get comes from a failed call to glXChooseVisual found in routine
-glpOpenWindow whose source can be found in file OpenGL.xs.
+The problem is likely that the program is request particular attributes in
+the window/glx-context that aren't available on your hardware. Perhaps
+double buffering isn't supported, or mabye its the number of colors
+requested, etc.. Check the arguments to the function glpOpenWindow(). The
+'No Visual' message you get comes from a failed call to glXChooseVisual
+found in routine glpOpenWindow whose source can be found in file OpenGL.xs.
 
 Try executing the command:
 
         xdpyinfo
 
-on your computer. It should tell you that your X-server has the GLX extention
-and list all of the supported visuals.
-
-
+on your computer. It should tell you that your X-server has the GLX
+extention and list all of the supported visuals.
 
 
 Which Perl
 ----------
 One person had the following problem with version 0.2:
 
-     every call to the simply wrapped functions like glCLearColor could not be
-     resolved by perl
+     every call to the simply wrapped functions like glCLearColor could not
+     be resolved by perl
 
-The problem was that the first perl found in this persons $PATH was not perl5.
-Unfortunately, I messed up and put lines like
+The problem was that the first perl found in this persons $PATH was not
+perl5. Unfortunately, I messed up and put lines like
 
         perl ./generatefile $@
 
@@ -332,8 +352,8 @@ instead of:
 
         $(PERL) ./generatefile $@
 
-in Makefile.PL. So what happened is that old perl was used and it did not write
-a correct OpenGL.pm file.
+in Makefile.PL. So what happened is that old perl was used and it did not
+write a correct OpenGL.pm file.
 
 If you are having similar problems, check which version of perl you get by
 default:
@@ -348,6 +368,13 @@ I dont know about most systems, but on my IRIX, /bin/perl is version 4, and
 /usr/local/bin/perl is version 5. Yea, I know this is bad, but i'm worried
 something somewhere will break if I change this.
 
+
+Demo light wireframe only
+-------------------------
+Using the mesa library the demo light only shows a wire frame isocohedron
+spinning. The faces are not properly gauraud shaded based on the light
+positions and colors. Oh well, it works pretty well using the opengl native
+on my machine.
 
 
 Can't find shared object Solaris
@@ -372,16 +399,16 @@ opengl perl program and add the line:
 
         BEGIN{unshift(@INC,"../blib/sun4-solaris/auto/OpenGL");  }
 
-immediately before the "use OpenGL;" statement. Note the path that you add may
-be different - the above example was applied to a demo in the examples/
+immediately before the "use OpenGL;" statement. Note the path that you add
+may be different - the above example was applied to a demo in the examples/
 subdirectory.
 
-One would think that perl should be able to find the necessary libraries - oh
-well. Fortunately, the other libraries (libXext, libX11 ...) seemed to be found
-this time without problems.
+One would think that perl should be able to find the necessary libraries -
+oh well. Fortunately, the other libraries (libXext, libX11 ...) seemed to be
+found this time without problems.
 
-When the OpenGL module is installed (not just built) perl is able to find the
-shared library and such measures are not necessary.
+When the OpenGL module is installed (not just built) perl is able to find
+the shared library and such measures are not necessary.
 
 A similar error that might occur is:
 
@@ -389,14 +416,13 @@ A similar error that might occur is:
         ld.so.1: perl: fatal: libXext.so.0: can't open file: errno=2
         at /usr/local/perl5/DynaLoader.pm line 128.
 
-This occured using an older version of perl (5.001 no patches). Again the run
-time linker needs a bit of help finding the X libraries. Setting environment
-variable LD_LIBRARY_PATH to:
+This occured using an older version of perl (5.001 no patches). Again the
+run time linker needs a bit of help finding the X libraries. Setting
+environment variable LD_LIBRARY_PATH to:
 
         /lib:/usr/lib:/usr/openwin/lib
 
 should help.
-
 
 
 Inadaquate Perl
@@ -413,17 +439,14 @@ As the message says, even though this is version 5.001m, the perl that is
 installed wasn't built with the necessary features turned on. Perl has to be
 rebuilt.
 
-
-
-
 Unresolved __eprintf - blame gcc
---------------------------------
+
 Using:
 
-   *  statically built Mesa (*.a instead of *.so)
-   *  gcc (in /opt/gnu - strange place, I know)
-   *  older perl 5.001 (no patches)
-   *  sunos 5.4 operating system
+   * statically built Mesa (*.a instead of *.so)
+   * gcc (in /opt/gnu - strange place, I know)
+   * older perl 5.001 (no patches)
+   * sunos 5.4 operating system
 
 might result in an unresolved symbol "__eprintf". The workaround is to link
 with the main gcc library. Change 'LIBS' in Makefile.PL to be:
@@ -432,8 +455,13 @@ with the main gcc library. Change 'LIBS' in Makefile.PL to be:
                         ' -L/opt/gnu/lib/gcc-lib/sparc-sun-solaris2.4/2.7.1 ' .
                         ' -L./Mesa/lib -lXext -lX11 -lMesaGL -lMesaGLU -lgcc' ,
 
-The library paths will depend on where you have gcc installed.
+The library paths will depend on where you have gcc installed. I also saw
+this problem using 5.001n on a sunos 4.1.4 system and -lm was also necessary
+as well as setting LD_LIBRARY_PATH to
 
+        .../blib/sun4-sunos/auto/OpenGL
+
+for the built but not yet installed test.
 
 
 Failed Compile
@@ -454,13 +482,29 @@ This person was using perl 5.001e. The file OpenGL.xs in version 0.1 had a
 couple of places where the lines declaring the function arguments had spaces
 delimiting the type from the argument name instead of tabs:
 
-        OpenWindow(w=500,h=500)  # old synopsis of OpenWindow (now out of date)
+        OpenWindow(w=500,h=500)
                 int w;
                 int h;
 
-There should have been a tab between "int" and "w" instead of just a space. Not
-a problem in perl 5.001m. Anyway, I think thats what the problem was (spaces
-instead of tabs).
+There should have been a tab between "int" and "w" instead of just a space.
+Not a problem in perl 5.001m. Anyway, I think thats what the problem was
+(spaces instead of tabs).
 
--------------------------------------------------------------------------------
-Last Updated: Dec 12 1995
+
+Warnings With -w
+----------------
+If you are using the -w swich the opengl perl module may be to blame for
+some of the warnings you get:
+
+        > perl -w fun
+        Ambiguous use of {x} resolved to {"x"} at ../blib/OpenGL.pm line 2085.
+        Ambiguous use of {y} resolved to {"y"} at ../blib/OpenGL.pm line 2085.
+        ...
+
+My apologies for this. Feel free to execte the following:
+
+        echo 'Dont be sloppy, use -w eh!!' | mail stan@arc.ab.ca
+
+----------------------------------------------------------------------------
+
+

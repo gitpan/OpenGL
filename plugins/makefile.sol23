@@ -1,0 +1,34 @@
+#!make
+
+CC= gcc
+OPTIMIZER= -g
+CFLAGS=  $(OPTIMIZER) -DXP_UNIX -DPLUGIN_TRACE -I. -I/usr/include -I/usr/openwin/include -I/usr/local/Motif/opt/ICS/Motif/usr/include
+
+SRC= npunix.c npshell.c 
+OBJ= npunix.o npshell.o
+
+.c.o:
+	$(CC) -c $(CFLAGS) $<
+
+SHAREDTARGET=libopenglplugin.so
+
+default all: $(SHAREDTARGET)
+
+$(SHAREDTARGET): $(OBJ)
+	$(CC) -shared -o $(SHAREDTARGET) $(OBJ) $(LDFLAGS)
+
+clean:
+	$(RM) $(OBJ) $(SHAREDTARGET)
+
+
+
+
+
+
+
+clean:
+        /bin/rm *.o
+
+clobber: clean
+        /bin/rm  $(SHAREDTARGET)
+
