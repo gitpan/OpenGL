@@ -1,0 +1,19 @@
+
+ To install the OpenGL module, please follow these instructions:
+ 
+ 1. Edit Makefile.PL, and comment out any packages that your system
+    doesn't have. (If you are using Mesa 3.0 or later, then you definitely
+    have all of them.) If you are unsure, leave them all enabled
+    and try building the package.
+    
+    You may also need to fix up the list of library paths and names.
+ 
+ 2. Run 'perl Makefile.PL'
+ 
+ 3. Run 'make'
+ 
+ 4. If your system has GLUT available, you can run 'make test' to make sure
+    everything is functioning properly.
+ 
+ 5. If all is well, run 'make install' to make the OpenGL module available
+    to your system.

@@ -1,0 +1,35 @@
+TYPEMAP
+
+GLsizei			T_INT
+GLfloat			T_FLOAT
+GLdouble		T_DOUBLE
+GLclampf		T_FLOAT
+GLclampd		T_DOUBLE
+GLint			T_INT
+GLuint			T_U_INT
+GLushort		T_U_SHORT
+GLint			T_INT
+GLbyte			T_INT
+GLubyte			T_U_INT
+GLshort			T_SHORT
+GLboolean		T_BOOL
+GLenum			T_INT
+GLbitfield		T_INT
+GLUnurbsObj *		T_FASTPTROBJ
+GLUquadricObj *	T_FASTPTROBJ
+
+PGLUtess *	T_FASTPTROBJ
+
+OpenGL::Array	T_PTROBJ
+
+GLXDrawable		T_PTR
+
+INPUT
+
+T_FASTPTROBJ
+        $var = ($type)SvIV($arg);
+
+OUTPUT
+
+T_FASTPTROBJ
+	sv_setref_pv($arg, \"${ntype}\", (void*)$var);

@@ -1,28 +1,55 @@
-This is a binary distribution version 0.01 of OpenGL module
-version 0.4 for os2 and Perl version 5.00553.
 
-It is installable on machines which have the same version of Perl and
-a binary compatible configurations to the machine this was created on.
+ Copyright (c) 1998,1999 Kenneth Albanowski. All rights reserved.
+ This program is free software; you can redistribute it and/or
+ modify it under the same terms as Perl itself. 
 
-To test and install this extension use
+This module provides access to most of the OpenGL 1.0, 1.1, and 1.2 APIs.
+Some amount of GLU is supported (I'm not quite sure what version it works
+out to), and GLUT should be completely supported up to API version 3. A
+small portion of GLX and X11 is supported, as an alternative to GLUT.
 
-  perl -MCPAN -e "test 'OpenGL::bin_os2' "
-  perl -MCPAN -e "install 'OpenGL::bin_os2' "
+Compatibility notes with OpenGL 0.4:
 
-or
+	The OpenGL 0.4 library, written by Stan Melax, contains more support for
+	some SGI specific functions then 0.5, so you may wish to stay with 0.4
+	on an SGI system. For other machines, 0.5 should greatly improve
+	compatibility (compiling where 0.4 wouldn't have).
+	
+	Code-level compatibility with OpenGL 0.4 is available if you refer to
+	OpenGL simply via 'use OpenGL;'. If you request specific packages (such
+	as 'use OpenGL qw(glfunctions glconstants glutfunctions);'), you'll get
+	0.5 specific support.  For more information, please read the OpenGL
+	manual, available in OpenGL.pod.
+	
+	Portions of this module that directly derive from Stan's code are marked
+	with "Melax" comments, and his copyright is described in the COPYRIGHT
+	file.
 
-  perl -MCPAN -e shell
-  CPAN> test OpenGL::bin_os2
-  CPAN> install OpenGL::bin_os2
+As this library is a simple binding between Perl and any library that
+complies with the OpenGL API, this module should interoperate seamlessly
+with any other modules that make use of OpenGL directly or (through another
+library) indirectly.
 
-or, if you download the archive yourself, extract it, and cd to the
-distribution directory,
+For build instructions, please see the INSTALL file.
 
-  perl Makefile.PL
-  make
-  make test
-  make install
+For a brief description of what functions are supported, please read
+"SUPPORTS", and better yet read the two sample files, test.pl and
+isosurf.pl.
 
-No additional software but a complete correctly installed Perl (binary)
-distribution is required.
+For an incomplete implementation of GLUT in Perl, please see
+Gtk::GLArea::Glut, within the Gtk-Perl module.
 
+At of May 1999, I doubt I will be able to provide any significant support
+users of this module. If you have patches that add missing features cleanly,
+I may be able to integrate them into the next version, but I cannot
+guarantee that. Alligator Descarte has expressed interest in eventually
+supporting the Perl OpenGL effort, and you may wish to contact him. If you
+feel you can significantly improve the OpenGL module yourself, please
+consider releasing your own updated version after checking that no-one else
+has the same idea.
+
+Thanks for help developing this module goes to Stan Melax, Cass Everitt,
+Alligator Descarte, and probably others that I've forgotten.
+
+Happy Hacking,
+Kenneth Albanowski <kjahds@kjahds.com>

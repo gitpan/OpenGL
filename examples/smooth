@@ -35,9 +35,4 @@ glClear (GL_COLOR_BUFFER_BIT);
 triangle ();
 glFlush ();
 
-if ($^O eq 'os2') {
-  OS2::Process_Messages(0) while 1;
-} else {
-  print "Program 1-1 Simple, hit control-D to quit:\n\n";
-  while(<>){;}
-}
+while(<>){}

@@ -1,0 +1,101 @@
+=head1 NAME
+
+OpenGL 0.5 - Perl module to display 3D data using OpenGL, GLU, GLUT, and GLX
+
+=head1 SYNOPSIS
+
+	use OpenGL; # exports most of the old functionality of OpenGL 0.4
+	
+	use OpenGL qw(old); # Same thing
+	
+	use OpenGL qw(glfunctions glconstants); # exports functions and
+	            # constants for using OpenGL, without exporting GLU, GLUT,
+	            # or GLX stuff.
+
+	use OpenGL qw(all); # exports all new functionality, without the OpenGL
+	                    # 0.4 compatibility functions
+
+=head1 DESCRIPTION
+
+=head1 Available functions:
+
+Virtually all of the OpenGL 1.0, and 1.1 functions are available, and most
+of 1.2. In general, the calling sequence is identical in Perl as in C.
+
+=head1 AUTHORS
+
+Primary author of version 0.5 is Kenneth Albanowski <kjahds@kjahds.com>,
+other authors include Stan Melax and Cass Everitt.
+
+=head1 HISTORY
+
+Derived from Stan's OpenGL 0.4, with pinches of Cass Everitt's OpenGL
+work.
+
+
+
+=item Usage:
+
+%EXPORT_TAGS = ('constants' => \@constants, 'functions' => \@functions, 'all' => \@EXPORT_OK, 'old' => \@EXPORT,
+	'glconstants' => \@gl_const, 'gluconstants' => \@glu_const, 'glutconstants' => \@glut_const, 'glxconstants' => \@glx_const,
+	'glfunctions' => \@gl_func, 'glufunctions' => \@glu_func, 'glutfunctions' => \@glut_func, 'glxfunctions' => \@glx_func,
+	);
+
+
+
+=head1 OpenGL!
+
+=item glAccum(GLenum op, GLfloat value)
+
+=item glAlphaFunc(GLenum func, GLclampf ref)
+
+=item glAreTexturesResident_c(GLsizei n, buffer textures, buffer residences)
+
+	Invoke with two strings of sufficient length for the buffer arguments.
+
+	This routine requires GL 1.1.
+
+=item   glAreTexturesResident_c(GLsizei n, OpenGL::Array textures, OpenGL::Array residences)
+
+	Invoke with two OpenGL::Arrays of sufficient length for the array arguments.
+
+	This routine requires GL 1.1.
+
+=item  glAreTexturesResident_p(...)
+
+	Invoke with a list of numbers (texture IDs). The return value is an integer, saying whether
+	all textures were resident, and if they aren't, a list with a boolean value for each
+	texture ID.
+
+	This routine requires GL 1.1.
+
+=item glArrayElement(GLint i)
+
+	This routine requires GL 1.1.
+
+=item glBegin(GLenum mode)
+
+=item glEnd()
+
+=item glBindTexture(GLenum target, GLuint texture)
+
+	This routine requires GL 1.1.
+
+
+package OpenGL;
+
+#  Copyright (c) 1998,1999 Kenneth Albanowski. All rights reserved.
+#  This program is free software; you can redistribute it and/or
+#  modify it under the same terms as Perl itself.
+
+require Exporter;
+require DynaLoader;
+
+use Carp;
+
+$VERSION = '0.5';
+
+
+@ISA = qw(Exporter AutoLoader DynaLoader);
+
+

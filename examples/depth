@@ -36,9 +36,5 @@ glBegin(GL_POLYGON);
 glEnd();
 glFlush();
 
-if ($^O eq 'os2') {
-  OS2::Process_Messages(0) while 1;
-} else {
-  print "Hit control-D to quit:\n\n";
-  while(<>){;}
-}
+print "Hit control-D to quit:\n\n";
+while(<>){;}

@@ -60,11 +60,7 @@ glEnable(GL_DEPTH_TEST);
 glDepthFunc(GL_LESS);
 
 glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-my $file = 'stan.ppm';
-$file = "examples/$file" unless -r $file;
-
-glpReadTex($file);
+glpReadTex("stan.ppm");
 glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
 glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
