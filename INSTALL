@@ -17,3 +17,10 @@
  
  5. If all is well, run 'make install' to make the OpenGL module available
     to your system.
+
+If you get an error about __eprintf missing, add
+
+   -L/opt/gnu/lib/gcc-lib/sparc-sun-solaris2.7/2.96/ -lgcc
+
+to the @LIBS initializer in Makefile.PL (change the directory for the
+appropriate one for your system).

@@ -1,5 +1,6 @@
 
  Copyright (c) 1998,1999 Kenneth Albanowski. All rights reserved.
+ Copyright (c) 2000 Ilya Zakharevich. All rights reserved.
  This program is free software; you can redistribute it and/or
  modify it under the same terms as Perl itself. 
 
@@ -53,3 +54,29 @@ Alligator Descarte, and probably others that I've forgotten.
 
 Happy Hacking,
 Kenneth Albanowski <kjahds@kjahds.com>
+
+Changes:
+
+0.51:	Portability enhancement (X and OS/2 PM), bug fixes, examples enhanced.
+	_have_glp() should be used instead of _have_glx to test for
+	  presence of glp* functions.
+	Remap OpenGL 1.1 functions into GL_EXT_vertex_array interface
+	if needed.
+
+0.52:	More of the portability, bug fixes, and examples.
+	New option -steal for glpOpenWindow() to allow drawing into an
+	  existing window (no "Visual" syncronization yet).
+	GL_EXT_vertex_array done on the level of cpp.
+
+0.53:	Correct vertex_array detection in isosample.pl.
+	Add more vertex_array constants (and move the definition earlier).
+	Exchange (default) arguments for glp*: move display after window
+	  (should not break old stuff, since there was/is no way to query
+	   the display and window).
+	New function $d = glpDisplay() (croaks on failure).
+	Make glpOpenWindow() return the window handle.
+	New functions with signatures
+ void glpMoveResizeWindow(int x, int y, unsigned int width, unsigned int height, Window w, Display* display);
+ void glpMoveWindow(int x, int y, Window w, Display* display);
+ void glpResizeWindow(unsigned int width, unsigned int height, Window w, Display* display);
+	  (w and display are optional).

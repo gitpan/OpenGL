@@ -81,10 +81,10 @@ sub myinit{
     @mat_diffuse  = ( 0.0, 1.0, 1.0, 1.0 );
     @light_position = ( 1.0, 1.0, 1.0, 0.0 );
 
-    glMaterialfv(GL_FRONT, GL_DIFFUSE, pack("4f",@mat_diffuse));
-    glMaterialfv(GL_FRONT, GL_SPECULAR, pack("4f",@mat_specular));
+    glMaterialfv(GL_FRONT, GL_DIFFUSE, pack("f4",@mat_diffuse));
+    glMaterialfv(GL_FRONT, GL_SPECULAR, pack("f4",@mat_specular));
     glMaterialf(GL_FRONT, GL_SHININESS, 10);
-    glLightfv(GL_LIGHT0, GL_POSITION, pack("4f",@light_position));
+    glLightfv(GL_LIGHT0, GL_POSITION, pack("f4",@light_position));
 
     glEnable(GL_LIGHTING);
     glEnable(GL_LIGHT0);

@@ -65,5 +65,4 @@ glShadeModel(GL_FLAT);
 myReshape();
 display();
 
-while(<>){;}  # control-D to quit
-
+glpMainLoop;

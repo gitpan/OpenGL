@@ -9,6 +9,8 @@ $doubleBuffer = GL_TRUE;
 
 $smooth = GL_TRUE;
 $lighting = GL_TRUE;
+$light0 = GL_TRUE;
+$light1 = GL_TRUE;
 
 $MAXVERTS = 10000;
 
@@ -44,7 +46,7 @@ sub read_surface_bin {
 	my ($filename) = @_;
 	
 	open(F, "<$filename") || die "couldn't read $filename\n";
-	
+	binmode(F);
 	$numverts = 0;
 	while ($numverts < $MAXVERTS and read(F, $_, 12)==12) {
 		@d = map(($_-32000) / 10000 , unpack("nnnnnn", $_));
@@ -101,7 +103,7 @@ sub Draw {
       for ($xrot=0.0;$xrot<=360.0;$xrot+=10.0) {
 	 draw1();
       }
-      exit(0);
+      MyExit(0);
    }
    else {
       draw1();
@@ -185,14 +187,28 @@ sub Reshape {
 sub Key {
 	my ($key, $x, $y ) = @_;
 	
-	if ($key == 27) {
-		exit;
+	if ($key == 27 or $key == ord 'q' or $key == ord 'Q') {
+		MyExit();
 	} elsif ($key == ord('s')) {
 		$smooth = !$smooth;
 		if ($smooth) {
 		    glShadeModel(GL_SMOOTH);
 		} else {
 		    glShadeModel(GL_FLAT);
+		}
+	} elsif ($key == ord('0')) {
+		$light0 = !$light0;
+		if ($light0) {
+		    glEnable(GL_LIGHT0);
+		} else {
+		    glDisable(GL_LIGHT0);
+		}
+	} elsif ($key == ord('1')) {
+		$light1 = !$light1;
+		if ($light1) {
+		    glEnable(GL_LIGHT1);
+		} else {
+		    glDisable(GL_LIGHT1);
 		}
 	} elsif ($key == ord('l')) {
 		$lighting = !$lighting;
@@ -252,7 +268,7 @@ sub SpecialKey {
 #   return GL_TRUE;
 #}
 
-
+my $WindowId;
 
 #int main(int argc, char **argv)
 #{
@@ -273,14 +289,22 @@ sub SpecialKey {
    $type |= ($doubleBuffer) ? GLUT_DOUBLE : GLUT_SINGLE;
    glutInitDisplayMode($type);
 
-   if (glutCreateWindow("Isosurface") <= 0) {
+   if (($WindowId = glutCreateWindow("Isosurface")) <= 0) {
       exit(0);
    }
 
 #   /* Make sure server supports the vertex array extension */
-   $extensions = glGetString( GL_EXTENSIONS );
-   if ($extensions !~ /\bGL_EXT_vertex_array\b/) {
-      $use_vertex_arrays = GL_FALSE;
+#    $extensions = glGetString( GL_EXTENSIONS );
+#    if ($extensions !~ /\bGL_EXT_vertex_array\b/
+# 	or OpenGL::_have_glp and not OpenGL::_have_glx and 0) { # OS/2 reports wrong
+#       $use_vertex_arrays = GL_FALSE;
+#    }
+#    print "Extensions: '$extensions'.\n";
+   if (defined &OpenGL::glVertexPointerEXT_c) {
+     print "Using Vertex Array...\n";
+   } else {
+     print "No Vertex Array extension found, using a slow method...\n";
+     $use_vertex_arrays = 0;
    }
 
    Init();
@@ -290,3 +314,13 @@ sub SpecialKey {
    glutSpecialFunc(\&SpecialKey);
    glutDisplayFunc(\&Draw);
    glutMainLoop();
+
+# This leaves GLUT running (at least under OS/2...).
+
+#sub MyExit {
+#  exit shift if $WindowId <= 0;
+#  glutDestroyWindow($WindowId);
+#  warn "Exiting...\n";
+#}
+
+sub MyExit { exit }		# Segfaults under OS/2...

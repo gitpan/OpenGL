@@ -43,7 +43,31 @@ sub read_ascii_ppm{
 	($size == $#image +1) || die "array length $#image +1  differs from expected size $size" ; 
 	$image=pack("C$size",@image);
 	close(PPM);
+	if ($file =~ s/\.ppm$/.bin/ and not -r $file) {
+	  print STDERR "Writing binary image data '$file'.\n";
+	  open BIN, "> $file" || die "cant open '$file': $!";
+	  binmode BIN;
+	  print BIN pack 'N N a*', $w, $h, $image;
+	  close BIN or die "error closing '$file': $!";
+	}
 	($w,$h,$image);
+}
+
+sub read_bin_image {
+	# reads in a binary image file
+	# returns the list (width,height,packed rgb image data)
+	#
+	# I'm not to familiar with the ppm file format 
+	# this subroutine may not work for all valid ppm files
+	#
+	my($file) = @_;
+	my($w,$h,$image);
+	my(@image);
+	open(BIN,"<$file") || die "cant open '$file': $!";
+	binmode BIN;
+	my $data = do {local $/; <BIN>};
+	close BIN or die "error closing '$file': $!";
+	return unpack 'N N a*', $data;
 }
 
 sub myReshape {
@@ -86,7 +110,15 @@ glEnable(GL_DEPTH_TEST);
 glDepthFunc(GL_LESS);
 
 glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-($w,$h,$image)=&read_ascii_ppm("wolf.ppm");
+
+#$file = "wolf.ppm";
+#-r $file or $file = "examples/$file";
+#($w,$h,$image)=&read_ascii_ppm($file);
+
+$file = "wolf.bin";
+-r $file or $file = "examples/$file";
+($w,$h,$image)=&read_bin_image($file);
+
 glTexImage2D(GL_TEXTURE_2D, 0, 3, $w,$h, 0, GL_RGB, GL_UNSIGNED_BYTE,$image);
 
 glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);

@@ -6,8 +6,10 @@ OpenGL.pm
 OpenGL.pod
 OpenGL.xs
 README
+README.os2
 SUPPORTS
 TODO
+examples/RCS/planets,v
 examples/README
 examples/clip
 examples/cube
@@ -17,6 +19,7 @@ examples/fun
 examples/glu_test
 examples/light
 examples/plane
+examples/planets
 examples/quest
 examples/simple
 examples/smooth
@@ -25,12 +28,14 @@ examples/stan.ppm
 examples/texhack
 examples/texture
 examples/tk_demo
+examples/tk_steal
 examples/try
-examples/wolf.ppm
+examples/wolf.bin
 genvars.pl
 gl_const.h
 gl_util.c
 gl_util.h
+glpm_const.h
 glu_const.h
 glu_util.h
 glut_const.h
@@ -39,6 +44,8 @@ glx_const.h
 glx_util.h
 isosurf.bin
 isosurf.pl
+menutest.pl
+os2pm_X.h
 ppport.h
 test.pl
 typemap

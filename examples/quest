@@ -182,7 +182,13 @@ sub draw {
 
 package main;
 
-
+sub check_events {
+	while(XPending) {
+		my @e=&glpXNextEvent;
+		my %s;
+		&$s(@e) if($s=$cb{$e[0]});
+        }
+}
 
 sub intro {
   # give a cool intro to the thing
@@ -191,6 +197,7 @@ sub intro {
   local($spin,$p);
   $spin=360*2;
   while($spin-=5) {
+    check_events;
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glLoadIdentity();
     glPushMatrix();
@@ -202,6 +209,7 @@ sub intro {
     glXSwapBuffers;
   }
   for($p=0 ; $p <= 1 ; $p+=0.02) {
+    check_events;
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glLoadIdentity();
     glPushMatrix();
@@ -254,15 +262,20 @@ sub abs {
 }
 
 sub nav {
+    check_events;
+
     # routine for navigating through the maze
     $t++;
     ($px,$py,$pm) = glpXQueryPointer;
-    if ($pm & Button1Mask) { $b -= ( $pm & (ShiftMask)) ?9 :3; }  
-    if ($pm & Button3Mask) { $b += ( $pm & (ShiftMask)) ?9 :3; }  
+    $rot = 0;
+    if ($pm & Button1Mask) { $rot = -1; }  
+    if ($pm & Button3Mask) { $rot = 1; }  
+    $rot = 2*$px/$width - 1 if !$rot && ($pm & Button2Mask);
+    $b += (( $pm & (ShiftMask)) ?9 :3) * $rot;
     if ($pm & Button2Mask) { 
 	$speed = ( $pm & (ShiftMask)) ?0.15 : 0.05;
 	($x,$y) = forward($x,$y,$x+$speed*sin($b*3.14/180),
-				$y+$speed*cos($b*3.14/180),0.2);  
+				$y+$speed*cos($b*3.14/180),0.2);
     } 
     if( $pm & (ControlMask)) {
 	#print "fire\n";
@@ -290,10 +303,18 @@ sub nav {
     glXSwapBuffers;
 }
 
-
+$width = 300;
 
 glpOpenWindow(attributes => [GLX_GREEN_SIZE, 1,GLX_RGBA,GLX_DOUBLEBUFFER],
-		width=>300,height=>300);
+		mask => StructureNotifyMask|KeyPressMask,
+		width=>$width,height=>300);
+
+$cb{&ConfigureNotify} = sub {
+ local($e,$w,$h)=@_;
+ glViewport(0,0,$w,$h);
+ print "new viewport $w,$h\n";
+ $width = $w;
+};
 
 glNewList($shot=3,GL_COMPILE);
 glColor3f(0.5,1.0,0.5);

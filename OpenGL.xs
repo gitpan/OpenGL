@@ -58,8 +58,175 @@ char *s;
     return -1;
 }
 
+
+/* GLUT on OS/2 PM runs callbacks from a secondary thread.  This thread
+   is not instrumented to run EMX CRTL functions.  Basically, no Perl
+   function may be run from this thread.
+   We create a ternary thread via CRTL _beginthread() call, and communicate
+   the requests to this thread via inter-thread communication (ITC).  */
+
+#ifndef __PM__
+#  define DO_perl_call_sv(handler, flag) perl_call_sv(handler, flag)
+#  define ENSURE_callback_thread
+#  define GLUT_PUSH_NEW_SV(sv)		XPUSHs(sv_2mortal(newSVsv(sv)))
+#  define GLUT_PUSH_NEW_IV(i)		XPUSHs(sv_2mortal(newSViv(i)))
+#  define GLUT_PUSH_NEW_U8(c)		XPUSHs(sv_2mortal(newSViv((int)c)))
+#  define GLUT_EXTEND_STACK(sp,n)
+#  define GLUT_PUSHMARK(sp)		PUSHMARK(sp)
+#else
+
+#  define GLUT_PUSHMARK(sp)
+
+#  include "sys/builtin.h"
+#  include "sys/fmutex.h"
+
+#  include "os2pm_X.h"
+
+#  define DO_perl_call_sv(handler, flag) 				\
+    STMT_START {   	PUSHs(handler);					\
+			PUTBACK;					\
+			extend_by = 0;					\
+			RUN_perl_call_sv();				\
+    } STMT_END
+
+#  define GLUT_START_PUSHING		7
+#  define GLUT_PUSHING_IVP		17
+#  define GLUT_PUSHING_U8		27
+#  define GLUT_PUSHING_SV		37
+
+#  define GLUT_EXTEND_STACK(p,n)					\
+    STMT_START {   if (PL_stack_max - p < 2*(n)+4) {			\
+		     extend_by = 2*(n)+4;				\
+		     RUN_perl_call_sv();				\
+		   }							\
+		   SPAGAIN;						\
+		   PUSHs((SV*)GLUT_START_PUSHING);			\
+    } STMT_END
+
+#  define GLUT_PUSH_NEW_SV(sv)	(PUSHs(sv), PUSHs((SV*)GLUT_PUSHING_SV))
+#  define GLUT_PUSH_NEW_IV(i)	(PUSHs((SV*)&i), PUSHs((SV*)GLUT_PUSHING_IVP))
+#  define GLUT_PUSH_NEW_U8(c)	(PUSHs((SV*)(int)c), PUSHs((SV*)GLUT_PUSHING_U8))
+
+_fmutex run_mutex, result_mutex;
+static int worker_started;
+static int extend_by;
+
+void
+RUN_perl_call_sv(void)
+{
+    char *s = NULL;
+    
+    if (_fmutex_release(&run_mutex))
+	s = "Error unlocking the callback thread";
+    /* result_mutex is requested on entry!  Block until looper finishes. */
+    else if (_fmutex_request(&result_mutex, _FMR_IGNINT))
+	s = "Error requesting the callback thread";
+    if (s)
+	write(2, s, strlen(s));
+    return;
+}
+
+void
+callback_thread_looper(void *dummy)
+{
+    while (1) {
+	/* It is requested already!  Wait until somebody requests a run */
+	if (_fmutex_request(&run_mutex, _FMR_IGNINT)) {
+	    warn("Error unlocking in the callback thread");
+	    worker_started = 0;
+	    return;
+	}
+	if (extend_by) {  /* Need to extend the stack */
+	    dSP;
+
+	    EXTEND(sp, extend_by);
+	} else {
+	    dSP;
+	    SV* handler = POPs;
+	    STRLEN n_a;
+	    SV **last = sp, **f;
+
+	    /* The rest is put on stack in a "raw" pointer form */
+	    while (1) {
+		switch ((IV)*sp) {
+		case GLUT_START_PUSHING:
+		    goto start_found;
+		    break;
+		case GLUT_PUSHING_IVP:
+		case GLUT_PUSHING_SV:
+		case GLUT_PUSHING_U8:
+		    break;
+		default:
+		    croak("Panic: broken descriptor/down when ITC for Glut: %#lx", (unsigned long)*sp);
+		    break;
+		}
+		sp -= 2;
+	    }
+	  start_found:
+	    f = sp + 1;
+	    sp--;
+	    PUSHMARK(sp);
+	    while (f < last) {
+		switch ((IV)f[1]) {
+		case GLUT_PUSHING_IVP:
+		    PUSHs(sv_2mortal(newSViv(*(IV*)*f)));
+		    break;
+		case GLUT_PUSHING_U8:
+		    PUSHs(sv_2mortal(newSViv((IV)*f)));
+		    break;
+		case GLUT_PUSHING_SV:
+		    PUSHs(sv_2mortal(newSVsv(*f)));
+		    break;
+		default:
+		    croak("Panic: broken descriptor/up when ITC for Glut: %#lx", (unsigned long)f[1]);
+		    break;
+		}
+		f += 2;
+	    }
+	    PUTBACK;
+	    perl_call_sv(handler, G_DISCARD|G_EVAL);
+	    if (SvTRUE(ERRSV))
+		fprintf(stderr, "Error in a GLUT Callback: %s", SvPV(ERRSV, n_a));
+	}
+	if (_fmutex_release(&result_mutex)) {
+	    warn("Error in a callback thread");
+	    worker_started = 0;
+	    return;
+	}	
+    }
+}
+
+#  define ENSURE_callback_thread					\
+	if (!worker_started)						\
+	    start_callback_thread()
+
+void
+start_callback_thread()
+{
+    unsigned long rc;
+
+    if (worker_started)
+	return;
+    if (  CheckOSError(_fmutex_create(&run_mutex, 0))
+	  || CheckOSError(_fmutex_create(&result_mutex, 0))
+	  || CheckOSError(_fmutex_request(&run_mutex, _FMR_IGNINT))
+	  || CheckOSError(_fmutex_request(&result_mutex, _FMR_IGNINT)))
+	croak("Error creating semaphores");
+    worker_started = _beginthread(&callback_thread_looper, NULL,
+				   8*1024*1024, NULL);
+    if (worker_started == -1) {
+	worker_started = 0;
+	croak("Error creating callback thread");
+    }
+}
+
+#endif	/* __PM__ */
+
 #define i(test) if (strEQ(name, #test)) return newSViv((int)test);
 #define f(test) if (strEQ(name, #test)) return newSVnv((double)test);
+
+#ifdef __PM__
+#endif
 
 static SV *
 neoconstant(char * name, int arg)
@@ -68,6 +235,7 @@ neoconstant(char * name, int arg)
 #include "glu_const.h"
 #include "glut_const.h"
 #include "glx_const.h"
+#include "glpm_const.h"
 		;
 	
 	return 0;
@@ -76,11 +244,39 @@ neoconstant(char * name, int arg)
 #undef i
 #undef f
 
-#ifdef HAVE_GLX
 
-#define NUM_ARG 6
+#ifdef HAVE_GLX
+#  define HAVE_GLpc			/* Perl interface */
+#  define nativeWindowId(d, w)	(w)
+static Bool WaitForNotify(Display *d, XEvent *e, char *arg) {
+    return (e->type == MapNotify) && (e->xmap.window == (Window)arg);
+}
+#  define glpResizeWindow(s1,s2,w,d)	XResizeWindow(d,w,s1,s2)
+#  define glpMoveWindow(s1,s2,w,d)		XMoveWindow(d,w,s1,s2)
+#  define glpMoveResizeWindow(s1,s2,s3,s4,w,d)	XMoveResizeWindow(d,w,s1,s2,s3,s4)
+#endif	/* defined HAVE_GLX */ 
+
+
+#ifdef __PM__
+
+#  define HAVE_GLpc			/* Perl interface */
+#  define auxXWindow()	(croak("Not implemented: auxXWindow"),0)
+
+HMQ hmq;
+AV *EventAv;
+unsigned long LastEventMask;	/* XXXX Common for all the windows */
+Display myDisplay;
+
+#else
+#  define InitSys()
+#endif	/* defined __PM__ */ 
+
+#ifdef HAVE_GLpc
+
+#  define NUM_ARG 7
 
 Display *dpy;
+int dpy_open;
 XVisualInfo *vi;
 Colormap cmap;
 XSetWindowAttributes swa;
@@ -88,11 +284,8 @@ Window win;
 GLXContext cx;
 
 static int default_attributes[] = { GLX_RGBA, /*GLX_DOUBLEBUFFER,*/  None };
-static Bool WaitForNotify(Display *d, XEvent *e, char *arg) {
-    return (e->type == MapNotify) && (e->xmap.window == (Window)arg);
-}
 
-#endif
+#endif	/* defined HAVE_GLpc */ 
 
 #ifdef GLUT_API_VERSION
 
@@ -176,7 +369,7 @@ static void destroy_glut_win_handler(int win, int type)
 }
 
 
-#define begin_decl_gwh(type, params)											\
+#define begin_decl_gwh(type, params, nparam)											\
 																				\
 static void generic_glut_ ## type ## _handler params							\
 {																				\
@@ -188,13 +381,14 @@ static void generic_glut_ ## type ## _handler params							\
 																				\
 	handler = *av_fetch(handler_data, 0, 0);									\
 																				\
-	PUSHMARK(sp);																\
+	GLUT_PUSHMARK(sp);																\
+	GLUT_EXTEND_STACK(sp,av_len(handler_data)+nparam);																\
 	for (i=1;i<=av_len(handler_data);i++)										\
-		XPUSHs(sv_2mortal(newSVsv(*av_fetch(handler_data, i, 0))));
+		GLUT_PUSH_NEW_SV(*av_fetch(handler_data, i, 0));
 
 #define end_decl_gwh()															\
 	PUTBACK;																	\
-	perl_call_sv(handler, G_DISCARD);											\
+	DO_perl_call_sv(handler, G_DISCARD);											\
 }
 
 #define decl_gwh_xs(type)														\
@@ -213,7 +407,7 @@ static void generic_glut_ ## type ## _handler params							\
 																				\
 			glut ## type ## Func(generic_glut_ ## type ## _handler);			\
 		}																		\
-	}
+	ENSURE_callback_thread;}
 
 #define decl_gwh_xs_nullfail(type, fail)										\
 	{																			\
@@ -230,7 +424,7 @@ static void generic_glut_ ## type ## _handler params							\
 																				\
 			glut ## type ## Func(generic_glut_ ## type ## _handler);			\
 		}																		\
-	}
+	ENSURE_callback_thread;}
 
 
 #define decl_ggh_xs(type)											\
@@ -250,10 +444,10 @@ static void generic_glut_ ## type ## _handler params							\
 																	\
 			glut ## type ## Func(generic_glut_ ## type ## _handler);\
 		}															\
-	}
+	ENSURE_callback_thread;}
 
 
-#define begin_decl_ggh(type, params)								\
+#define begin_decl_ggh(type, params, nparam)								\
 																	\
 static AV * glut_ ## type ## _handler_data = 0;						\
 																	\
@@ -266,13 +460,14 @@ static void generic_glut_ ## type ## _handler params				\
 																	\
 	handler = *av_fetch(handler_data, 0, 0);						\
 																	\
-	PUSHMARK(sp);													\
+	GLUT_PUSHMARK(sp);													\
+	GLUT_EXTEND_STACK(sp,av_len(handler_data)+nparam);																\
 	for (i=1;i<=av_len(handler_data);i++)							\
-		XPUSHs(sv_2mortal(newSVsv(*av_fetch(handler_data, i, 0))));	\
+		GLUT_PUSH_NEW_SV(*av_fetch(handler_data, i, 0));	\
 
 #define end_decl_ggh()												\
 	PUTBACK;														\
-	perl_call_sv(handler, G_DISCARD);								\
+	DO_perl_call_sv(handler, G_DISCARD);								\
 }
 
 enum {
@@ -295,104 +490,104 @@ enum {
 	HANDLE_GLUT_TabletButton
 };
 
-begin_decl_gwh(Display, (void))
+begin_decl_gwh(Display, (void), 0)
 end_decl_gwh()
 
-begin_decl_gwh(OverlayDisplay, (void))
+begin_decl_gwh(OverlayDisplay, (void), 0)
 end_decl_gwh()
 
-begin_decl_gwh(Reshape, (int width, int height))
-	XPUSHs(sv_2mortal(newSViv(width)));
-	XPUSHs(sv_2mortal(newSViv(height)));
+begin_decl_gwh(Reshape, (int width, int height), 2)
+	GLUT_PUSH_NEW_IV(width);
+	GLUT_PUSH_NEW_IV(height);
 end_decl_gwh()
 
-begin_decl_gwh(Keyboard, (unsigned char key, int width, int height))
-	XPUSHs(sv_2mortal(newSViv((int)key)));
-	XPUSHs(sv_2mortal(newSViv(width)));
-	XPUSHs(sv_2mortal(newSViv(height)));
+begin_decl_gwh(Keyboard, (unsigned char key, int width, int height), 3)
+	GLUT_PUSH_NEW_U8(key);
+	GLUT_PUSH_NEW_IV(width);
+	GLUT_PUSH_NEW_IV(height);
 end_decl_gwh()
 
-begin_decl_gwh(Mouse, (int button, int state, int x, int y))
-	XPUSHs(sv_2mortal(newSViv(button)));
-	XPUSHs(sv_2mortal(newSViv(state)));
-	XPUSHs(sv_2mortal(newSViv(x)));
-	XPUSHs(sv_2mortal(newSViv(y)));
+begin_decl_gwh(Mouse, (int button, int state, int x, int y), 4)
+	GLUT_PUSH_NEW_IV(button);
+	GLUT_PUSH_NEW_IV(state);
+	GLUT_PUSH_NEW_IV(x);
+	GLUT_PUSH_NEW_IV(y);
 end_decl_gwh()
 
-begin_decl_gwh(PassiveMotion, (int x, int y))
-	XPUSHs(sv_2mortal(newSViv(x)));
-	XPUSHs(sv_2mortal(newSViv(y)));
+begin_decl_gwh(PassiveMotion, (int x, int y), 2)
+	GLUT_PUSH_NEW_IV(x);
+	GLUT_PUSH_NEW_IV(y);
 end_decl_gwh()
 
-begin_decl_gwh(Motion, (int x, int y))
-	XPUSHs(sv_2mortal(newSViv(x)));
-	XPUSHs(sv_2mortal(newSViv(y)));
+begin_decl_gwh(Motion, (int x, int y), 2)
+	GLUT_PUSH_NEW_IV(x);
+	GLUT_PUSH_NEW_IV(y);
 end_decl_gwh()
 
-begin_decl_gwh(Visibility, (int state))
-	XPUSHs(sv_2mortal(newSViv(state)));
+begin_decl_gwh(Visibility, (int state), 1)
+	GLUT_PUSH_NEW_IV(state);
 end_decl_gwh()
 
-begin_decl_gwh(Entry, (int state))
-	XPUSHs(sv_2mortal(newSViv(state)));
+begin_decl_gwh(Entry, (int state), 1)
+	GLUT_PUSH_NEW_IV(state);
 end_decl_gwh()
 
-begin_decl_gwh(Special, (int key, int width, int height))
-	XPUSHs(sv_2mortal(newSViv(key)));
-	XPUSHs(sv_2mortal(newSViv(width)));
-	XPUSHs(sv_2mortal(newSViv(height)));
+begin_decl_gwh(Special, (int key, int width, int height), 3)
+	GLUT_PUSH_NEW_IV(key);
+	GLUT_PUSH_NEW_IV(width);
+	GLUT_PUSH_NEW_IV(height);
 end_decl_gwh()
 
-begin_decl_gwh(SpaceballMotion, (int x, int y, int z))
-	XPUSHs(sv_2mortal(newSViv(x)));
-	XPUSHs(sv_2mortal(newSViv(y)));
-	XPUSHs(sv_2mortal(newSViv(z)));
+begin_decl_gwh(SpaceballMotion, (int x, int y, int z), 3)
+	GLUT_PUSH_NEW_IV(x);
+	GLUT_PUSH_NEW_IV(y);
+	GLUT_PUSH_NEW_IV(z);
 end_decl_gwh()
 
-begin_decl_gwh(SpaceballRotate, (int x, int y, int z))
-	XPUSHs(sv_2mortal(newSViv(x)));
-	XPUSHs(sv_2mortal(newSViv(y)));
-	XPUSHs(sv_2mortal(newSViv(z)));
+begin_decl_gwh(SpaceballRotate, (int x, int y, int z), 3)
+	GLUT_PUSH_NEW_IV(x);
+	GLUT_PUSH_NEW_IV(y);
+	GLUT_PUSH_NEW_IV(z);
 end_decl_gwh()
 
-begin_decl_gwh(SpaceballButton, (int button, int state))
-	XPUSHs(sv_2mortal(newSViv(button)));
-	XPUSHs(sv_2mortal(newSViv(state)));
+begin_decl_gwh(SpaceballButton, (int button, int state), 2)
+	GLUT_PUSH_NEW_IV(button);
+	GLUT_PUSH_NEW_IV(state);
 end_decl_gwh()
 
-begin_decl_gwh(ButtonBox, (int button, int state))
-	XPUSHs(sv_2mortal(newSViv(button)));
-	XPUSHs(sv_2mortal(newSViv(state)));
+begin_decl_gwh(ButtonBox, (int button, int state), 2)
+	GLUT_PUSH_NEW_IV(button);
+	GLUT_PUSH_NEW_IV(state);
 end_decl_gwh()
 
-begin_decl_gwh(Dials, (int dial, int value))
-	XPUSHs(sv_2mortal(newSViv(dial)));
-	XPUSHs(sv_2mortal(newSViv(value)));
+begin_decl_gwh(Dials, (int dial, int value), 2)
+	GLUT_PUSH_NEW_IV(dial);
+	GLUT_PUSH_NEW_IV(value);
 end_decl_gwh()
 
-begin_decl_gwh(TabletMotion, (int x, int y))
-	XPUSHs(sv_2mortal(newSViv(x)));
-	XPUSHs(sv_2mortal(newSViv(y)));
+begin_decl_gwh(TabletMotion, (int x, int y), 2)
+	GLUT_PUSH_NEW_IV(x);
+	GLUT_PUSH_NEW_IV(y);
 end_decl_gwh()
 
-begin_decl_gwh(TabletButton, (int button, int state, int x, int y))
-	XPUSHs(sv_2mortal(newSViv(button)));
-	XPUSHs(sv_2mortal(newSViv(state)));
-	XPUSHs(sv_2mortal(newSViv(x)));
-	XPUSHs(sv_2mortal(newSViv(y)));
+begin_decl_gwh(TabletButton, (int button, int state, int x, int y), 4)
+	GLUT_PUSH_NEW_IV(button);
+	GLUT_PUSH_NEW_IV(state);
+	GLUT_PUSH_NEW_IV(x);
+	GLUT_PUSH_NEW_IV(y);
 end_decl_gwh()
 
-begin_decl_ggh(Idle, (void))
+begin_decl_ggh(Idle, (void), 0)
 end_decl_ggh()
 
-begin_decl_ggh(MenuStatus, (int status, int x, int y))
-	XPUSHs(sv_2mortal(newSViv(status)));
-	XPUSHs(sv_2mortal(newSViv(x)));
-	XPUSHs(sv_2mortal(newSViv(y)));
+begin_decl_ggh(MenuStatus, (int status, int x, int y), 3)
+	GLUT_PUSH_NEW_IV(status);
+	GLUT_PUSH_NEW_IV(x);
+	GLUT_PUSH_NEW_IV(y);
 end_decl_ggh()
 
-begin_decl_ggh(MenuState, (int status))
-	XPUSHs(sv_2mortal(newSViv(status)));
+begin_decl_ggh(MenuState, (int status), 1)
+	GLUT_PUSH_NEW_IV(status);
 end_decl_ggh()
 
 
@@ -405,12 +600,13 @@ static void generic_glut_timer_handler(int value)
 
 	handler = *av_fetch(handler_data, 0, 0);
 
-	PUSHMARK(sp);
+	GLUT_PUSHMARK(sp);
+	GLUT_EXTEND_STACK(sp,av_len(handler_data));
 	for (i=1;i<=av_len(handler_data);i++)
-		XPUSHs(sv_2mortal(newSVsv(*av_fetch(handler_data, i, 0))));
+		GLUT_PUSH_NEW_SV(*av_fetch(handler_data, i, 0));
 
 	PUTBACK;
-	perl_call_sv(handler, G_DISCARD);
+	DO_perl_call_sv(handler, G_DISCARD);
 	
 	SvREFCNT_dec(handler_data);
 }
@@ -433,14 +629,15 @@ static void generic_glut_menu_handler(int value)
 
 	handler = *av_fetch(handler_data, 0, 0);
 
-	PUSHMARK(sp);
+	GLUT_PUSHMARK(sp);
+	GLUT_EXTEND_STACK(sp,av_len(handler_data) + 1);
 	for (i=1;i<=av_len(handler_data);i++)
-		XPUSHs(sv_2mortal(newSVsv(*av_fetch(handler_data, i, 0))));
+		GLUT_PUSH_NEW_SV(*av_fetch(handler_data, i, 0));
 
-	XPUSHs(sv_2mortal(newSViv(value)));
+	GLUT_PUSH_NEW_IV(value);
 
 	PUTBACK;
-	perl_call_sv(handler, G_DISCARD);
+	DO_perl_call_sv(handler, G_DISCARD);
 }
 
 #define PackCallbackST(av, first)											\
@@ -515,6 +712,9 @@ begin_tess_marshaller(begin, (GLenum type, void * polygon_data))
 	XPUSHs(sv_2mortal(newSViv(type)));
 end_tess_marshaller()
 
+begin_tess_marshaller(end, (void * polygon_data))
+end_tess_marshaller()
+
 begin_tess_marshaller(edgeFlag, (GLboolean flag, void * polygon_data))
 	XPUSHs(sv_2mortal(newSViv(flag)));
 end_tess_marshaller()
@@ -527,12 +727,12 @@ begin_tess_marshaller(vertex, (void * vertex_data, void * polygon_data))
     }
 end_tess_marshaller()
 
-begin_tess_marshaller(error, (GLenum errno, void * polygon_data))
-	XPUSHs(sv_2mortal(newSViv(errno)));
+begin_tess_marshaller(error, (GLenum errno_, void * polygon_data))
+	XPUSHs(sv_2mortal(newSViv(errno_)));
 end_tess_marshaller()
 
 begin_tess_marshaller(combine, (GLdouble coords[3], void * vertex_data[4], GLfloat weight[4], void ** outd, void * polygon_data))
-	FIXME
+	croak("combine tess marshaller needs FIXME (see OpenGL.xs)");
 end_tess_marshaller()
 
 #endif
@@ -611,15 +811,15 @@ assign(oga, pos, ...)
 		int i,j;
 		int end;
 		GLenum t;
-		void * offset;
+		char* offset;
 		
 		i = pos;
 		end = i + items - 2;
 		
 		if (end > oga->item_count)
 			end = oga->item_count;
-		
-		offset = oga->data + (pos / oga->type_count * oga->total_types_width) + 
+		/* FIXME: is this char* conversion what is intended? */
+		offset = ((char*)oga->data) + (pos / oga->type_count * oga->total_types_width) + 
 					oga->type_offset[pos % oga->type_count];
 		
 		j = 2;
@@ -724,7 +924,7 @@ assign_data(oga, pos, data)
 		void * src;
 		STRLEN len;
 		
-		offset = oga->data + (pos / oga->type_count * oga->total_types_width) + 
+		offset = ((char*)oga->data) + (pos / oga->type_count * oga->total_types_width) + 
 					oga->type_offset[pos % oga->type_count];
 		
 		src = SvPV(data, len);
@@ -739,11 +939,11 @@ retrieve(oga, pos, len)
 	GLint	len
 	PPCODE:
 	{
-		void * offset;
+		char * offset;
 		int end = pos + len;
 		int i;
 		
-		offset = oga->data + (pos / oga->type_count * oga->total_types_width) + 
+		offset = ((char*)oga->data) + (pos / oga->type_count * oga->total_types_width) + 
 					oga->type_offset[pos % oga->type_count];
 		
 		if (end > oga->item_count)
@@ -821,7 +1021,7 @@ retrieve_data(oga, pos, len)
 	{
 		void * offset;
 		
-		offset = oga->data + (pos / oga->type_count * oga->total_types_width) + 
+		offset = ((char*)oga->data) + (pos / oga->type_count * oga->total_types_width) + 
 					oga->type_offset[pos % oga->type_count];
 
 		RETVAL = newSVpv((char*)offset, len);
@@ -842,7 +1042,7 @@ offset(oga, pos)
 	OpenGL::Array	oga
 	GLint	pos
 	CODE:
-	RETVAL = oga->data + (pos / oga->type_count * oga->total_types_width) + 
+	RETVAL = ((char*)oga->data) + (pos / oga->type_count * oga->total_types_width) + 
 				oga->type_offset[pos % oga->type_count];
 	OUTPUT:
 	RETVAL
@@ -915,6 +1115,17 @@ int
 _have_glx()
 	CODE:
 #ifdef HAVE_GLX
+	RETVAL = 1;
+#else
+	RETVAL = 0;
+#endif
+	OUTPUT:
+	RETVAL
+
+int
+_have_glp()
+	CODE:
+#ifdef HAVE_GLpc
 	RETVAL = 1;
 #else
 	RETVAL = 0;
@@ -7028,7 +7239,10 @@ glCopyTexSubImage3DEXT(target, level, xoffset, yoffset, zoffset, x, y, width, he
 #endif
 
 
-#ifdef GL_EXT_blend_minmax
+# OS/2 PM implementation misses this function
+# It is very hard to test for this, so we check for some other omission...
+
+#if defined(GL_EXT_blend_minmax) && (!defined(GL_SRC_ALPHA_SATURATE) || defined(GL_CONSTANT_COLOR))
 
 void
 glBlendEquationEXT(mode)
@@ -8016,11 +8230,18 @@ glutVisibilityFunc(handler=0, ...)
 	CODE:
 	decl_gwh_xs(Visibility)
 
+# OS/2 PM implementation calls itself v2, but does not support these functions
+# It is very hard to test for this, so we check for some other omission...
+
+#if !defined(GL_SRC_ALPHA_SATURATE) || defined(GL_CONSTANT_COLOR)
+
 void
 glutEntryFunc(handler=0, ...)
 	SV *	handler
 	CODE:
 	decl_gwh_xs(Entry)
+
+#endif
 
 #if GLUT_API_VERSION >= 2
 
@@ -8029,6 +8250,11 @@ glutSpecialFunc(handler=0, ...)
 	SV *	handler
 	CODE:
 	decl_gwh_xs(Special)
+
+# OS/2 PM implementation calls itself v2, but does not support these functions
+# It is very hard to test for this, so we check for some other omission...
+
+#  if !defined(GL_SRC_ALPHA_SATURATE) || defined(GL_CONSTANT_COLOR)
 
 void
 glutSpaceballMotionFunc(handler=0, ...)
@@ -8072,6 +8298,8 @@ glutTabletButtonFunc(handler=0, ...)
 	CODE:
 	decl_gwh_xs(TabletButton)
 
+#  endif
+
 #endif
 
 #if GLUT_API_VERSION >= 3
@@ -8111,7 +8339,7 @@ glutTimerFunc(msecs, handler=0, ...)
 			
 			glutTimerFunc(msecs, generic_glut_timer_handler, (int)handler_data);
 		}
-	}
+	ENSURE_callback_thread;}
 
 
 # Colors
@@ -8178,7 +8406,10 @@ glutStrokeCharacter(font, character)
 	void *	font
 	int	character
 
-#if GLUT_API_VERSION >= 2
+# OS/2 PM implementation calls itself v2, but does not support these functions
+# It is very hard to test for this, so we check for some other omission...
+
+#if GLUT_API_VERSION >= 2 && (!defined(GL_SRC_ALPHA_SATURATE) || defined(GL_CONSTANT_COLOR))
 
 int
 glutBitmapWidth(font, character)
@@ -8277,17 +8508,25 @@ glutWireTeapot(size)
 #endif /* def GLUT_API_VERSION */
 
 
-# The following material is directly copied from Stan Melax's original OpenGL-0.4
+# /* The following material is directly copied from Stan Melax's original OpenGL-0.4 */
 
-#ifdef HAVE_GLX
+#ifdef __PM__
 
 void
-glpcOpenWindow(x,y,w,h,pw,event_mask, ...)
+morphPM()
+
+#endif
+
+#ifdef HAVE_GLpc			/* GLX or __PM__ */
+
+GLXDrawable
+glpcOpenWindow(x,y,w,h,pw,steal,event_mask, ...)
 	int	x
 	int	y
 	int	w
 	int	h
 	int	pw
+	int	steal
 	long	event_mask
 	CODE:
 	{
@@ -8303,16 +8542,24 @@ glpcOpenWindow(x,y,w,h,pw,event_mask, ...)
 	        attributes[items-NUM_ARG]=None;
 	    }
 	    /* get a connection */
-	    dpy = XOpenDisplay(0);
-	    if (!dpy) { fprintf(stderr, "No display!\n");exit(-1);}
-	
+	    if (!dpy_open) {
+		dpy = XOpenDisplay(0);
+		dpy_open = 1;
+	    }
+	    if (!dpy)
+		croak("No display!");
+
 	    /* get an appropriate visual */
 	    vi = glXChooseVisual(dpy, DefaultScreen(dpy),attributes);
-	    if(!vi) { fprintf(stderr, "No visual!\n");exit(-1);}
-	
+	    if(!vi)
+		croak("No visual!");
+
+	    /* A blank line here will confuse xsubpp ;-) */
+#ifdef HAVE_GLX
 	    /* create a GLX context */
 	    cx = glXCreateContext(dpy, vi, 0, GL_TRUE);
-	    if(!cx){fprintf(stderr, "No context!\n");exit(-1);}
+	    if(!cx)
+		croak("No context\n");
 	
 	    /* create a color map */
 	    cmap = XCreateColormap(dpy, RootWindow(dpy, vi->screen),
@@ -8322,35 +8569,82 @@ glpcOpenWindow(x,y,w,h,pw,event_mask, ...)
 	    swa.colormap = cmap;
 	    swa.border_pixel = 0;
 	    swa.event_mask = event_mask;
+#endif	/* defined HAVE_GLX */
+
 	    if(!pwin){pwin=RootWindow(dpy, vi->screen);}
-	    win = XCreateWindow(dpy, pwin, 
-				x, y, w, h,
-				0, vi->depth, InputOutput, vi->visual,
-				CWBorderPixel|CWColormap|CWEventMask, &swa);
-	    if(!win) {
-	        fprintf(stderr, "No Window\n");
-	        exit(-1);
-	    }
+	    if (steal)
+		win = nativeWindowId(dpy, pwin); /* What about depth/visual */
+	    else
+		win = XCreateWindow(dpy, pwin, 
+				    x, y, w, h,
+				    0, vi->depth, InputOutput, vi->visual,
+				    CWBorderPixel|CWColormap|CWEventMask, &swa);
+	    if(!win)
+	        croak("No Window");
 	    XMapWindow(dpy, win);
-	    if(event_mask & StructureNotifyMask) {
+#ifndef HAVE_GLX
+	    /* On OS/2: cannot create a context before mapping something... */
+	    /* create a GLX context */
+	    cx = glXCreateContext(dpy, vi, 0, GL_TRUE);
+	    if(!cx)
+		croak("No context!\n");
+
+	    LastEventMask = event_mask;
+#else	/* HAVE_GLX */
+	    if((event_mask & StructureNotifyMask) && !steal) {
 	        XIfEvent(dpy, &event, WaitForNotify, (char*)win);
 	    }
+#endif	/* HAVE_GLX */
 
 	    /* connect the context to the window */
-	    if(!glXMakeCurrent(dpy, win, cx)) {
-	        fprintf(stderr, "Non current\n");
-	        exit(-1);
-	    }
+	    if (!glXMakeCurrent(dpy, win, cx))
+	        croak("Non current");
 	
 	    /* clear the buffer */
 	    glClearColor(0,0,0,1);
+	    RETVAL = win;
 	}
+
+void *
+glpDisplay()
+	CODE:
+	    /* get a connection */
+	    if (!dpy_open) {
+		dpy = XOpenDisplay(0);
+		dpy_open = 1;
+	    }
+	    if (!dpy)
+		croak("No display!");
+	    RETVAL = dpy;
+
+void
+glpMoveResizeWindow(x, y, width, height, w=win, d=dpy)
+    void* d
+    GLXDrawable w
+    int x
+    int y
+    unsigned int width
+    unsigned int height
+
+void
+glpMoveWindow(x, y, w=win, d=dpy)
+    void* d
+    GLXDrawable w
+    int x
+    int y
+
+void
+glpResizeWindow(width, height, w=win, d=dpy)
+    void* d
+    GLXDrawable w
+    unsigned int width
+    unsigned int height
 
 # If glpOpenWindow was used then glXSwapBuffers should be called
 # without parameters (i.e. use the default parameters)
 
 void
-glXSwapBuffers(d=dpy,w=win)
+glXSwapBuffers(w=win,d=dpy)
 	void *	d
 	GLXDrawable	w
 	CODE:
@@ -8417,7 +8711,7 @@ glpXNextEvent(d=dpy)
 	}
 
 void
-glpXQueryPointer(d=dpy,w=win)
+glpXQueryPointer(w=win,d=dpy)
 	void *	d
 	GLXDrawable	w
 	PPCODE:
@@ -8445,23 +8739,31 @@ glpReadTex(file)
 	    char buf[250];
 	    unsigned char *image;
 	    FILE *fp;
+
 	    fp=fopen(file,"r");
-	    if(!fp) {
-	        fprintf(stderr,"couldn't open file %s\n",file);
-	        return;
-	    }
+	    if(!fp)
+	        croak("couldn't open file %s",file);
+	    fgets(buf,250,fp);		/* P3 */
+	    if (buf[0] != 'P' || buf[1] != '3')
+	        croak("Format is not P3 in file %s",file);
 	    fgets(buf,250,fp);
-	    fgets(buf,250,fp);
-	    fscanf(fp,"%d%d",&w,&h);
-	    fscanf(fp,"%d",&d);
-	    if(d != 255 || w<64 || h<64 || w>10000 || h>10000) {
-	        fprintf(stderr,"error reading %s\n",file);
-	        return;
-	    }
-	    image=(unsigned char *)malloc(w*h*3);
+	    while (buf[0] == '#' && fgets(buf,250,fp))
+		;			/* Empty */
+	    if (2 != sscanf(buf,"%d%d",&w,&h))
+	        croak("couldn't read image size from file %s",file);
+	    if (1 != fscanf(fp,"%d",&d))
+	        croak("couldn't read image depth from file %s",file);
+	    if(d != 255)
+	        croak("image depth != 255 in file %s unsupported",file);
+	    if(w>10000 || h>10000)
+	        croak("suspicious size w=%d d=%d in file %s", w, d, file);
+	    New(1431, image, w*h*3, unsigned char);
 	    for(i=0;i<w*h*3;i++) {
 		int v;
-	        fscanf(fp,"%d",&v);
+	        if (1 != fscanf(fp,"%d",&v)) {
+		    Safefree(image);
+		    croak("Error reading number #%d of %d from file %s", i, w*h*3,file);
+		}
 	        image[i]=(unsigned char) v;
 	    }
 	    fclose(fp);
@@ -8469,3 +8771,5 @@ glpReadTex(file)
 	                 0, GL_RGB, GL_UNSIGNED_BYTE,image);
 	}
 
+BOOT:
+  InitSys();

@@ -106,4 +106,4 @@ myinit();
 myReshape;
 display;
 
-while(<>){;}
+glpMainLoop;

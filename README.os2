@@ -1,0 +1,144 @@
+One should be able to compile this module on OS/2 in two different modes:
+for PM, and for X11.  If you have an OpenGL library for one of these modes
+only, just
+
+  perl Makefile.PL
+  make
+
+should compile in the corresponding mode.  If you have both, then by default
+the compile is in the PM mode.  To force X11-mode, put X11 on the command
+line.  [I did not test X11 mode under OS/2.]
+
+PM mode is somewhat quirky.  The quirks are different for Glut mainwindow,
+and for glp mainwindows.
+
+GLUT Support
+============
+
+GLUT is supported as far as OS/2 supports it.  But keep in mind that the
+IBM port of GLUT is very EMX-unfriendly: GLUT calls your callbacks from
+a secondary thread, which is not EMX-instrumented, thus most CRTL functions
+called from the secondary thread will fail.
+
+We needed a workaround.  When GLUT callbacks are registered, this module
+starts a ternary thread via EMX (so *this* thread *can* call CRTL
+functions!).  When a callback is called, the secondary thread uses
+EMX-neutral functions to communicate the arguments to the ternary thread.
+
+Then the ternary thread runs the actual Perl callback.  The process above
+is quite error-prone, but I did not see any problem with the simple demos
+supplied with this module (GLUT demos are at the top directory).
+
+Anyway, calling exit() from GLUT callbacks is not recommended (longjmp
+from a different thread is a coredump time ;-).  As a workaround, keep
+a list of GLUT windows which are active, and call something like this
+
+  sub myExit {
+    exit shift unless keys %windowID;
+    glutDestroyWindow($_) foreach keys %windowID;
+    %windowID = ();
+  }
+
+instead of exit().  (Assuming that exiting glutMainLoop() will exit the
+script.)  To enable this, you need to  the result of glutCreateWindow,
+and calls to glutDestroyWindow($_).
+
+[This myExit recipe does not work.  I need to call glutDestroyWindow($_)
+ twice (?!), and then the GLUT mainloop won't exit anyway...]
+
+glpOpenWindow Support
+=====================
+
+Under PM this subsystem is call-compatible (within bounds ;-) with X11
+way to do things.
+
+glpOpenWindow() supports 3 modes: toplevel windows, windows embedded in
+another window (parent specified by OS/2 window ID), and windows embedded in
+a Tk window (parent specified by Tk-emulation-level window ID).  The latter two
+cases are distinguished by querying whether the number is an OS/2 window ID.
+(This should not cause conflicts as far as Tk does not put stuff above 512M
+barrier.)
+
+However, under OS/2 every window should process its message queue.  The only
+automatic event processing which is done by this port happens during
+glXSwapBuffers call.  Thus the standard way to block via <> would hog the SIQ
+of OS/2.  One should use glpMainLoop() instead, which is equivalent to 
+
+  1 while <>;
+
+under X11, and to 
+
+  OS2::Process_Messages(0) while 1;
+
+under PM.  Alternatively, insert OS2::Process_Messages(0) into appropriate
+places in your loops.
+
+To add insult to injury, doing EMX's select() on STDIN "does not
+work" in the default OS/2-ish mode of STDIN.  Even if you remove the
+IDEFAULT flag from the terminal parameters, the success of select() means
+only that a character can be read, not a line.  Thus
+
+  vec($rin,0,1) = 1;
+  if (select($rout=$rin,undef,undef,0)) {
+    $_=<> || die "End Of File";
+    eval;
+  }
+
+would block the message queue (by two counts).  One can check for PM
+environment by
+
+  $is_pm = OpenGL::_have_glp() && !OpenGL::_have_glx();
+
+Only the following events are supported by glpXNextEvent():
+
+ KeyPress on alphanumeric and Esc, Enter, Tab and Space key;
+ ConfigureNotify on resize;
+ ExposureNotify  on exposures;
+
+The default EventMask is changed to 0; if so, resizing changes the
+viewport automatically.  If ConfigureNotifyMask is requested, then the
+viewport should be changed explicitly by the script.
+
+General GL problems
+===================
+
+The "Gold" edition of OpenGL lies about supported extensions.  E.g.,
+GL_EXT_vertex_array is reported as supported, while it is not (at least
+not with the *_EXT names).  [Can this be fixed via #define's?]
+
+   $extensions = glGetString( GL_EXTENSIONS );
+   ... if $extensions =~ /\bGL_EXT_vertex_array\b/;
+
+[I put a workaround which redefines GL_EXT_vertex_array functions in
+ terms of the corresponding OpenGL 1.1 functions.]
+
+In many situations I have seen PM switching coprocessor flags of the running
+application.  (?!)  I have not seen this yet with OpenGL.pm, but be prepared
+to FPE traps.  Resetting back _control87() in a key moment may help...
+
+Morphing to PM
+==============
+
+This module will automatically morph to a PM program when the first
+*CreateWindow call is performed.  But apparently, the half-minded attempts
+of glp* subsystem to serve the message queue - in combination with morphing -
+lead (in my experience - Warp3+fixpak17) to severe system integrity
+degradation.  If you see problems, better start your Perl/OpenGL scripts with
+perl__.exe (as opposed to perl.exe), which is a PM program.  To see
+the STDOUT/STDERR, you may want to pipe the output of perl__, as in
+
+   perl__ script.pl args | cat -
+
+(if you do it under pdksh, you will be able to see the output immediately),
+or to pmpipe (available on ftp.math.ohio-state.edu/pub/users/ilya/os2/).
+Depending on your shell, you may need either "2>&1 |", or "|&" (instead of
+"|") to see the STDERR too.
+
+Also: I have seen Glut window started *last* in the z-order when morphing.
+
+AUTHOR
+
+Ilya Zakharevich ilya@math.ohio-state.edu
+
+[Anything helping to overcome limitations stated here would be gladly
+ appreciated.]

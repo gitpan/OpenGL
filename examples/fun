@@ -87,7 +87,9 @@ sub initlists{
 }
 
 sub readnff{
-  open(FILE,"<spaceship.nff") || die "cant open spaceship.nff";
+  my $file = 'spaceship.nff';
+  $file = "examples/$file" unless -r $file;
+  open(FILE,"<$file") || die "cant open $file";
   $_="";
   while(!(/^82\s*$/)){$_=<FILE>;}
   $n=82;
@@ -340,6 +342,7 @@ foreach $i (0..9){
         $kcb{"$i"}=\&setspeed;
 }
 
+$is_pm = OpenGL::_have_glp && ! OpenGL::_have_glx;
 
 while(1){
 	$spf = ($spf*$w + $t-$p) /($w+1.0); 
@@ -354,7 +357,7 @@ while(1){
 
 
 	vec($rin,0,1) = 1;
-	if(select($rout=$rin,undef,undef,0)) {
+	if(!$is_pm && select($rout=$rin,undef,undef,0)) {
 		$_=<> || die "End Of File";
 		eval;
 	}

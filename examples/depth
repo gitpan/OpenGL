@@ -36,5 +36,4 @@ glBegin(GL_POLYGON);
 glEnd();
 glFlush();
 
-print "Hit control-D to quit:\n\n";
-while(<>){;}
+glpMainLoop;

@@ -9,7 +9,7 @@ require DynaLoader;
 
 use Carp;
 
-$VERSION = '0.5';
+$VERSION = '0.53';
 
 @ISA = qw(Exporter AutoLoader DynaLoader);
 
@@ -1896,6 +1896,11 @@ DirectColor
 
 @oldfunctions = qw(
 	glpOpenWindow
+	glpMainLoop
+	glpMoveResizeWindow
+	glpMoveWindow
+	glpResizeWindow
+	glpDisplay
 	glXSwapBuffers 
 	XPending
 	glpXNextEvent
@@ -3321,6 +3326,7 @@ sub AUTOLOAD {
 bootstrap OpenGL;
 
 # The following material is directly copied from Stan Melax's original OpenGL-0.4
+# (with modifications for OS/2).
 
 %window_defaults=(
                 'x'     => 0,
@@ -3328,8 +3334,9 @@ bootstrap OpenGL;
                 'width' => 500,
                 'height'=> 500,
                 'parent'=> 0,
-                'mask'  => StructureNotifyMask,
-                'attributes'=> [GLX_RGBA],
+                'steal'=> 0,
+		'mask'	=> (_have_glx() ? StructureNotifyMask() : 0),
+                'attributes'=> [GLX_RGBA()],
         );
 
 sub glpOpenWindow {
@@ -3342,14 +3349,12 @@ sub glpOpenWindow {
                 $p{$k} = $a{$k};
         }
         glpcOpenWindow($p{'x'},$p{'y'},$p{'width'},$p{'height'},
-                       $p{'parent'},$p{'mask'},
+                       $p{'parent'},$p{steal},$p{'mask'},
                        @{$p{'attributes'}});
 }
 
 # The following material is original to OpenGL-0.5, and provides compatibility
 # with some of Stan's functions.
-
-package OpenGL;
 
 sub glpClipPlane { glClipPlane_p(@_) }
 
@@ -3363,6 +3368,20 @@ sub glpLoadMatrixf { glLoadMatrixf_p(@_) }
 
 sub glpMultMatrixf { glMultMatrixf_p(@_) }
 
+sub glpMainLoop {
+  if (_have_glx()) {
+    print "Control-D to quit...\n";
+    while(<>){;} # control-D to quit
+  } else {				# OS/2 PM
+    OS2::Process_Messages(0) while 1;  
+  }
+}
+
+if (_have_glp() && !_have_glx()) { eval <<EOE } # OS2, take into account %ENV?
+  sub Button1Mask () {Button1MaskOS2()}
+  sub Button2Mask () {Button3MaskOS2()}
+  sub Button3Mask () {Button2MaskOS2()}
+EOE
 
 1;
 __END__

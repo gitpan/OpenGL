@@ -139,6 +139,8 @@
 	i(GLUT_NORMAL_DAMAGED)
 	i(GLUT_OVERLAY_DAMAGED)
 #endif
+		/* OS/2 PM implementation does not have these constants... */
+#if !defined(GLUT_MIDDLE_BUTTON) || defined(GLUT_NORMAL)
 	i(GLUT_NORMAL)
 	i(GLUT_OVERLAY)
 	i(GLUT_ACTIVE_SHIFT)
@@ -167,6 +169,7 @@
 	i(GLUT_CURSOR_INHERIT)
 	i(GLUT_CURSOR_NONE)
 	i(GLUT_CURSOR_FULL_CROSSHAIR)
+#endif
 	}
 	else
 #endif /* def GTK_API_VERSION */

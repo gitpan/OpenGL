@@ -13,6 +13,7 @@ $M_PI = 3.14159265;
 #          teeth - number of teeth
 #          tooth_depth - depth of tooth
 
+my $er;
 sub im {
 
 	my($w) =  glutGet ( GLUT_WINDOW_WIDTH ) ;
@@ -30,7 +31,7 @@ sub im {
   glMatrixMode   ( GL_PROJECTION ) ;
   glPushMatrix   () ;
   glLoadIdentity () ;
-  gluOrtho2D     ( 0, $w, 0, $h ) ;
+  eval { gluOrtho2D     ( 0, $w, 0, $h ); 1 } or $er++ or warn "Catched: $@";
   glMatrixMode   ( GL_MODELVIEW ) ;
   glPushMatrix   () ;
   glLoadIdentity () ;
@@ -221,7 +222,7 @@ sub key {
 		$view_rotz += 5.0;
 	} elsif ($k == ord('Z')) {
 		$view_rotz -= 5.0;
-	} elsif ($k == 27) {
+	} elsif ( $k == 27 or $k == ord 'q'  or $k == ord 'Q' ) {
 		exit(0);
 	} else {
 		return;
@@ -329,11 +330,11 @@ glutKeyboardFunc(\&key);
 glutSpecialFunc(\&special);
 glutVisibilityFunc(\&visible);
 
-glutMouseFunc(sub {
-	print "m\n";
-	@p = glReadPixels_p(20, 20, 20, 20, GL_RGB, GL_INT);
-	print join("|", @p),"\n";
-});
+#glutMouseFunc(sub {
+#	print "m\n";
+#	@p = glReadPixels_p(20, 20, 20, 20, GL_RGB, GL_INT);
+#	print join("|", @p),"\n";
+#});
 
 
 glutMainLoop();

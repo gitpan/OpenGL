@@ -35,4 +35,4 @@ glClear (GL_COLOR_BUFFER_BIT);
 triangle ();
 glFlush ();
 
-while(<>){}
+glpMainLoop;

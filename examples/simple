@@ -23,4 +23,4 @@ glEnd();
 glFlush();
 
 print "Program 1-1 Simple, hit control-D to quit:\n\n";
-while(<>){;}
+glpMainLoop;

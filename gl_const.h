@@ -1,3 +1,59 @@
+
+/* An OpenGL 1.1 has similar functions to GL_EXT_vertex_array, but
+   GL_EXT_vertex_array provides a better API.  Remap 1.1 functions so
+   that one can use one API under Perl.
+ */
+
+#if !defined(GL_EXT_vertex_array) && defined (GL_VERSION_1_1)
+#  define GL_VERTEX_ARRAY_EXT	GL_VERTEX_ARRAY
+#  define GL_NORMAL_ARRAY_EXT	GL_NORMAL_ARRAY
+#  define GL_COLOR_ARRAY_EXT	GL_COLOR_ARRAY
+#  define GL_INDEX_ARRAY_EXT	GL_INDEX_ARRAY
+#  define GL_TEXCOORD_ARRAY_EXT	GL_TEXCOORD_ARRAY
+#  define GL_EDGEFLAG_ARRAY_EXT	GL_EDGEFLAG_ARRAY
+#  define glArrayElementEXT	glArrayElement
+#  define glDrawArraysEXT	glDrawArrays
+
+#  define glVertexPointerEXT(size, type, stride, count, pointer)	\
+		glVertexPointer((size), (type), (stride), (pointer))
+#  define glNormalPointerEXT(type, stride, count, pointer)		\
+		glNormalPointer((type), (stride), (pointer))
+#  define glColorPointerEXT(size, type, stride, count, pointer)		\
+		glColorPointer((size), (type), (stride), (pointer))
+#  define glIndexPointerEXT(type, stride, count, pointer) 		\
+		glIndexPointer((type), (stride), (pointer))
+#  define glTexCoordPointerEXT(size, type, stride, count, pointer)	\
+		glTexCoordPointer((size), (type), (stride), (pointer))
+#  define glEdgeFlagPointerEXT(stride, count, pointer) 			\
+		glEdgeFlagPointer((stride), (pointer))
+
+#  define GL_EXT_vertex_array
+#  define GL_EXT_vertex_array_is_faked
+
+#  define GL_TEXTURE_COORD_ARRAY_EXT	GL_TEXTURE_COORD_ARRAY
+#  define GL_EDGE_FLAG_ARRAY_EXT	GL_EDGE_FLAG_ARRAY
+#  define GL_VERTEX_ARRAY_SIZE_EXT	GL_VERTEX_ARRAY_SIZE
+#  define GL_VERTEX_ARRAY_TYPE_EXT	GL_VERTEX_ARRAY_TYPE
+#  define GL_VERTEX_ARRAY_STRIDE_EXT	GL_VERTEX_ARRAY_STRIDE
+#  define GL_NORMAL_ARRAY_TYPE_EXT	GL_NORMAL_ARRAY_TYPE
+#  define GL_NORMAL_ARRAY_STRIDE_EXT	GL_NORMAL_ARRAY_STRIDE
+#  define GL_COLOR_ARRAY_SIZE_EXT	GL_COLOR_ARRAY_SIZE
+#  define GL_COLOR_ARRAY_TYPE_EXT	GL_COLOR_ARRAY_TYPE
+#  define GL_COLOR_ARRAY_STRIDE_EXT	GL_COLOR_ARRAY_STRIDE
+#  define GL_INDEX_ARRAY_TYPE_EXT	GL_INDEX_ARRAY_TYPE
+#  define GL_INDEX_ARRAY_STRIDE_EXT	GL_INDEX_ARRAY_STRIDE
+#  define GL_TEXTURE_COORD_ARRAY_SIZE_EXT	GL_TEXTURE_COORD_ARRAY_SIZE
+#  define GL_TEXTURE_COORD_ARRAY_TYPE_EXT	GL_TEXTURE_COORD_ARRAY_TYPE
+#  define GL_TEXTURE_COORD_ARRAY_STRIDE_EXT	GL_TEXTURE_COORD_ARRAY_STRIDE
+#  define GL_EDGE_FLAG_ARRAY_STRIDE_EXT	GL_EDGE_FLAG_ARRAY_STRIDE
+#  define GL_VERTEX_ARRAY_POINTER_EXT	GL_VERTEX_ARRAY_POINTER
+#  define GL_NORMAL_ARRAY_POINTER_EXT	GL_NORMAL_ARRAY_POINTER
+#  define GL_COLOR_ARRAY_POINTER_EXT	GL_COLOR_ARRAY_POINTER
+#  define GL_INDEX_ARRAY_POINTER_EXT	GL_INDEX_ARRAY_POINTER
+#  define GL_TEXTURE_COORD_ARRAY_POINTER_EXT	GL_TEXTURE_COORD_ARRAY_POINTER
+#  define GL_EDGE_FLAG_ARRAY_POINTER_EXT	GL_EDGE_FLAG_ARRAY_POINTER
+#endif
+
 #ifdef GL_VERSION_1_0
 	if (!strncmp(name, "GL_", 3)) {
 	i(GL_FALSE)
@@ -153,10 +209,13 @@
 	i(GL_DST_ALPHA)
 	i(GL_ONE_MINUS_DST_ALPHA)
 	i(GL_SRC_ALPHA_SATURATE)
+		/* OS/2 PM implementation does not have these constants... */
+#if !defined(GL_SRC_ALPHA_SATURATE) || defined(GL_CONSTANT_COLOR)
 	i(GL_CONSTANT_COLOR)
 	i(GL_ONE_MINUS_CONSTANT_COLOR)
 	i(GL_CONSTANT_ALPHA)
 	i(GL_ONE_MINUS_CONSTANT_ALPHA)
+#endif
 	i(GL_FEEDBACK)
 	i(GL_RENDER)
 	i(GL_SELECT)
@@ -659,29 +718,31 @@
 	i(GL_VERTEX_ARRAY_SIZE_EXT)
 	i(GL_VERTEX_ARRAY_TYPE_EXT)
 	i(GL_VERTEX_ARRAY_STRIDE_EXT)
-	i(GL_VERTEX_ARRAY_COUNT_EXT)
 	i(GL_NORMAL_ARRAY_TYPE_EXT)
 	i(GL_NORMAL_ARRAY_STRIDE_EXT)
-	i(GL_NORMAL_ARRAY_COUNT_EXT)
 	i(GL_COLOR_ARRAY_SIZE_EXT)
 	i(GL_COLOR_ARRAY_TYPE_EXT)
 	i(GL_COLOR_ARRAY_STRIDE_EXT)
-	i(GL_COLOR_ARRAY_COUNT_EXT)
 	i(GL_INDEX_ARRAY_TYPE_EXT)
 	i(GL_INDEX_ARRAY_STRIDE_EXT)
-	i(GL_INDEX_ARRAY_COUNT_EXT)
 	i(GL_TEXTURE_COORD_ARRAY_SIZE_EXT)
 	i(GL_TEXTURE_COORD_ARRAY_TYPE_EXT)
 	i(GL_TEXTURE_COORD_ARRAY_STRIDE_EXT)
-	i(GL_TEXTURE_COORD_ARRAY_COUNT_EXT)
 	i(GL_EDGE_FLAG_ARRAY_STRIDE_EXT)
-	i(GL_EDGE_FLAG_ARRAY_COUNT_EXT)
 	i(GL_VERTEX_ARRAY_POINTER_EXT)
 	i(GL_NORMAL_ARRAY_POINTER_EXT)
 	i(GL_COLOR_ARRAY_POINTER_EXT)
 	i(GL_INDEX_ARRAY_POINTER_EXT)
 	i(GL_TEXTURE_COORD_ARRAY_POINTER_EXT)
 	i(GL_EDGE_FLAG_ARRAY_POINTER_EXT)
+#  ifndef GL_EXT_vertex_array_is_faked
+	i(GL_VERTEX_ARRAY_COUNT_EXT)
+	i(GL_NORMAL_ARRAY_COUNT_EXT)
+	i(GL_COLOR_ARRAY_COUNT_EXT)
+	i(GL_INDEX_ARRAY_COUNT_EXT)
+	i(GL_TEXTURE_COORD_ARRAY_COUNT_EXT)
+	i(GL_EDGE_FLAG_ARRAY_COUNT_EXT)
+#  endif
 #endif
 
 /* 31 */
@@ -710,7 +771,7 @@
 #endif
 
 /* 79 */
-#ifdef GL_EXT_clip_volume_hint
+#if defined(GL_EXT_clip_volume_hint) && defined(GL_VOLUME_CLIPPING_HINT_EXT)
 	i(GL_VOLUME_CLIPPING_HINT_EXT)
 #endif
 
@@ -788,6 +849,25 @@
 	i(GL_ALL_ATTRIB_BITS)
 	i(GL_CLIENT_PIXEL_STORE_BIT)
 	i(GL_CLIENT_VERTEX_ARRAY_BIT)
+
+/* 
+ * Mesa 3D version 3.3 and 3.4 define GL_ALL_CLIENT_ATTRIB_BITS The
+ * OpenGL Specification (1.1 and 1.2) defines this macro as well. Older
+ * versions of Mesa3D used to have GL_CLIENT_ALL_ATTRIB_BITS. Older
+ * versions of this module, and much code out there also uses this older
+ * macro.
+ * 
+ * To be fully backward compatible, but also to be correct, both will be
+ * defined here, copied from each other. This should ensure that this
+ * compiles and works against any OpenGL library that uses either, and
+ * allow code that uses either.
+ */
+#if defined(GL_ALL_CLIENT_ATTRIB_BITS) && !defined(GL_CLIENT_ALL_ATTRIB_BITS)
+#define GL_CLIENT_ALL_ATTRIB_BITS GL_ALL_CLIENT_ATTRIB_BITS
+#else 
+#define GL_ALL_CLIENT_ATTRIB_BITS GL_CLIENT_ALL_ATTRIB_BITS
+#endif
+	i(GL_ALL_CLIENT_ATTRIB_BITS)
 	i(GL_CLIENT_ALL_ATTRIB_BITS)
     }
     else
