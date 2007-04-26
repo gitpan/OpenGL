@@ -1,0 +1,45 @@
+Compiling the OpenGL module with MS VC++ 6.0
+============================================
+
+1 - Download the Pre-compiled Win32 GLUT 3.7 DLLs for Windows 95 & NT:
+    http://www.opengl.org/resources/libraries/glut/glut_downloads.php
+    
+    Unzip the glutdlls37beta.zip file in a temp directory.
+    Copy the header file glut.h in the include MSVC directory for GL
+    (typically C:\Program Files\Microsoft Visual Studio\VC98\Include\GL)
+    Copy the lib file glut32.lib in the MSVC lib directory
+    (typically C:\Program Files\Microsoft Visual Studio\VC98\Lib)
+    Copy the dll glut32.dll in the system directory
+    (typically C:\WINDOWS\system32)
+
+2 - All other OpenGL headers are located in the 'include' folder
+
+    You can download updates for the include folder at
+    http://graphcomp.com/opengl/GL.zip
+    
+3 - Run perl Makefile.PL
+
+    This will determine the capabilities of your OpenGL instalation,
+    and generate a gl_exclude.h file - you can manually edit this
+    file to override exclusions.
+
+    Note for building distributions (PPMs): in order to build Perl
+    OpenGL for distribution, remove all the entries in gl_exclude.h
+    (but don't delete it).
+
+4 - Compile the module as usual
+        
+    nmake
+    nmake test
+    nmake install
+
+Note: 'nmake test' will run test.pl, which will pop up a test window.
+Assuming that the test worked (you should see a spinning cube with
+textures on its faces), then hit 'q' to continue (the test window 
+must have focus).
+
+   
+AUTHOR
+
+Bob Free <bfree@graphcomp.com>
+  http://graphcomp.com/opengl

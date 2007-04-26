@@ -42,6 +42,7 @@ int gl_texparameter_count(GLenum pname)
 	default:
 		croak("Unknown texparameter parameter");
 	}
+	return 0;	// Just to make the compiler happy
 }
 
 
@@ -55,6 +56,7 @@ int gl_texenv_count(GLenum pname)
 	default:
 		croak("Unknown texenv parameter");
 	}
+	return 0;	// Just to make the compiler happy
 }
 
 int gl_texgen_count(GLenum pname)
@@ -68,6 +70,7 @@ int gl_texgen_count(GLenum pname)
 	default:
 		croak("Unknown texgen parameter");
 	}
+	return 0;	// Just to make the compiler happy
 }
 
 int gl_material_count(GLenum pname)
@@ -86,6 +89,7 @@ int gl_material_count(GLenum pname)
 	default:
 		croak("Unknown material parameter");
 	}
+	return 0;	// Just to make the compiler happy
 }
 
 
@@ -176,6 +180,7 @@ int gl_map_count(GLenum target, GLenum query)
 	default:
 		croak("Unknown map query");
 	}
+	return 0;	// Just to make the compiler happy
 }
 
 int gl_light_count(GLenum pname)
@@ -197,6 +202,7 @@ int gl_light_count(GLenum pname)
 	default:
 		croak("Unknown light parameter");
 	}
+	return 0;	// Just to make the compiler happy
 }
 
 int gl_lightmodel_count(GLenum pname)
@@ -210,6 +216,7 @@ int gl_lightmodel_count(GLenum pname)
 	default:
 		croak("Unknown light model");
 	}
+	return 0;	// Just to make the compiler happy
 }
 
 int gl_fog_count(GLenum pname)
@@ -226,6 +233,7 @@ int gl_fog_count(GLenum pname)
 	default:
 		croak("Unknown fog parameter");
 	}
+	return 0;	// Just to make the compiler happy
 }
 
 int gl_get_count(GLenum param)
@@ -556,7 +564,7 @@ int gl_get_count(GLenum param)
 			static GLint max_lights = 0;
 			if (!max_lights)
 				glGetIntegerv(GL_MAX_LIGHTS, &max_lights);
-			if ((param > GL_LIGHT0) && (param <= (GL_LIGHT0 + max_lights)))
+			if ((param > GL_LIGHT0) && (param <= (GLenum)(GL_LIGHT0 + max_lights)))
 				return 1;
 		}
 		{
@@ -564,11 +572,12 @@ int gl_get_count(GLenum param)
 			static GLint max_clip_planes = 0;
 			if (!max_clip_planes)
 				glGetIntegerv(GL_MAX_CLIP_PLANES, &max_clip_planes);
-			if ((param > GL_CLIP_PLANE0) && (param <= (GL_CLIP_PLANE0 + max_clip_planes)))
+			if ((param > GL_CLIP_PLANE0) && (param <= (GLenum)(GL_CLIP_PLANE0 + max_clip_planes)))
 				return 1;
 		}
 		croak("Unknown param");
 	}
+	return 0;	// Just to make the compiler happy
 }
 
 
@@ -609,6 +618,7 @@ int gl_pixelmap_size(GLenum map)
 		default:
 			croak("unknown pixelmap");
 	}
+	return 0;	// Just to make the compiler happy
 }
 
 int gl_state_count(GLenum state) {
@@ -640,7 +650,7 @@ GLvoid * EL(SV * sv, int needlen)
 #endif
 
 	SvUPGRADE(sv, SVt_PV);
-	SvGROW(sv, needlen + 1);
+	SvGROW(sv, (unsigned int)(needlen + 1));
 	SvPOK_on(sv);
 	SvCUR_set(sv, needlen);
 	*SvEND(sv) = '\0';
@@ -692,6 +702,7 @@ int gl_type_size(GLenum type)
 	default:
 		croak("unknown type");
 	}
+	return 0;	// Just to make the compiler happy
 }
 
 int gl_component_count(GLenum format, GLenum type)
@@ -861,11 +872,11 @@ void gl_pixelbuffer_size2(
 void pgl_set_type(SV * sv, GLenum type, void ** ptr)
 {
 #define RIV(t)	\
-		(*(t*)*ptr) = SvIV(sv);	\
+		(*(t*)*ptr) = (t)SvIV(sv);	\
 		*(unsigned char**)ptr += sizeof(t);\
 		break;
 #define RNV(t)	\
-		(*(t*)*ptr) = SvNV(sv);	\
+		(*(t*)*ptr) = (t)SvNV(sv);	\
 		*(unsigned char**)ptr += sizeof(t);\
 		break;
 	switch (type) {
@@ -903,33 +914,33 @@ void pgl_set_type(SV * sv, GLenum type, void ** ptr)
 	case GL_2_BYTES:
 	{
 		unsigned long v = SvIV(sv);
-		(*(GLubyte*)*ptr) = v >> 8;
+		(*(GLubyte*)*ptr) = (GLubyte)(v >> 8);
 		*(unsigned char**)ptr++;
-		(*(GLubyte*)*ptr) = v & 0xff;
+		(*(GLubyte*)*ptr) = (GLubyte)(v & 0xff);
 		*(unsigned char**)ptr++;
 		break;
 	}
 	case GL_3_BYTES:
 	{
 		unsigned long v = SvIV(sv);
-		(*(GLubyte*)*ptr) = (v >> 16)& 0xff;
+		(*(GLubyte*)*ptr) = (GLubyte)((v >> 16) & 0xff);
 		*(unsigned char**)ptr++;
-		(*(GLubyte*)*ptr) = (v >> 8) & 0xff;
+		(*(GLubyte*)*ptr) = (GLubyte)((v >> 8) & 0xff);
 		*(unsigned char**)ptr++;
-		(*(GLubyte*)*ptr) = (v >> 0) & 0xff;
+		(*(GLubyte*)*ptr) = (GLubyte)((v >> 0) & 0xff);
 		*(unsigned char**)ptr++;
 		break;
 	}
 	case GL_4_BYTES:
 	{
 		unsigned long v = SvIV(sv);
-		(*(GLubyte*)*ptr) = (v >> 24)& 0xff;
+		(*(GLubyte*)*ptr) = (GLubyte)((v >> 24) & 0xff);
 		*(unsigned char**)ptr++;
-		(*(GLubyte*)*ptr) = (v >> 16)& 0xff;
+		(*(GLubyte*)*ptr) = (GLubyte)((v >> 16) & 0xff);
 		*(unsigned char**)ptr++;
-		(*(GLubyte*)*ptr) = (v >> 8) & 0xff;
+		(*(GLubyte*)*ptr) = (GLubyte)((v >> 8) & 0xff);
 		*(unsigned char**)ptr++;
-		(*(GLubyte*)*ptr) = (v >> 0) & 0xff;
+		(*(GLubyte*)*ptr) = (GLubyte)((v >> 0) & 0xff);
 		*ptr++;
 		break;
 	}
@@ -1091,11 +1102,12 @@ too_much_data:
 	croak("too much data");
 too_many_levels:
 	croak("too many levels");
+	return 0;	// Just to make the compiler happy
 }
 
 GLvoid * allocate_image_ST(GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, int mode)
 {
-	int i;
+	//int i;
 	void * ptr;
 	GLsizei size, max;
 	

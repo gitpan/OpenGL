@@ -1,0 +1,24 @@
+#!make
+
+CC=cc
+CCFLAGS=
+LINK=cc
+LDFLAGS=-lGL -lglut
+
+all: glversion.txt
+
+clean:
+	rm -f glversion.txt
+	rm -f glversion
+	rm -f glversion.o
+
+glversion.txt: glversion
+	./$< > $@
+
+glversion: glversion.o
+	${LINK} ${LDFLAGS} -o $@ $<
+	chmod u+x $@
+
+%.o: %.c Makefile
+	${CC} ${CCFLAGS} -c $<
+

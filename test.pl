@@ -1,365 +1,1091 @@
 #!/usr/bin/perl -w
+use strict;
+use OpenGL qw/ :all /;
+use Math::Trig;
+eval 'use Time::HiRes qw( gettimeofday )';
+my $hasHires = !$@;
+$|++;
 
-use OpenGL qw(:all);
+# ----------------------
+# Based on a cube demo by
+# Chris Halsall (chalsall@chalsall.com) for the
+# O'Reilly Network on Linux.com (oreilly.linux.com).
+# May 2000.
+#
+# Translated from C to Perl by J-L Morel <jl_morel@bribes.org>
+# ( http://www.bribes.org/perl/wopengl.html )
+#
+# Updated for FBO, VBO and Vertex/Fragment Program extensions
+# by Bob Free <bfree@graphcomp.com>
+# ( http://graphcomp.com/opengl )
+#
 
-$M_PI = 3.14159265;
 
-#  Draw a gear wheel.  You'll probably want to call this function when
-#  building a display list since we do a lot of trig here.
-# 
-#  Input:  inner_radius - radius of hole at center
-#          outer_radius - radius at center of teeth
-#          width - width of gear
-#          teeth - number of teeth
-#          tooth_depth - depth of tooth
+use constant PROGRAM_TITLE => "OpenGL Test App";
+use constant DO_TESTS => 0;
 
+# Some global variables.
+my $useMipMap = 1;
+my $hasFBO = 0;
+my $hasVBO = 0;
+my $hasFragProg = 0;
 my $er;
-sub im {
 
-	my($w) =  glutGet ( GLUT_WINDOW_WIDTH ) ;
-	my($h) =  glutGet ( GLUT_WINDOW_HEIGHT ) ;
-	
-  glPushAttrib   ( GL_ENABLE_BIT | GL_VIEWPORT_BIT | GL_TRANSFORM_BIT | GL_COLOR_BUFFER_BIT) ;
-  glDisable      ( GL_LIGHTING   ) ;
-  glDisable      ( GL_FOG        ) ;
-  glDisable      ( GL_TEXTURE_2D ) ;
-  glDisable      ( GL_DEPTH_TEST ) ;
-  glDisable      ( GL_CULL_FACE  ) ;
-  glDisable	 ( GL_STENCIL_TEST );
- 
-  glViewport     ( 0, 0, $w, $h ) ;
-  glMatrixMode   ( GL_PROJECTION ) ;
-  glPushMatrix   () ;
-  glLoadIdentity () ;
-  eval { gluOrtho2D     ( 0, $w, 0, $h ); 1 } or $er++ or warn "Catched: $@";
-  glMatrixMode   ( GL_MODELVIEW ) ;
-  glPushMatrix   () ;
-  glLoadIdentity () ;
-  
-  glPixelZoom(1, 1);
-  
-  @p =  glReadPixels_p(30, 30, 40, 40, GL_RGB, GL_UNSIGNED_INT);
-  glRasterPos2f(10, 10);
-  glDrawPixels_p(40, 40, GL_RGB, GL_UNSIGNED_INT, @p);
+# Window and texture IDs, window width and height.
+my $Window_ID;
+my $Window_Width = 300;
+my $Window_Height = 300;
+my $Inset_Width = 40;
+my $Inset_Height = 40;
+my $Save_Width;
+my $Save_Height;
 
-  glMatrixMode   ( GL_PROJECTION ) ;
-  glPopMatrix    () ;
-  glMatrixMode   ( GL_MODELVIEW ) ;
-  glPopMatrix    () ;
-  glPopAttrib    () ;
-	
+# Our display mode settings.
+my $Light_On = 0;
+my $Blend_On = 0;
+my $Texture_On = 1;
+my $Alpha_Add = 1;
+my $FBO_On = 0;
+my $Inset_On = 1;
+my $Fullscreen_On = 0;
+
+my $Curr_TexMode = 0;
+my @TexModesStr = qw/ GL_DECAL GL_MODULATE GL_BLEND GL_REPLACE /;
+my @TexModes = ( GL_DECAL, GL_MODULATE, GL_BLEND, GL_REPLACE );
+my($TextureID_image,$TextureID_FBO);
+my $FrameBufferID;
+my $RenderBufferID;
+my $VertexProgID;
+my $FragProgID;
+my $FBO_rendered = 0;
+
+# Object and scene global variables.
+my $Teapot_Rot = 0.0;
+
+# Cube position and rotation speed variables.
+my $X_Rot   = 0.9;
+my $Y_Rot   = 0.0;
+my $X_Speed = 0.0;
+my $Y_Speed = 0.5;
+my $Z_Off   =-5.0;
+
+# Settings for our light.  Try playing with these (or add more lights).
+my @Light_Ambient  = ( 0.1, 0.1, 0.1, 1.0 );
+my @Light_Diffuse  = ( 1.2, 1.2, 1.2, 1.0 );
+my @Light_Position = ( 2.0, 2.0, 0.0, 1.0 );
+
+# Vertex Buffer Object data
+my($VertexObjID,$NormalObjID,$ColorObjID,$TexCoordObjID,$IndexObjID);
+
+my @verts =
+(
+  -1.0, -1.3, -1.0,
+  1.0, -1.3, -1.0,
+  1.0, -1.3,  1.0,
+  -1.0, -1.3,  1.0,
+
+  -1.0,  1.3, -1.0,
+  -1.0,  1.3,  1.0,
+  1.0,  1.3,  1.0,
+  1.0,  1.3, -1.0,
+
+  -1.0, -1.0, -1.3,
+  -1.0,  1.0, -1.3,
+  1.0,  1.0, -1.3,
+  1.0, -1.0, -1.3,
+
+  1.3, -1.0, -1.0,
+  1.3,  1.0, -1.0,
+  1.3,  1.0,  1.0,
+  1.3, -1.0,  1.0,
+
+  -1.0, -1.0,  1.3,
+  1.0, -1.0,  1.3,
+  1.0,  1.0,  1.3,
+  -1.0,  1.0,  1.3,
+
+  -1.3, -1.0, -1.0,
+  -1.3, -1.0,  1.0,
+  -1.3,  1.0,  1.0,
+  -1.3,  1.0, -1.0
+);
+my $verts = OpenGL::Array->new_list(GL_FLOAT,@verts);
+
+# Could calc norms on the fly
+my @norms =
+(
+  0.0, -1.0, 0.0,
+  0.0, 1.0, 0.0,
+  0.0, 0.0,-1.0,
+  1.0, 0.0, 0.0,
+  0.0, 0.0, 1.0,
+  -1.0, 0.0, 0.0
+);
+my $norms = OpenGL::Array->new_list(GL_FLOAT,@norms);
+
+my @colors =
+(
+  0.9,0.2,0.2,.75,
+  0.9,0.2,0.2,.75,
+  0.9,0.2,0.2,.75,
+  0.9,0.2,0.2,.75,
+
+  0.5,0.5,0.5,.5,
+  0.5,0.5,0.5,.5,
+  0.5,0.5,0.5,.5,
+  0.5,0.5,0.5,.5,
+
+  0.2,0.9,0.2,.5,
+  0.2,0.9,0.2,.5,
+  0.2,0.9,0.2,.5,
+  0.2,0.9,0.2,.5,
+
+  0.2,0.2,0.9,.25,
+  0.2,0.2,0.9,.25,
+  0.2,0.2,0.9,.25,
+  0.2,0.2,0.9,.25,
+
+  0.9, 0.2, 0.2, 0.5,
+  0.2, 0.9, 0.2, 0.5,
+  0.2, 0.2, 0.9, 0.5,
+  0.1, 0.1, 0.1, 0.5,
+
+  0.9,0.9,0.2,0.0,
+  0.9,0.9,0.2,0.66,
+  0.9,0.9,0.2,1.0,
+  0.9,0.9,0.2,0.33
+);
+my $colors = OpenGL::Array->new_list(GL_FLOAT,@colors);
+
+my @rainbow =
+(
+  0.9, 0.2, 0.2, 0.5,
+  0.2, 0.9, 0.2, 0.5,
+  0.2, 0.2, 0.9, 0.5,
+  0.1, 0.1, 0.1, 0.5
+);
+my $rainbow = OpenGL::Array->new_list(GL_FLOAT,@rainbow);
+my $rainbow_offset = 64;
+my @rainbow_inc;
+
+my @texcoords =
+(
+  0.800, 0.800,
+  0.200, 0.800,
+  0.200, 0.200,
+  0.800, 0.200,
+
+  0.005, 1.995,
+  0.005, 0.005,
+  1.995, 0.005,
+  1.995, 1.995,
+
+  0.995, 0.005,
+  2.995, 2.995,
+  0.005, 0.995,
+  -1.995, -1.995,
+
+  0.995, 0.005,
+  0.995, 0.995,
+  0.005, 0.995,
+  0.005, 0.005,
+
+  -0.5, -0.5,
+  1.5, -0.5,
+  1.5, 1.5,
+  -0.5, 1.5,
+
+  0.005, 0.005,
+  0.995, 0.005,
+  0.995, 0.995,
+  0.005, 0.995
+);
+my $texcoords = OpenGL::Array->new_list(GL_FLOAT,@texcoords);
+
+my @indices = (0..23);
+my $indices = OpenGL::Array->new_list(GL_UNSIGNED_INT,@indices);
+
+
+# ------
+# Frames per second (FPS) statistic variables and routine.
+
+use constant CLOCKS_PER_SEC => $hasHires ? 1000 : 1;
+use constant FRAME_RATE_SAMPLES => 50;
+
+my $FrameCount = 0;
+my $FrameRate = 0;
+my $last=0;
+
+sub ourDoFPS
+{
+  if (++$FrameCount >= FRAME_RATE_SAMPLES)
+  {
+     my $now = $hasHires ? gettimeofday() : time(); # clock();
+     my $delta= ($now - $last);
+     $last = $now;
+
+     $FrameRate = FRAME_RATE_SAMPLES / ($delta || 1);
+     $FrameCount = 0;
+  }
 }
 
-sub gear
+# ------
+# String rendering routine; leverages on GLUT routine.
+
+sub ourPrintString
 {
-	my($inner_radius, $outer_radius, $width, $teeth, $tooth_depth) = @_;
-	my($i,$r0,$r1,$r2,$angle, $da,$u,$v,$len);
-	
-	$r0 = $inner_radius;
-	$r1 = $outer_radius - $tooth_depth / 2.0;
-	$r2 = $outer_radius + $tooth_depth / 2.0;
-	
-	$da = 2.0 * $M_PI / $teeth / 4.0;
-	
-	glShadeModel(GL_FLAT);
-	
-	glNormal3d(0.0, 0.0, 1.0);
-	
-	glBegin(GL_QUAD_STRIP);
-	for ($i = 0; $i <= $teeth; $i++) {
-		$angle = $i * 2.0 * $M_PI / $teeth;
-		glVertex3d($r0 * cos($angle), $r0 * sin($angle), $width * 0.5);
-		glVertex3d($r1 * cos($angle), $r1 * sin($angle), $width * 0.5);
-		glVertex3d($r0 * cos($angle), $r0 * sin($angle), $width * 0.5);
-		glVertex3d($r1 * cos($angle + 3 * $da), $r1 * sin($angle + 3 * $da), $width * 0.5);
-	}
-	glEnd();
-	
-	glBegin(GL_QUADS);
-	$da = 2.0 * $M_PI / $teeth / 4.0;
-	for ($i = 0; $i <= $teeth; $i++) {
-		$angle = $i * 2.0 * $M_PI / $teeth;
-		glVertex3d($r1 * cos($angle), $r1 * sin($angle), $width * 0.5);
-		glVertex3d($r2 * cos($angle+$da), $r2 * sin($angle+$da), $width * 0.5);
-		glVertex3d($r2 * cos($angle+2*$da), $r2 * sin($angle+2*$da), $width * 0.5);
-		glVertex3d($r1 * cos($angle + 3 * $da), $r1 * sin($angle + 3 * $da), $width * 0.5);
-	}
-	glEnd();
-	
-	glNormal3d(0.0, 0.0, -1.0);
-	
-	glBegin(GL_QUAD_STRIP);
-	for ($i = 0; $i <= $teeth; $i++) {
-		$angle = $i * 2.0 * $M_PI / $teeth;
-		glVertex3d($r1 * cos($angle), $r1 * sin($angle), -$width * 0.5);
-		glVertex3d($r0 * cos($angle), $r0 * sin($angle), -$width * 0.5);
-		glVertex3d($r1 * cos($angle + 3 * $da), $r1 * sin($angle + 3 * $da), -$width * 0.5);
-		glVertex3d($r0 * cos($angle), $r0 * sin($angle), -$width * 0.5);
-	}
-	glEnd();
-	
-	glBegin(GL_QUADS);
-	$da = 2.0 * $M_PI / $teeth / 4.0;
-	for ($i = 0; $i <= $teeth; $i++) {
-		$angle = $i * 2.0 * $M_PI / $teeth;
-		glVertex3d($r1 * cos($angle+3*$da), $r1 * sin($angle+3*$da), -$width * 0.5);
-		glVertex3d($r2 * cos($angle+2*$da), $r2 * sin($angle+2*$da), -$width * 0.5);
-		glVertex3d($r2 * cos($angle+$da), $r2 * sin($angle+$da), -$width * 0.5);
-		glVertex3d($r1 * cos($angle), $r1 * sin($angle), -$width * 0.5);
-	}
-	glEnd();
+  my ($font, $str) = @_;
+  my @c = split '', $str;
+
+  for(@c)
+  {
+    glutBitmapCharacter($font, ord $_);
+  }
+}
 
 
- # /* draw outward faces of teeth */
-  glBegin(GL_QUAD_STRIP);
-  for ($i = 0; $i < $teeth; $i++) {
-    $angle = $i * 2.0 * $M_PI / $teeth;
+# ------
+# Does everything needed before losing control to the main
+# OpenGL event loop.
 
-    glVertex3d($r1 * cos($angle), $r1 * sin($angle), $width * 0.5);
-    glVertex3d($r1 * cos($angle), $r1 * sin($angle), -$width * 0.5);
-    $u = $r2 * cos($angle + $da) - $r1 * cos($angle);
-    $v = $r2 * sin($angle + $da) - $r1 * sin($angle);
-    $len = sqrt($u * $u + $v * $v);
-    $u /= $len;
-    $v /= $len;
-    glNormal3d($v, -$u, 0.0);
-    glVertex3d($r2 * cos($angle + $da), $r2 * sin($angle + $da), $width * 0.5);
-    glVertex3d($r2 * cos($angle + $da), $r2 * sin($angle + $da), -$width * 0.5);
-    glNormal3d(cos($angle), sin($angle), 0.0);
-    glVertex3d($r2 * cos($angle + 2 * $da), $r2 * sin($angle + 2 * $da), $width * 0.5);
-    glVertex3d($r2 * cos($angle + 2 * $da), $r2 * sin($angle + 2 * $da), -$width * 0.5);
-    $u = $r1 * cos($angle + 3 * $da) - $r2 * cos($angle + 2 * $da);
-    $v = $r1 * sin($angle + 3 * $da) - $r2 * sin($angle + 2 * $da);
-    glNormal3d($v, -$u, 0.0);
-    glVertex3d($r1 * cos($angle + 3 * $da), $r1 * sin($angle + 3 * $da), $width * 0.5);
-    glVertex3d($r1 * cos($angle + 3 * $da), $r1 * sin($angle + 3 * $da), -$width * 0.5);
-    glNormal3d(cos($angle), sin($angle), 0.0);
+sub ourInit
+{
+  my ($Width, $Height) = @_;
+
+  # Set initial colors for rainbow face
+  for (my $i=0; $i<16; $i++)
+  {
+    $rainbow[$i] = rand(1.0);
+    $rainbow_inc[$i] = 0.01 - rand(0.02);
   }
 
-  glVertex3d($r1 * cos(0), $r1 * sin(0), $width * 0.5);
-  glVertex3d($r1 * cos(0), $r1 * sin(0), -$width * 0.5);
+  # Initialize VBOs if supported
+  if ($hasVBO)
+  {
+    ($VertexObjID,$NormalObjID,$ColorObjID,$TexCoordObjID,$IndexObjID) = glGenBuffersARB_p(5);
 
-  glEnd();
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, $VertexObjID);
+    glBufferDataARB_p(GL_ARRAY_BUFFER_ARB, $verts, GL_STATIC_DRAW_ARB);
+    glVertexPointer_c(3, GL_FLOAT, 0, 0);
 
+    if (DO_TESTS)
+    {
+      print "\nTests:\n";
+
+      my $size = glGetBufferParameterivARB_p(GL_ARRAY_BUFFER_ARB, GL_BUFFER_SIZE_ARB);
+      print "  Vertex Buffer Size (bytes): $size\n";
+      my $count = $verts->elements();
+      print "  Vertex Buffer Size (elements): $count\n";
+
+      my $test = glGetBufferSubDataARB_p(GL_ARRAY_BUFFER_ARB,12,3,GL_FLOAT);
+      my @test = $test->retrieve(0,3);
+      my $ords = join('/',@test);
+      print "  glGetBufferSubDataARB_p: $ords\n";
+    }
+
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, $NormalObjID);
+    glBufferDataARB_p(GL_ARRAY_BUFFER_ARB, $norms, GL_STATIC_DRAW_ARB);
+    glNormalPointer_c(GL_FLOAT, 0, 0);
+
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, $ColorObjID);
+    glBufferDataARB_p(GL_ARRAY_BUFFER_ARB, $colors, GL_DYNAMIC_DRAW_ARB);
+    $rainbow->assign(0,@rainbow);
+    glBufferSubDataARB_p(GL_ARRAY_BUFFER_ARB, $rainbow_offset, $rainbow);
+    glColorPointer_c(4, GL_FLOAT, 0, 0);
+
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, $TexCoordObjID);
+    glBufferDataARB_p(GL_ARRAY_BUFFER_ARB, $texcoords, GL_STATIC_DRAW_ARB);
+    glTexCoordPointer_c(2, GL_FLOAT, 0, 0);
+
+    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, $IndexObjID);
+    glBufferDataARB_p(GL_ELEMENT_ARRAY_BUFFER_ARB, $indices, GL_STATIC_DRAW_ARB);
+  }
+  else
+  {
+    glVertexPointer_p(3, $verts);
+    glNormalPointer_p($norms);
+    $colors->assign($rainbow_offset,@rainbow);
+    glColorPointer_p(4, $colors);
+    glTexCoordPointer_p(2, $texcoords);
+  }
+
+  # Build texture.
+  ($TextureID_image,$TextureID_FBO) = glGenTextures_p(2);
+  ourBuildTextures();
+  glTexEnvf(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_DECAL);
+
+  # Initialize rendering parameters
+  glEnable(GL_TEXTURE_2D);
+  glDisable(GL_LIGHTING);
+  glBlendFunc(GL_SRC_ALPHA,GL_ONE);
+  #glEnable(GL_BLEND);
+
+  # Color to clear color buffer to.
+  glClearColor(0.1, 0.1, 0.1, 0.0);
+
+  # Depth to clear depth buffer to; type of test.
+  glClearDepth(1.0);
+  glDepthFunc(GL_LESS);
+
+  # Enables Smooth Color Shading; try GL_FLAT for (lack of) fun.
   glShadeModel(GL_SMOOTH);
 
-# draw inside radius cylinder */
-  glBegin(GL_QUAD_STRIP);
-  for ($i = 0; $i <= $teeth; $i++) {
-    $angle = $i * 2.0 * $M_PI / $teeth;
-    glNormal3d(-cos($angle), -sin($angle), 0.0);
-    glVertex3d($r0 * cos($angle), $r0 * sin($angle), -$width * 0.5);
-    glVertex3d($r0 * cos($angle), $r0 * sin($angle), $width * 0.5);
-  }
-  glEnd();
+  # Load up the correct perspective matrix; using a callback directly.
+  cbResizeScene($Width, $Height);
 
+  # Set up a light, turn it on.
+  glLightfv_p(GL_LIGHT1, GL_POSITION, @Light_Position);
+  glLightfv_p(GL_LIGHT1, GL_AMBIENT,  @Light_Ambient);
+  glLightfv_p(GL_LIGHT1, GL_DIFFUSE,  @Light_Diffuse);
+  glEnable(GL_LIGHT1);
+
+  # A handy trick -- have surface material mirror the color.
+  glColorMaterial(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE);
+  glEnable(GL_COLOR_MATERIAL);
 }
 
 
-$view_rotx = 20.0; $view_roty = 30.0; $view_rotz = 0.0;
-$angle = 0.0;
+# ------
+# Function to build a simple full-color texture with alpha channel,
+# and then create mipmaps.
+# Also sets up FBO texture and Vertex/Fragment programs.
 
-$count = 1;
+sub ourBuildTextures
+{
 
-sub draw {
+  # Build Image Texture
+  ($TextureID_image,$TextureID_FBO) = glGenTextures_p(2);
+
+  my $tex;
+  my $gluerr;
+  my $hole_size = 3300; # ~ == 57.45 ^ 2.
+
+  # Iterate across the texture array.
+  for(my $y=0; $y<128; $y++)
+  {
+    for(my $x=0; $x<128; $x++)
+    {
+      # A simple repeating squares pattern.
+      # Dark blue on white.
+      if ( ( ($x+4)%32 < 8 ) && ( ($y+4)%32 < 8))
+      {
+        $tex .= pack "C3", 0,0,120;       # Dark blue
+      }
+      else
+      {
+        $tex .= pack "C3", 240, 240, 240; # White
+      }
+
+      # Make a round dot in the texture's alpha-channel.
+      # Calculate distance to center (squared).
+      my $t = ($x-64)*($x-64) + ($y-64)*($y-64);
+      if ( $t < $hole_size)
+      {
+        $tex .= pack "C", 255;  # The dot itself is opaque.
+      }
+      elsif ($t < $hole_size + 100)
+      {
+        $tex .= pack "C", 128;  # Give our dot an anti-aliased edge.
+      }
+      else
+      {
+        $tex .= pack "C", 0;    # Outside of the dot, it's transparent.
+      }
+    }
+  }
+  glBindTexture(GL_TEXTURE_2D, $TextureID_image);
+
+  # Use MipMap
+  if ($useMipMap)
+  {
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
+      GL_NEAREST_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+      GL_NEAREST_MIPMAP_LINEAR);
+
+    # The GLU library helps us build MipMaps for our texture.
+    if (($gluerr = gluBuild2DMipmaps_s(GL_TEXTURE_2D, GL_RGBA8, 128, 128,
+      GL_RGBA, GL_UNSIGNED_BYTE, $tex)))
+    {
+      printf STDERR "GLULib%s\n", gluErrorString($gluerr);
+      exit(-1);
+    }
+  }
+  # Use normal texture - Note: dimensions must be power of 2
+  else
+  {
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexImage2D_s(GL_TEXTURE_2D, 0, GL_RGBA8, 128, 128, 0, GL_RGBA,
+      GL_UNSIGNED_BYTE, $tex);
+  }
+
+
+  # Build FBO texture
+  if ($hasFBO)
+  {
+    ($FrameBufferID) = glGenFramebuffersEXT_p(1);
+    ($RenderBufferID) = glGenRenderbuffersEXT_p(1);
+
+    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, $FrameBufferID);
+    glBindTexture(GL_TEXTURE_2D, $TextureID_FBO);
+
+    # Initiate texture
+    glTexImage2D_c(GL_TEXTURE_2D, 0, GL_RGBA8, 128, 128, 0, GL_RGBA,
+      GL_UNSIGNED_BYTE, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+    # Bind texture/frame/render buffers
+    glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
+      GL_TEXTURE_2D, $TextureID_FBO, 0);
+    glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, $RenderBufferID);
+    glRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT24, 128, 128);
+    glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT,
+      GL_RENDERBUFFER_EXT, $RenderBufferID);
+
+    # Test status
+    if (DO_TESTS)
+    {
+      my $stat = glCheckFramebufferStatusEXT(GL_RENDERBUFFER_EXT);
+      printf("FBO Status: %04X\n",$stat);
+    }
+  }
+
+
+  # Setup Vertex/Fragment Programs to render FBO texture
+  if ($hasFragProg)
+  {
+    ($VertexProgID,$FragProgID) = glGenProgramsARB_p(2);
+
+    # NOP Vertex shader
+    my $VertexProg = qq
+    {!!ARBvp1.0
+      TEMP vertexClip;
+      DP4 vertexClip.x, state.matrix.mvp.row[0], vertex.position;
+      DP4 vertexClip.y, state.matrix.mvp.row[1], vertex.position;
+      DP4 vertexClip.z, state.matrix.mvp.row[2], vertex.position;
+      DP4 vertexClip.w, state.matrix.mvp.row[3], vertex.position;
+      MOV result.position, vertexClip;
+      MOV result.color, vertex.color;
+      MOV result.texcoord[0], vertex.texcoord;
+      END
+    };
+
+    glBindProgramARB(GL_VERTEX_PROGRAM_ARB, $VertexProgID);
+    glProgramStringARB_p(GL_VERTEX_PROGRAM_ARB, $VertexProg);
+
+    if (DO_TESTS)
+    {
+      my $format = glGetProgramivARB_p(GL_VERTEX_PROGRAM_ARB,GL_PROGRAM_FORMAT_ARB);
+      printf("glGetProgramivARB_p format: '#%04X'\n",$format);
+
+      my @params = glGetProgramEnvParameterdvARB_p(GL_VERTEX_PROGRAM_ARB,0);
+      my $params = join(', ',@params);
+      print "glGetProgramEnvParameterdvARB_p: $params\n";
+
+      @params = glGetProgramEnvParameterfvARB_p(GL_VERTEX_PROGRAM_ARB,0);
+      $params = join(', ',@params);
+      print "glGetProgramEnvParameterfvARB_p: $params\n";
+
+      my $vprog = glGetProgramStringARB_p(GL_VERTEX_PROGRAM_ARB);
+      print "Vertex Prog: $vprog\n";
+    }
+
+    # Lazy Metalic Fragment shader
+    my $FragProg = qq
+    {!!ARBfp1.0
+      TEMP color;
+      MUL color, fragment.texcoord[0].y, 2;
+      ADD color, 1, -color;
+      ABS color, color;
+      ADD result.color, 1.01, -color;
+      MOV result.color.a, 1;
+      END
+    };
+
+    glBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, $FragProgID);
+    glProgramStringARB_p(GL_FRAGMENT_PROGRAM_ARB, $FragProg);
+
+    if (DO_TESTS)
+    {
+      my $fprog = glGetProgramStringARB_p(GL_FRAGMENT_PROGRAM_ARB);
+      print "Fragment Prog: $fprog\n";
+    }
+  }
+
+  # Select active texture
+  ourSelectTexture();
+
+  glTexEnvf(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_DECAL);
+}
+
+sub ourSelectTexture
+{
+    glBindTexture(GL_TEXTURE_2D, $FBO_On ? $TextureID_FBO : $TextureID_image);
+}
+
+
+# ------
+# Routine which actually does the drawing
+
+sub cbRenderScene
+{
+  my $buf; # For our strings.
+
+  # Animated Texture Rendering
+  if ($FBO_On && ($FBO_On == 2 || !$FBO_rendered))
+  {
+    $FBO_rendered = 1;
+    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, $FrameBufferID);
+    glPushMatrix();
+    glTranslatef(-0.35, -0.48, -1.5);
+    glRotatef($Teapot_Rot--, 0.0, 1.0, 0.0);
+    glClearColor(0, 0, 0, 0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glPushAttrib(GL_ENABLE_BIT);
+    glEnable(GL_DEPTH_TEST);
+
+    # Run Fragment program for texture
+    if ($hasFragProg)
+    {
+      glEnable(GL_VERTEX_PROGRAM_ARB);
+      glEnable(GL_FRAGMENT_PROGRAM_ARB);
+    }
+
+    glColor3f(1.0, 1.0, 1.0);
+    #glutSolidTeapot(0.125);
+    glutWireTeapot(0.125);
+    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+
+    if ($hasFragProg)
+    {
+      glDisable(GL_FRAGMENT_PROGRAM_ARB);
+      glDisable(GL_VERTEX_PROGRAM_ARB);
+    }
+
+    glPopAttrib();
+    glPopMatrix();
+  }
+  ourSelectTexture();
+
+  # Enables, disables or otherwise adjusts as
+  # appropriate for our current settings.
+
+  if ($Texture_On)
+  {
+    glEnable(GL_TEXTURE_2D);
+  }
+  else
+  {
+    glDisable(GL_TEXTURE_2D);
+  }
+  if ($Light_On)
+  {
+    glEnable(GL_LIGHTING);
+  }
+  else
+  {
+    glDisable(GL_LIGHTING);
+  }
+  if ($Alpha_Add)
+  {
+    glBlendFunc(GL_SRC_ALPHA,GL_ONE);
+  }
+  else
+  {
+    glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+  }
+  # If we're blending, we don'$t want z-buffering.
+  if ($Blend_On)
+  {
+    glDisable(GL_DEPTH_TEST);
+  }
+  else
+  {
+    glEnable(GL_DEPTH_TEST);
+  }
+
+  # Need to manipulate the ModelView matrix to move our model around.
+  glMatrixMode(GL_MODELVIEW);
+
+  # Reset to 0,0,0; no rotation, no scaling.
+  glLoadIdentity();
+
+  # Move the object back from the screen.
+  glTranslatef(0.0,0.0,$Z_Off);
+
+  # Rotate the calculated amount.
+  glRotatef($X_Rot,1.0,0.0,0.0);
+  glRotatef($Y_Rot,0.0,1.0,0.0);
+
+  # Clear the color and depth buffers.
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-  glPushMatrix();
-  glRotated($view_rotx, 1.0, 0.0, 0.0);
-  glRotated($view_roty, 0.0, 1.0, 0.0);
-  glRotated($view_rotz, 0.0, 0.0, 1.0);
 
+  # Update Rainbow Cube Face
+  for (my $i=0; $i<scalar(@rainbow); $i++)
+  {
+    $rainbow[$i] += $rainbow_inc[$i];
+    if ($rainbow[$i] < 0)
+    {
+      $rainbow[$i] = 0.0;
+    }
+    elsif ($rainbow[$i] > 1)
+    {
+      $rainbow[$i] = 1.0;
+    }
+    else
+    {
+      next;
+    }
+    $rainbow_inc[$i] = -$rainbow_inc[$i];
+  }
+
+  if ($hasVBO)
+  {
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, $ColorObjID);
+    my $color_map = glMapBufferARB_p(GL_ARRAY_BUFFER_ARB,GL_WRITE_ONLY_ARB,GL_FLOAT);
+    #my $buffer = glGetBufferPointervARB_p(GL_ARRAY_BUFFER_ARB,GL_BUFFER_MAP_POINTER_ARB,GL_FLOAT);
+    $color_map->assign($rainbow_offset,@rainbow);
+    glUnmapBufferARB(GL_ARRAY_BUFFER_ARB);
+  }
+  else
+  {
+    $colors->assign($rainbow_offset,@rainbow);
+    glColorPointer_p(4, $colors);
+  }
+
+
+  # Render cube
+  glEnableClientState(GL_VERTEX_ARRAY);
+  glEnableClientState(GL_NORMAL_ARRAY);
+  glEnableClientState(GL_COLOR_ARRAY);
+  glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+
+  for (my $i=0; $i<scalar(@indices); $i+=4)
+  {
+    glDrawArrays(GL_QUADS, $i, 4);
+  }
+
+  glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+  glDisableClientState(GL_COLOR_ARRAY);
+  glDisableClientState(GL_NORMAL_ARRAY);
+  glDisableClientState(GL_VERTEX_ARRAY);
+
+
+  # Move back to the origin (for the text, below).
+  glLoadIdentity();
+
+  # We need to change the projection matrix for the text rendering.
+  glMatrixMode(GL_PROJECTION);
+
+  # But we like our current view too; so we save it here.
   glPushMatrix();
-  glTranslated(-3.0, -2.0, 0.0);
-  glRotated($angle, 0.0, 0.0, 1.0);
-  glCallList($gear1);
+
+  # Now we set up a new projection for the text.
+  glLoadIdentity();
+  glOrtho(0,$Window_Width,0,$Window_Height,-1.0,1.0);
+
+  # Lit or textured text looks awful.
+  glDisable(GL_TEXTURE_2D);
+  glDisable(GL_LIGHTING);
+
+  # We don'$t want depth-testing either.
+  glDisable(GL_DEPTH_TEST);
+
+  # But, for fun, let's make the text partially transparent too.
+  glColor4f(0.6,1.0,0.6,.75);
+
+  # Render our various display mode settings.
+  $buf = sprintf "Mode: %s", $TexModesStr[$Curr_TexMode];
+  glRasterPos2i(2,2); ourPrintString(GLUT_BITMAP_HELVETICA_12,$buf);
+
+  $buf = sprintf "Alpha: %d", $Alpha_Add;
+  glRasterPos2i(2,14); ourPrintString(GLUT_BITMAP_HELVETICA_12,$buf);
+
+  $buf = sprintf "Blend: %d", $Blend_On;
+  glRasterPos2i(2,26); ourPrintString(GLUT_BITMAP_HELVETICA_12,$buf);
+
+  $buf = sprintf "Light: %d", $Light_On;
+  glRasterPos2i(2,38); ourPrintString(GLUT_BITMAP_HELVETICA_12,$buf);
+
+  $buf = sprintf "Tex: %d", $Texture_On;
+  glRasterPos2i(2,50); ourPrintString(GLUT_BITMAP_HELVETICA_12,$buf);
+
+  $buf = sprintf "FBO: %d", $FBO_On;
+  glRasterPos2i(2,62); ourPrintString(GLUT_BITMAP_HELVETICA_12,$buf);
+
+  $buf = sprintf "Inset: %d", $Inset_On;
+  glRasterPos2i(2,74); ourPrintString(GLUT_BITMAP_HELVETICA_12,$buf);
+
+  # Now we want to render the calulated FPS at the top.
+  # To ease, simply translate up.  Note we're working in screen
+  # pixels in this projection.
+  glTranslatef(6.0,$Window_Height - 14,0.0);
+
+  # Make sure we can read the FPS section by first placing a
+  # dark, mostly opaque backdrop rectangle.
+  glColor4f(0.2,0.2,0.2,0.75);
+
+  glBegin(GL_QUADS);
+  glVertex3f(  0.0, -2.0, 0.0);
+  glVertex3f(  0.0, 12.0, 0.0);
+  glVertex3f(140.0, 12.0, 0.0);
+  glVertex3f(140.0, -2.0, 0.0);
+  glEnd();
+
+  glColor4f(0.9,0.2,0.2,.75);
+  $buf = sprintf "FPS: %f F: %2d", $FrameRate, $FrameCount;
+  glRasterPos2i(6,0);
+  ourPrintString(GLUT_BITMAP_HELVETICA_12,$buf);
+
+  # Done with this special projection matrix.  Throw it away.
   glPopMatrix();
 
-  glPushMatrix();
-  glTranslated(3.1, -2.0, 0.0);
-  glRotated(-2.0 * $angle - 9.0, 0.0, 0.0, 1.0);
-  glCallList($gear2);
-  glPopMatrix();
+  # Do Inset View
+  ourInset() if ($Inset_On);
 
-  glPushMatrix();
-  glTranslated(-3.1, 4.2, 0.0);
-  glRotated(-2.0 * $angle - 25.0, 0.0, 0.0, 1.0);
-  glCallList($gear3);
-  glPopMatrix();
-
-
-
-  glPopMatrix();
-  
-  im;
-#  
-#	@p = glReadPixels_p(55, 55, 2, 2, GL_RGB, GL_UNSIGNED_BYTE);
-#	print join('|',@p),"\n";
-#
-#	glRasterPos2i(75, 85);
-#	glDrawPixels_p(2, 2, GL_RGB, GL_UNSIGNED_BYTE, \@p);
-
+  # All done drawing.  Let's show it.
   glutSwapBuffers();
 
+  # Now let's do the motion calculations.
+  $X_Rot+=$X_Speed;
+  $Y_Rot+=$Y_Speed;
 
-  $count++;
-  if ($count == $limit) {
+  # And collect our statistics.
+  ourDoFPS();
+}
+
+# Inset View to test glReadPixels_p
+sub ourInset
+{
+  my($w) = glutGet( GLUT_WINDOW_WIDTH );
+  my($h) = glutGet( GLUT_WINDOW_HEIGHT );
+	
+  glPushAttrib( GL_ENABLE_BIT | GL_VIEWPORT_BIT |
+    GL_TRANSFORM_BIT | GL_COLOR_BUFFER_BIT);
+  glDisable( GL_LIGHTING );
+  glDisable( GL_FOG );
+  glDisable( GL_TEXTURE_2D );
+  glDisable( GL_DEPTH_TEST );
+  glDisable( GL_CULL_FACE );
+  glDisable( GL_STENCIL_TEST );
+ 
+  glViewport( 0, 0, $w, $h );
+  glMatrixMode( GL_PROJECTION );
+  glPushMatrix();
+  glLoadIdentity();
+  eval { gluOrtho2D( 0, $w, 0, $h ); 1 } or $er++ or warn "Catched: $@";
+  glMatrixMode( GL_MODELVIEW );
+  glPushMatrix();
+  glLoadIdentity();
+  
+  glPixelZoom( 1, 1 );
+
+  my $Capture_X = int(($w - $Inset_Width) / 2);
+  my $Capture_Y = int(($h - $Inset_Height) / 2);
+  my $Inset_X = $w - ($Inset_Width + 2);
+  my $Inset_Y = $h - ($Inset_Height + 2);
+
+  # Using multidraw would be much faster
+  # However, this demonstrates moving data to/from GPU
+  my @p = glReadPixels_p( $Capture_X, $Capture_Y, $Inset_Width, $Inset_Height,
+    GL_RGB, GL_UNSIGNED_INT );
+  glRasterPos2f( $Inset_X, $Inset_Y );
+  glDrawPixels_p( $Inset_Width, $Inset_Height, GL_RGB, GL_UNSIGNED_INT, @p );
+
+  glMatrixMode( GL_PROJECTION );
+  glPopMatrix();
+  glMatrixMode( GL_MODELVIEW );
+  glPopMatrix();
+  glPopAttrib();
+}
+
+# Cleanup routine
+sub ourCleanup
+{
+  # Disable app
+  glutHideWindow();
+  glutKeyboardFunc();
+  glutSpecialFunc();
+  glutIdleFunc();
+  glutReshapeFunc();
+
+  if ($hasFBO)
+  {
+    # Release resources
+    glBindRenderbufferEXT( GL_RENDERBUFFER_EXT, 0 );
+    glBindFramebufferEXT( GL_FRAMEBUFFER_EXT, 0 );
+
+    glDeleteRenderbuffersEXT_p( $RenderBufferID ) if ($RenderBufferID);
+    glDeleteFramebuffersEXT_p( $FrameBufferID ) if ($FrameBufferID);
+  }
+
+  if ($hasFragProg)
+  {
+    glBindProgramARB(GL_VERTEX_PROGRAM_ARB, 0);
+    glDeleteProgramsARB_p( $VertexProgID ) if ($VertexProgID);
+
+    glBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, 0);
+    glDeleteProgramsARB_p( $FragProgID ) if ($FragProgID);
+  }
+
+  if ($hasVBO)
+  {
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+    glDeleteBuffersARB_p($VertexObjID) if ($VertexObjID);
+    glDeleteBuffersARB_p($NormalObjID) if ($NormalObjID);
+    glDeleteBuffersARB_p($ColorObjID) if ($ColorObjID);
+    glDeleteBuffersARB_p($TexCoordObjID) if ($TexCoordObjID);
+
+    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
+    glDeleteBuffersARB_p($IndexObjID) if ($IndexObjID);
+  }
+
+  glDeleteTextures_p($TextureID_image,$TextureID_FBO);
+
+  # Now you can destroy window
+  glutDestroyWindow($Window_ID);
+}
+
+# ------
+# Callback function called when a normal $key is pressed.
+
+sub cbKeyPressed
+{
+  my $key = shift;
+  my $c = uc chr $key;
+  if ($key == 27 or $c eq 'Q')
+  {
+    ourCleanup();
     exit(0);
   }
+  elsif ($c eq 'B' )
+  {
+    $Blend_On = !$Blend_On;
+    if (!$Blend_On)
+    {
+      glDisable(GL_BLEND);
+    }
+    else {
+      glEnable(GL_BLEND);
+    }
+  }
+  elsif ($c eq 'L')
+  {
+    $Light_On = !$Light_On;
+  }
+  elsif ($c eq 'M')
+  {
+    if ( ++ $Curr_TexMode > 3 )
+    {
+      $Curr_TexMode=0;
+    }
+    glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,$TexModes[$Curr_TexMode]);
+  }
+  elsif ($c eq 'T')
+  {
+    $Texture_On = !$Texture_On;
+  }
+  elsif ($c eq 'A')
+  {
+    $Alpha_Add = !$Alpha_Add;
+  }
+  elsif ($c eq 'F' && $hasFBO)
+  {
+    $FBO_On = ($FBO_On+1) % 3;
+    ourSelectTexture();
+  }
+  elsif ($c eq 'I')
+  {
+    $Inset_On = !$Inset_On;
+  }
+  elsif ($c eq 'S' or $key == 32)
+  {
+    $X_Speed=$Y_Speed=0;
+  }
+  elsif ($c eq 'R')
+  {
+    $X_Speed = -$X_Speed;
+    $Y_Speed = -$Y_Speed;
+  }
+  elsif ($c eq 'G')
+  {
+    $Fullscreen_On = !$Fullscreen_On;
+    if ($Fullscreen_On)
+    {
+      $Save_Width = $Window_Width;
+      $Save_Height = $Window_Height;
+      glutFullScreen();
+    }
+    else
+    {
+      $Window_Width = $Save_Width;
+      $Window_Height = $Save_Height;
+      glutReshapeWindow($Window_Width,$Window_Height);
+    }
+  }
+  else
+  {
+    printf "KP: No action for %d.\n", $key;
+  }
 }
 
-sub idle(void)
+# ------
+# Callback Function called when a special $key is pressed.
+
+sub cbSpecialKeyPressed
 {
-  $angle += 2.0;
-  glutPostRedisplay();
+  my $key = shift;
+
+  if ($key == GLUT_KEY_PAGE_UP)
+  {
+    $Z_Off -= 0.05;
+  }
+  elsif ($key == GLUT_KEY_PAGE_DOWN)
+  {
+    $Z_Off += 0.05;
+  }
+  elsif ($key == GLUT_KEY_UP)
+  {
+    $X_Speed -= 0.01;
+  }
+  elsif ($key == GLUT_KEY_DOWN)
+  {
+    $X_Speed += 0.01;
+  }
+  elsif ($key == GLUT_KEY_LEFT)
+  {
+    $Y_Speed -= 0.01;
+  }
+  elsif ($key == GLUT_KEY_RIGHT)
+  {
+    $Y_Speed += 0.01;
+  }
+  else
+  {
+    printf "SKP: No action for %d.\n", $key;
+  }
 }
 
-#/* change view angle, exit upon ESC */
-sub key {
-	my($k,$x,$y) = @_;
+# ------
+# Callback routine executed whenever our window is resized.  Lets us
+# request the newly appropriate perspective projection matrix for
+# our needs.  Try removing the gluPerspective() call to see what happens.
 
-	if ($k == ord('z')) {
-		$view_rotz += 5.0;
-	} elsif ($k == ord('Z')) {
-		$view_rotz -= 5.0;
-	} elsif ( $k == 27 or $k == ord 'q'  or $k == ord 'Q' ) {
-		exit(0);
-	} else {
-		return;
-	}
+sub cbResizeScene
+{
+  my ($Width, $Height) = @_;
 
-  glutPostRedisplay();
-}
+  # Let's not core dump, no matter what.
+  $Height = 1 if ($Height == 0);
 
-#/* change view angle */
-sub special {
-	my($k,$x,$y) = @_;
-	
-	if ($k == GLUT_KEY_UP) {
-		$view_rotx += 5.0;
-	} elsif ($k == GLUT_KEY_DOWN) {
-		$view_rotx -= 5.0;
-	} elsif ($k == GLUT_KEY_LEFT) {
-		$view_roty += 5.0;
-	} elsif ($k == GLUT_KEY_RIGHT) {
-		$view_roty -= 5.0;
-	} else {
-		return;
-	}
-	glutPostRedisplay();
+  glViewport(0, 0, $Width, $Height);
 
-}
-
-sub reshape {
-	my($width, $height) = @_;
-	my($h) = $height / $width;
-
-  glViewport(0, 0, $width, $height);
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
-  glFrustum(-1.0, 1.0, -$h, $h, 5.0, 60.0);
+  gluPerspective(45.0,$Width/$Height,0.1,100.0);
+
   glMatrixMode(GL_MODELVIEW);
-  glLoadIdentity();
-  glTranslated(0.0, 0.0, -40.0);
+
+  $Window_Width  = $Width;
+  $Window_Height = $Height;
 }
 
-sub init {
-	my(@pos) = (5.0, 5.0, 10.0, 0.0);
-	my(@red) = (0.8, 0.1, 0.0, 1.0);
-	my(@green) = (0.0, 0.8, 0.2, 1.0);
-	my(@blue) = (0.2, 0.2, 1.0, 1.0);
 
-  glLightfv_p(GL_LIGHT0, GL_POSITION, @pos);
-  glEnable(GL_CULL_FACE);
-  glEnable(GL_LIGHTING);
-  glEnable(GL_LIGHT0);
-  glEnable(GL_DEPTH_TEST);
 
-#  /* make the gears */
-  $gear1 = glGenLists(1);
-  glNewList($gear1, GL_COMPILE);
-  glMaterialfv_p(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, @red);
-  gear(1.0, 4.0, 1.0, 20, 0.7);
-  glEndList();
 
-  $gear2 = glGenLists(1);
-  glNewList($gear2, GL_COMPILE);
-  glMaterialfv_p(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, @green);
-  gear(0.5, 2.0, 2.0, 10, 0.7);
-  glEndList();
+# ------
+# The main() function.  Inits OpenGL.  Calls our own init function,
+# then passes control onto OpenGL.
 
-  $gear3 = glGenLists(1);
-  glNewList($gear3, GL_COMPILE);
-  glMaterialfv_p(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, @blue);
-  gear(1.3, 2.0, 0.5, 10, 0.7);
-  glEndList();
+eval {glutInit(); 1} or die qq
+{
+This test requires GLUT:
+$@
 
-  glEnable(GL_NORMALIZE);
+If you have X installed, you can try the scripts in ./examples/
+Most of them do not use GLUT.
+
+It is recommended that you install GLUT for improved Makefile.PL
+configuration, installation and debugging.
+};
+
+# To see OpenGL drawing, take out the GLUT_DOUBLE request.
+glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH | GLUT_ALPHA);
+glutInitWindowSize($Window_Width, $Window_Height);
+
+# Open a window
+$Window_ID = glutCreateWindow( PROGRAM_TITLE );
+
+# Get OpenGL Info
+print "\n";
+print PROGRAM_TITLE;
+print ' (using hires timer)' if ($hasHires);
+print "\n\n";
+my $version = glGetString(GL_VERSION);
+my $vendor = glGetString(GL_VENDOR);
+my $renderer = glGetString(GL_RENDERER);
+print "OpenGL installation: $version\n$vendor\n$renderer\n\n";
+
+print "Installed extensions (* implemented in the module):\n";
+my $extensions = glGetString(GL_EXTENSIONS);
+my @extensions = split(' ',$extensions);
+foreach my $ext (sort @extensions)
+{
+  my $stat = OpenGL::glpCheckExtension($ext);
+  printf("%s $ext\n",$stat?' ':'*');
+  print("    $stat\n") if ($stat && $stat !~ m|^$ext |);
 }
 
-sub visible {
-	my($vis) = @_;
+if (!OpenGL::glpCheckExtension('GL_ARB_vertex_buffer_object'))
+{
+  $hasVBO = 1;
+}
 
-  if ($vis == GLUT_VISIBLE) {
-    glutIdleFunc(\&idle);
-  } else {
-    glutIdleFunc(undef);
+if (!OpenGL::glpCheckExtension('GL_EXT_framebuffer_object'))
+{
+  $hasFBO = 1;
+  $FBO_On = 1;
+
+  if (!OpenGL::glpCheckExtension('GL_ARB_fragment_program'))
+  {
+    $hasFragProg = 1;
+    $FBO_On++;
   }
 }
 
 
-glutInit();
+# Register the callback function to do the drawing.
+glutDisplayFunc(\&cbRenderScene);
 
-if (@ARGV) {
-#    /* do 'n' frames then exit */
-    $limit = $ARGV[0] + 1;
-} else {
-    $limit = 0;
-}
+# If there's nothing to do, draw.
+glutIdleFunc(\&cbRenderScene);
 
-glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
+# It's a good idea to know when our window's resized.
+glutReshapeFunc(\&cbResizeScene);
 
-glutInitWindowPosition(0, 0);
-glutInitWindowSize(300, 300);
-glutCreateWindow("Gears");
-init();
+# And let's get some keyboard input.
+glutKeyboardFunc(\&cbKeyPressed);
+glutSpecialFunc(\&cbSpecialKeyPressed);
 
-glutDisplayFunc(\&draw);
-glutReshapeFunc(\&reshape);
-glutKeyboardFunc(\&key);
-glutSpecialFunc(\&special);
-glutVisibilityFunc(\&visible);
+# OK, OpenGL's ready to go.  Let's call our own init function.
+ourInit($Window_Width, $Window_Height);
 
-#glutMouseFunc(sub {
-#	print "m\n";
-#	@p = glReadPixels_p(20, 20, 20, 20, GL_RGB, GL_INT);
-#	print join("|", @p),"\n";
-#});
+# Print out a bit of help dialog.
+print qq
+{
+Hold down arrow keys to rotate, 'R' to reverse, 'S' to stop.
+Page up/down will move cube away from/towards camera.
+Use first letter of shown display mode settings to alter.
+Q or [Esc] to quit; OpenGL window must have focus for input.
 
+};
 
+# Pass off control to OpenGL.
+# Above functions are called as appropriate.
 glutMainLoop();
 
-
-__END__;
-
-
-use OpenGL qw(:all);
-
-glutInit();
-
-glutInitWindowPosition(10, 10);
-glutInitWindowSize(200, 200);
-glutInitDisplayMode(16);
-
-$win = glutCreateWindow("test2");
-glutSetWindow($win);
-
-glutDisplayFunc(sub { print "Display!\n" } );
-glutReshapeFunc(sub { print "Reshape!\n" } );
-#glutIdleFunc(sub { print "Idle!\n" } );
-
-glutCreateMenu(sub { print "Got menu ",@_,"\n" } );
-glutAddMenuEntry("Hello", 1);
-glutAttachMenu(0);
-
-glutMainLoop();
+__END__

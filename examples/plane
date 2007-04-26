@@ -88,7 +88,7 @@ sub display {
     glLightfv (GL_LIGHT0, GL_POSITION, $local_light);
     drawPlane ();
     glPopMatrix ();
-    glFlush ();
+    glpFlush ();
 }
 
 sub myReshape{

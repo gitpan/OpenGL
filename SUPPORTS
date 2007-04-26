@@ -1,5 +1,8 @@
 
-	This module has only been tested with Mesa 3.0.
+	0.55 has been tested on Windows, Ubuntu and Fedora, using
+	various nVidia boards.
+
+	Previous releases havce been tested with Mesa 3.0.
 
 	
 	It is intended that it supports:
@@ -10,11 +13,11 @@
 	supported yet.
 	
 	GLUT, with full support up to API version 3.
-
 	
 	GLX is only supported to the degree that Stan's original module
 	supported it. Without an entire X binding it is of limited use, and I
 	recommend using glut or Gtk::GLArea instead.
+
 
 	Most functions that have no pointer arguments are called identically in
 	Perl as in C, and the same name is used. Functions that use array

@@ -1,0 +1,70 @@
+Change List for 0.55 - Bob Free <bfree@graphcomp.com>
+____________________________________________________________
+
+Added this file (CHANGES)
+
+Added include folder with GL headers
+
+Added utils folder with header processing scripts
+
+Added glversion utility
+
+Added README.nvidia
+
+Added README.FreeBSD (thanks, Nomura-san!)
+
+Updated MANIFEST
+
+Updated META.yml
+
+Added glext_procs.h - extension constants & prototypes
+
+Updated gl_const.h - moved remapped APIs to gl_util.h
+
+Updated gl_util.h - added extensions and gl_exclude.h
+
+Updated gl_util.c - fixed compiler warnings
+
+Updated glut_util.h - use header file from include folder
+
+Updated OpenGL.xs - added extensions; fixed bugs
+
+Updated OpenGL.pm - added extensions
+
+Updated OpenGL.pod
+
+Updated Makefile.PL - added version/extension detection
+
+Updated TODO
+
+Updated test.pl
+  Rewrote test based on Chris Halsall's cube demo
+  Added FBO, VBO and Vertex/Fragment Program extenstion tests
+
+Updated REAME
+
+Updated README.Win32
+
+Updated INSTALL
+
+
+
+Ilya Zakharevich
+____________________________________________________________
+
+Added glpFlush
+
+Updated examples to replace glFlush with glpFlush
+
+
+
+Sherm Pendley
+____________________________________________________________
+
+Added Makefile.macosx
+
+Updated Makefile.PL to add MacOSX support
+
+Updated include/GL/glut.h to add MacOSX support
+
+Updated glu_util.h - added MacOSX support

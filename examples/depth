@@ -34,6 +34,6 @@ glBegin(GL_POLYGON);
   glVertex3f(1,1,0);
   glVertex3f(-0.9,0,1);
 glEnd();
-glFlush();
+glpFlush();
 
 glpMainLoop;

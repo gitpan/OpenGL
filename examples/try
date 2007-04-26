@@ -11,11 +11,11 @@ use OpenGL;
 glpOpenWindow;
 glClearColor(0,0,1,1);
 glClear(GL_COLOR_BUFFER_BIT);
-glFlush();
+glpFlush();
 
 print "OpenGL window open, perl interpretor ready!\n";
 print "Try entering some GL commands to draw stuff:\n";
-while(<>){
+while(<STDIN>){
 	$e=eval;
 	print "EVAL:  $e\n";
 	print "ERROR: $@" if $@;

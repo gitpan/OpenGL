@@ -309,6 +309,12 @@ glpOpenWindow(attributes => [GLX_GREEN_SIZE, 1,GLX_RGBA,GLX_DOUBLEBUFFER],
 		mask => StructureNotifyMask|KeyPressMask,
 		width=>$width,height=>300);
 
+print <<EOP;
+
+Control: MB1/MB3 - turn left/right, MB2 - go (and turn), Control - shoot a wave
+
+EOP
+
 $cb{&ConfigureNotify} = sub {
  local($e,$w,$h)=@_;
  glViewport(0,0,$w,$h);

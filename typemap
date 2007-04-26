@@ -15,8 +15,8 @@ GLshort			T_SHORT
 GLboolean		T_BOOL
 GLenum			T_INT
 GLbitfield		T_INT
-GLUnurbsObj *		T_FASTPTROBJ
-GLUquadricObj *	T_FASTPTROBJ
+GLUnurbsObj *		T_PTROBJ
+GLUquadricObj *	T_PTROBJ
 
 PGLUtess *	T_FASTPTROBJ
 

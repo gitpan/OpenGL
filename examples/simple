@@ -20,7 +20,7 @@ glBegin(GL_POLYGON);
   glVertex2f( 0.5, 0.5);
   glVertex2f( 0.5,-0.5);
 glEnd();
-glFlush();
+glpFlush();
 
 print "Program 1-1 Simple, hit control-D to quit:\n\n";
 glpMainLoop;

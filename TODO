@@ -1,2 +1,10 @@
 
 	Decide whether the unpack_image_ST should produce nested array data.
+
+	Decide whether to add an object-based interface for optimized use.
+
+	Add shader extensions:
+		GL_ARB_fragment_shader
+		GL_ARB_vertex_shader
+		GL_ARB_shader_objects
+		GL_EXT_Cg_shader

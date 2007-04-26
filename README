@@ -1,6 +1,7 @@
 
  Copyright (c) 1998,1999 Kenneth Albanowski. All rights reserved.
  Copyright (c) 2000 Ilya Zakharevich. All rights reserved.
+ Copyright (c) 2007 Bob Free. All rights reserved.
  This program is free software; you can redistribute it and/or
  modify it under the same terms as Perl itself. 
 
@@ -33,27 +34,51 @@ library) indirectly.
 
 For build instructions, please see the INSTALL file.
 
-For a brief description of what functions are supported, please read
-"SUPPORTS", and better yet read the two sample files, test.pl and
-isosurf.pl.
+GLUT libs (or compatible) must be installed in order to complete tests and install this OpenGL module.
+You can find GLUT at http://www.opengl.org/resources/libraries/glut
 
 For an incomplete implementation of GLUT in Perl, please see
 Gtk::GLArea::Glut, within the Gtk-Perl module.
 
-At of May 1999, I doubt I will be able to provide any significant support
-users of this module. If you have patches that add missing features cleanly,
-I may be able to integrate them into the next version, but I cannot
-guarantee that. Alligator Descarte has expressed interest in eventually
-supporting the Perl OpenGL effort, and you may wish to contact him. If you
-feel you can significantly improve the OpenGL module yourself, please
-consider releasing your own updated version after checking that no-one else
-has the same idea.
+For a brief description of what functions are supported, please read
+"SUPPORTS", and better yet read the two sample files, test.pl and
+isosurf.pl.
+
+As of May 1999, I doubt I will be able to provide any significant support
+users of this module.
 
 Thanks for help developing this module goes to Stan Melax, Cass Everitt,
 Alligator Descarte, and probably others that I've forgotten.
 
 Happy Hacking,
 Kenneth Albanowski <kjahds@kjahds.com>
+
+
+
+As of April 13, 2007, Bob Free has assumed primary ownership of this module.
+
+DOCUMENTATION AND INFO:
+
+http://graphcomp.com/opengl
+
+DISTRIBUTIONS:
+
+CPAN: cpan.org
+
+SVN: svn checkout svn://graphcomp.org/cpan/OpenGL OpenGL
+
+TARBALL: http://graphcomp.com/opengl/OpenGL-0.55.tar.gz
+
+ZIP: http://graphcomp.com/opengl/OpenGL-0.55.zip
+
+PPM 5.6.x: ppm install http://graphcomp.com/opengl/ppm56/OpenGL.ppd
+
+PPM 5.8.x: ppm install http://graphcomp.com/opengl/ppm58/OpenGL.ppd
+
+Enjoy!
+Bob Free <bfree@graphcomp.com>
+
+
 
 Changes:
 
@@ -83,3 +108,92 @@ Changes:
 
 0.54:	Martien Verbruggen fixed another Mesa limitation.
 	#ifdef out unglob'ing: symbol not found on Solaris...
+
+0.55:	Bob Free <bfree@graphcomp.com>
+	Added OpenGL::Array->new_list
+	Added OpenGL::Array->elements
+	Added macro abstraction for wgl extensions
+	Implemented GL_ARB_depth_texture
+	Implemented GL_ARB_draw_buffers
+	Implemented GL_ARB_fragment_program
+	Implemented GL_ARB_fragment_program_shadow
+	Implemented GL_ARB_half_float_pixel
+	Implemented GL_ARB_multitexture
+	Implemented GL_ARB_pixel_buffer_object
+	Implemented GL_ARB_point_sprite
+	Implemented GL_ARB_shadow
+	Implemented GL_ARB_texture_border_clamp
+	Implemented GL_ARB_texture_cube_map
+	Implemented GL_ARB_texture_env_add
+	Implemented GL_ARB_texture_float
+	Implemented GL_ARB_texture_mirrored_repeat
+	Implemented GL_ARB_texture_non_power_of_two
+	Implemented GL_ARB_texture_rectangle
+	Implemented GL_ARB_vertex_buffer_object
+	Implemented GL_ARB_vertex_program
+	Implemented GL_ATI_texture_float
+	Implemented GL_ATI_texture_mirror_once
+	Implemented GL_EXT_bgra
+	Implemented GL_EXT_copy_texture
+	Implemented GL_EXT_framebuffer_object
+	Implemented GL_EXT_packed_pixels
+	Implemented GL_EXT_pixel_buffer_object
+	Implemented GL_EXT_rescale_normal
+	Implemented GL_EXT_separate_specular_color
+	Implemented GL_EXT_shadow_funcs
+	Implemented GL_EXT_stencil_wrap
+	Implemented GL_EXT_subtexture
+	Implemented GL_EXT_textureD3
+	Implemented GL_EXT_texture_env_dot3
+	Implemented GL_EXT_texture_filter_anisotropic
+	Implemented GL_EXT_texture_lod_bias
+	implemented GL_EXT_texture_mirror_clamp
+	implemented GL_EXT_vertex_array
+	Implemented GL_HP_occlusion_test
+	Implemented GL_IBM_rasterpos_clip
+	Implemented GL_NV_blend_square
+	Implemented GL_NV_copy_depth_to_color
+	Implemented GL_NV_depth_clamp
+	Implemented GL_NV_fog_distance
+	Implemented GL_NV_fragment_program2
+	Implemented GL_NV_fragment_program_option
+	Implemented GL_NV_light_max_exponent
+	Implemented GL_NV_packed_depth_stencil
+	Implemented GL_NV_texgen_reflection
+	Implemented GL_NV_texture_expand_normal
+	Implemented GL_NV_texture_rectangle
+	Implemented GL_NV_vertex_program2_option
+	Implemented GL_NV_vertex_program3
+	Implemented GL_S3_s3tc
+	Implemented GL_SGIS_generate_mipmap
+	Implemented GL_SGIS_texture_lod
+	Implemented GL_SGIX_depth_texture
+	Implemented GL_SGIX_shadow
+	Implemented GL_SUN_slice_accum
+	Added glDrawRangeElements_p
+	Added glColorPointer_p
+	Added glEdgeFlagPointer_p
+	Added glIndexPointer_p
+	Added glNormalPointer_p
+	Added glTexCoordPointer_p
+	Added glVertexPointer_p
+	Added 'include' folder for updated GL header files
+	Added 'utils' folder for header processing scripts
+	Added glversion utility to enhance Makefile.PL
+	Fixed compiler warnings in gl_util.c and OpenGL.xs
+	Fixed glPolygonOffsetEXT bias mapping
+	Fixed glDrawRangeElements_s code
+	Fixed glGetPointerv_c params pointer
+	Moved obsolete/deprecated extensions
+	Added $glext_implemented hashref of implemented GL extensions
+	Added glpCheckExtension
+	Updated test.pl
+
+	Ilya Zakharevich
+	Updated support for SunRay
+
+	Sherm Pendley
+	Added MacOSX support
+
+	Nomura-san
+	Helped add FreeBSD support

@@ -46,7 +46,7 @@ sub display{
     glTranslatef(0.0, 0.0, -5.0);	#  viewing transformation
     glScalef(1.0, 2.0, 1.0);	#  modeling transformation
     wirecube(1.0);
-    glFlush();
+    glpFlush();
 }
 
  

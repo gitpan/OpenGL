@@ -33,6 +33,6 @@ glMatrixMode(GL_MODELVIEW);
 
 glClear (GL_COLOR_BUFFER_BIT);
 triangle ();
-glFlush ();
+glpFlush ();
 
 glpMainLoop;

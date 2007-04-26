@@ -1,3 +1,4 @@
+CHANGES
 COPYRIGHT
 INSTALL
 MANIFEST
@@ -6,7 +7,10 @@ OpenGL.pm
 OpenGL.pod
 OpenGL.xs
 README
+README.FreeBSD
+README.nvidia
 README.os2
+README.Win32
 SUPPORTS
 TODO
 examples/RCS/planets,v
@@ -40,8 +44,16 @@ glu_const.h
 glu_util.h
 glut_const.h
 glut_util.h
+glext_procs.h
 glx_const.h
 glx_util.h
+include/GL/SGIFreeSWLicB.1.1.pdf
+include/GL/gl.h
+include/GL/glext.h
+include/GL/glprocs.h
+include/GL/glut.h
+include/GL/glxext.h
+include/GL/wglext.h
 isosurf.bin
 isosurf.pl
 menutest.pl
@@ -49,3 +61,16 @@ os2pm_X.h
 ppport.h
 test.pl
 typemap
+utils/cleanup.pl
+utils/const.pl
+utils/exports.pl
+utils/exports.txt
+utils/glext_procs.pl
+utils/glversion.c
+utils/hdr_diff.pl
+utils/Makefile
+utils/makefile.mak
+utils/Makefile.macosx
+utils/opengl32.txt
+utils/wgl_ext.txt
+META.yml                                 Module meta-data (added by MakeMaker)

@@ -1,22 +1,45 @@
 
  To install the OpenGL module, please follow these instructions:
- 
- 1. Edit Makefile.PL, and comment out any packages that your system
-    doesn't have. (If you are using Mesa 3.0 or later, then you definitely
-    have all of them.) If you are unsure, leave them all enabled
-    and try building the package.
-    
-    You may also need to fix up the list of library paths and names.
+
+ 1. Update your development environment with the latest OpenGL header
+    and lib files.  If you are using a GPU, get the latest drivers
+    from your vendor.
+
+    Install GLUT (or compatible) - you can find GLUT at
+    http://www.opengl.org/resources/libraries/glut.
+
+    The 'include' folder provided with this module contains headers
+    that this module has been tested with.
+
+    This module looks for libGL.so, libGLU.so and libglut.so
+    (opengl32.dll, glu32.dll and glut32.dll on Windows) in the normal
+    places for your OS installation; you may need to symlink libraries
+    from various vendors to the proper place/names.  Makefile.PL
+    will attempt to find some of these common alternative libs.
  
  2. Run 'perl Makefile.PL'
+
+    If you have GLUT installed, Makefile.PL will attempt to build and
+    run a glversion utility to determine what version and extensions
+    your OpenGL installation supports, and will create an gl_exclude.h
+    header file to exclude APIs your libraries do not support.  You
+    may manually edit this file to override excluded extensions.
+
+    Note: glversion assumes libGL.so and libglut.so
+    (opengl32.dll and glut32.dll on Windows) - and that it will
+    be run via a GUI window (eg. X11 on Unix).
+
+ 3. Run 'make' ('nmake' on Windows) to build OpenGL.pm.
  
- 3. Run 'make'
+ 4. Run 'make test' ('nmake test' on Windows) to test your
+    installation.  You must have GLUT installed in order to run
+    this test.  You should see a spinning cube with textured surfaces.
+    Press 'q' to quit/complete the test (the test window must have focus).
  
- 4. If your system has GLUT available, you can run 'make test' to make sure
-    everything is functioning properly.
- 
- 5. If all is well, run 'make install' to make the OpenGL module available
-    to your system.
+ 5. If all is well, run 'sudo make install' ('nmake install on Windows')
+    to intall the OpenGL module onto your system.
+
+
 
 If you get an error about __eprintf missing, add
 
