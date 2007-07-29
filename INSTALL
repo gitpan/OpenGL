@@ -1,3 +1,5 @@
+ Visit the Perl OpenGL (POGL) Developer's Site for more information:
+ http://graphcomp.com/opengl
 
  To install the OpenGL module, please follow these instructions:
 
@@ -35,6 +37,9 @@
     installation.  You must have GLUT installed in order to run
     this test.  You should see a spinning cube with textured surfaces.
     Press 'q' to quit/complete the test (the test window must have focus).
+
+    Note: Automated builds will normally fail this test, as it requires
+    the ability to open a GL context (window) and provide user input.
  
  5. If all is well, run 'sudo make install' ('nmake install on Windows')
     to intall the OpenGL module onto your system.

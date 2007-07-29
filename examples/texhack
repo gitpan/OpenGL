@@ -79,5 +79,5 @@ glFogf(GL_FOG_END,3.8);
 glEnable(GL_FOG);
 
 
-while(1){$spin=$spin+1.0;display; }
+while(1){$spin=$spin+0.01;display; }
 

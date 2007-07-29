@@ -100,7 +100,7 @@ sub display {
     icosahedron;
     glPopMatrix();
 
-    glFlush();
+    glpFlush();
     glXSwapBuffers();
 }
 
@@ -120,4 +120,4 @@ myReshape();
 glEnable(GL_DEPTH_TEST);
 glRotatef(0.12,1,0,0);
 
-while(1){$spin+=1;display;}
+while(1){$spin+=.1;display;}

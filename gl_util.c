@@ -784,20 +784,23 @@ unsigned long gl_pixelbuffer_size(
 {
 	GLint n; /* elements in a group */
 	GLint l; /* number of groups in a row */
+	GLint r; /* pack/unpack row length (overrides l if nonzero) */
 	GLint s; /* size (in bytes) of an element */
 	GLint a; /* alignment */
 	unsigned long k; /* size in bytes of row */
 	
+	r = 0;
 	a = 4;
-	l = width;
 	
 	if (mode == gl_pixelbuffer_pack) {
-		glGetIntegerv(GL_PACK_ROW_LENGTH, &l);
+		glGetIntegerv(GL_PACK_ROW_LENGTH, &r);
 		glGetIntegerv(GL_PACK_ALIGNMENT, &a);
 	} else if (mode == gl_pixelbuffer_unpack) {
-		glGetIntegerv(GL_UNPACK_ROW_LENGTH, &l);
+		glGetIntegerv(GL_UNPACK_ROW_LENGTH, &r);
 		glGetIntegerv(GL_UNPACK_ALIGNMENT, &a);
 	}
+
+	l = r > 0 ? r : width;
 
 	s = gl_type_size(type);
 	

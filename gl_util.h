@@ -314,6 +314,7 @@ extern int gl_component_count(GLenum format, GLenum type);
 
 struct oga_struct {
 	int type_count, item_count;
+	GLint bind;
 	GLenum * types;
 	GLint * type_offset;
 	int total_types_width;

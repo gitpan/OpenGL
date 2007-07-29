@@ -15,12 +15,15 @@ GLshort			T_SHORT
 GLboolean		T_BOOL
 GLenum			T_INT
 GLbitfield		T_INT
-GLUnurbsObj *		T_PTROBJ
+GLcharARB		T_CHAR
+GLhandleARB		T_U_INT
+
+GLUnurbsObj *	T_PTROBJ
 GLUquadricObj *	T_PTROBJ
 
 PGLUtess *	T_FASTPTROBJ
 
-OpenGL::Array	T_PTROBJ
+OpenGL::Array		T_PTROBJ
 
 GLXDrawable		T_PTR
 

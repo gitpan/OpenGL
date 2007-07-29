@@ -1,6 +1,7 @@
 package OpenGL;
 
 #  Copyright (c) 1998,1999 Kenneth Albanowski. All rights reserved.
+#  Copyright (c) 2007 Bob Free. All rights reserved.
 #  This program is free software; you can redistribute it and/or
 #  modify it under the same terms as Perl itself.
 
@@ -9,7 +10,9 @@ require DynaLoader;
 
 use Carp;
 
-$VERSION = '0.55';
+$VERSION = '0.56';
+$BUILD_VERSION = $XS_VERSION = $VERSION;
+$VERSION = eval($VERSION);
 
 @ISA = qw(Exporter AutoLoader DynaLoader);
 
@@ -22,13 +25,14 @@ our $glext_dependencies =
   GL_ARB_depth_texture=>'1.1', #22
   GL_ARB_draw_buffers=>'1.3', #37
   GL_ARB_fragment_program=>'1.4;ARB_vertex_program', #27
-  GL_ARB_fragment_program_shadow=>'1.3;ARB_fragment_program,ARB_shadow', #36
-  GL_ARB_fragment_shader=>'1.0;ARB_shader_objects', #32
+  GL_ARB_fragment_program_shadow=>'1.4;ARB_fragment_program,ARB_shadow', #36
+  GL_ARB_fragment_shader=>'1.4;ARB_shader_objects', #32
   GL_ARB_half_float_pixel=>'1.5', #40
   GL_ARB_multitexture=>'1.1',
   GL_ARB_pixel_buffer_object=>'1.5', #42
   GL_ARB_point_sprite=>'1.4', #35
   GL_ARB_shading_language_100=>'1.5;ARB_shader_objects,ARB_fragment_shader,ARB_vertex_shader', #33
+  GL_ARB_shader_objects=>'1.4', #30
   GL_ARB_shadow=>'1.1;ARB_depth_texture', #23
   GL_ARB_shadow_ambient=>'1.1;ARB_shadow,ARB_depth_texture', #23
   GL_ARB_texture_border_clamp=>'1.0', #13
@@ -42,13 +46,14 @@ our $glext_dependencies =
   GL_ARB_texture_rectangle=>'1.1', #38
   GL_ARB_vertex_buffer_object=>'1.4', #28
   GL_ARB_vertex_program=>'1.3', #26
+  GL_ARB_vertex_shader=>'1.4;ARB_shader_objects', #31
   GL_ATI_texture_float=>'1.1', #280
   GL_ATI_texture_mirror_once=>'1.0;EXT_texture3D', #221
   GL_EXT_abgr=>'1.0', #1
   GL_EXT_bgra=>'1.0', #129
   GL_EXT_blend_color=>'1.0', #2
   GL_EXT_blend_subtract=>'1.0', #38
-  GL_EXT_Cg_shader=>'1.0;GL_ARB_shader_objects', #???
+  GL_EXT_Cg_shader=>'1.0;ARB_shader_objects', #???
   GL_EXT_copy_texture=>'1.0', #10
   GL_EXT_framebuffer_object=>'1.1', #310
   GL_EXT_packed_pixels=>'1.0', #23
@@ -60,6 +65,7 @@ our $glext_dependencies =
   GL_EXT_subtexture=>'1.0', #9
   GL_EXT_texture=>'1.0', #4
   GL_EXT_texture3D=>'1.1;EXT_abgr', #6
+  GL_EXT_texture_cube_map=>'1.0', #6
   GL_EXT_texture_env_combine=>'1.0', #158
   GL_EXT_texture_env_dot3=>'1.0;EXT_texture_env_combine', #220
   GL_EXT_texture_filter_anisotropic=>'1.0', #187
@@ -127,6 +133,7 @@ glClipPlane_c
 glColorMask
 glColorMaterial
 glColorPointer_c
+glColorPointer_s
 glColorPointer_p
 glCopyPixels
 glCopyTexImage1D
@@ -161,6 +168,7 @@ glDrawRangeElements_c
 glDrawRangeElements_p
 glEdgeFlag
 glEdgeFlagPointer_c
+glEdgeFlagPointer_s
 glEdgeFlagPointer_p
 glEnable
 glDisable
@@ -279,6 +287,7 @@ glIndexd
 glIndexi
 glIndexMask
 glIndexPointer_c
+glIndexPointer_s
 glIndexPointer_p
 glInitNames
 glInterleavedArrays_c
@@ -343,6 +352,7 @@ glMultMatrixf_p
 glNewList
 glEndList
 glNormalPointer_c
+glNormalPointer_s
 glNormalPointer_p
 glOrtho
 glPassThrough
@@ -405,6 +415,7 @@ glStencilFunc
 glStencilMask
 glStencilOp
 glTexCoordPointer_c
+glTexCoordPointer_s
 glTexCoordPointer_p
 glTexEnvf
 glTexEnvi
@@ -462,6 +473,7 @@ glTexSubImage2DEXT_p
 glTranslated
 glTranslatef
 glVertexPointer_c
+glVertexPointer_s
 glVertexPointer_p
 glViewport
 glVertex2d
@@ -725,16 +737,22 @@ glBlendColorEXT
 glArrayElementEXT
 glDrawArraysEXT
 glVertexPointerEXT_c
+glVertexPointerEXT_s
 glVertexPointerEXT_p
 glNormalPointerEXT_c
+glNormalPointerEXT_s
 glNormalPointerEXT_p
 glColorPointerEXT_c
+glColorPointerEXT_s
 glColorPointerEXT_p
 glIndexPointerEXT_c
+glIndexPointerEXT_s
 glIndexPointerEXT_p
 glTexCoordPointerEXT_c
+glTexCoordPointerEXT_s
 glTexCoordPointerEXT_p
 glEdgeFlagPointerEXT_c
+glEdgeFlagPointerEXT_s
 glEdgeFlagPointerEXT_p
 glWindowPos2iMESA
 glWindowPos2dMESA
@@ -1004,6 +1022,87 @@ glMultiTexCoord4sARB
 glMultiTexCoord4svARB_c
 glMultiTexCoord4svARB_c
 glMultiTexCoord4svARB_c
+glDeleteObjectARB
+glGetGLhandleARB
+glDetachObjectARB
+glCreateShaderObjectARB
+glShaderSourceARB_c
+glShaderSourceARB_p
+glCompileShaderARB
+glCreateProgramObjectARB
+glAttachObjectARB
+glLinkProgramARB
+glUseProgramObjectARB
+glValidateProgramARB
+glUniform1fARB
+glUniform2fARB
+glUniform3fARB
+glUniform4fARB
+glUniform1iARB
+glUniform2iARB
+glUniform3iARB
+glUniform4iARB
+glUniform1fvARB_c
+glUniform1fvARB_s
+glUniform1fvARB_p
+glUniform2fvARB_c
+glUniform2fvARB_s
+glUniform2fvARB_p
+glUniform3fvARB_c
+glUniform3fvARB_s
+glUniform3fvARB_p
+glUniform4fvARB_c
+glUniform4fvARB_s
+glUniform4fvARB_p
+glUniform1ivARB_c
+glUniform1ivARB_s
+glUniform1ivARB_p
+glUniform2ivARB_c
+glUniform2ivARB_s
+glUniform2ivARB_p
+glUniform3ivARB_c
+glUniform3ivARB_s
+glUniform3ivARB_p
+glUniform4ivARB_c
+glUniform4ivARB_s
+glUniform4ivARB_p
+glUniformMatrix2fvARB_c
+glUniformMatrix2fvARB_s
+glUniformMatrix2fvARB_p
+glUniformMatrix3fvARB_c
+glUniformMatrix3fvARB_s
+glUniformMatrix3fvARB_p
+glUniformMatrix4fvARB_c
+glUniformMatrix4fvARB_s
+glUniformMatrix4fvARB_p
+glGetObjectParameterfvARB_c
+glGetObjectParameterfvARB_s
+glGetObjectParameterfvARB_p
+glGetObjectParameterivARB_c
+glGetObjectParameterivARB_s
+glGetObjectParameterivARB_p
+glGetInfoLogARB_c
+glGetInfoLogARB_p
+glGetAttachedObjectsARB_c
+glGetAttachedObjectsARB_s
+glGetAttachedObjectsARB_p
+glGetUniformLocationARB_c
+glGetUniformLocationARB_p
+glGetActiveUniformARB_c
+glGetActiveUniformARB_s
+glGetActiveUniformARB_p
+glGetUniformfvARB_c
+glGetUniformfvARB_p
+glGetUniformivARB_c
+glGetUniformivARB_p
+glGetShaderSourceARB_c
+glGetShaderSourceARB_p
+glBindAttribLocationARB
+glGetActiveAttribARB_c
+glGetActiveAttribARB_s
+glGetActiveAttribARB_p
+glGetAttribLocationARB_c
+glGetAttribLocationARB_p
 );
 
 @glu_func = qw(
@@ -1015,7 +1114,9 @@ gluBeginSurface
 gluEndSurface
 gluBeginTrim
 gluEndTrim
+gluBuild1DMipmaps_c
 gluBuild1DMipmaps_s
+gluBuild2DMipmaps_c
 gluBuild2DMipmaps_s
 gluCylinder
 gluDeleteNurbsRenderer

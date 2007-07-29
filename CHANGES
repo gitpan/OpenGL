@@ -1,70 +1,42 @@
-Change List for 0.55 - Bob Free <bfree@graphcomp.com>
+Change List for 0.56 - Bob "grafman" Free <grafman@graphcomp.com>
 ____________________________________________________________
 
-Added this file (CHANGES)
-
-Added include folder with GL headers
-
-Added utils folder with header processing scripts
-
-Added glversion utility
-
-Added README.nvidia
-
-Added README.FreeBSD (thanks, Nomura-san!)
+Updated CHANGES
 
 Updated MANIFEST
 
 Updated META.yml
 
-Added glext_procs.h - extension constants & prototypes
+Updated README
 
-Updated gl_const.h - moved remapped APIs to gl_util.h
+Updated test.pl to support Game Mode, OpenGL::Image and OpenGL::Shader
 
-Updated gl_util.h - added extensions and gl_exclude.h
+Updated gl_util.h to add bind element to oga_struct
 
-Updated gl_util.c - fixed compiler warnings
+Updated gl_util.c to fix a bug in gl_pixelbuffer_size
 
-Updated glut_util.h - use header file from include folder
+Updated typemap to add GLcharARB and GLhandleARB
 
-Updated OpenGL.xs - added extensions; fixed bugs
+Updated OpenGL.xs - added APIs; fixed bugs
 
-Updated OpenGL.pm - added extensions
+Updated OpenGL.pm - added APIs
 
-Updated OpenGL.pod
+Updated OpenGL.pod - added APIs
 
-Updated Makefile.PL - added version/extension detection
+Added test.png - test image
 
-Updated TODO
+Added test.tga - test image
 
-Updated test.pl
-  Rewrote test based on Chris Halsall's cube demo
-  Added FBO, VBO and Vertex/Fragment Program extenstion tests
+Added fragment.arb
 
-Updated REAME
+Added vertex.arb
 
-Updated README.Win32
+Added fragment.glsl
 
-Updated INSTALL
+Added vertex.glsl
 
+Added fragment.cg
 
+Added vertex.cg
 
-Ilya Zakharevich
-____________________________________________________________
-
-Added glpFlush
-
-Updated examples to replace glFlush with glpFlush
-
-
-
-Sherm Pendley
-____________________________________________________________
-
-Added Makefile.macosx
-
-Updated Makefile.PL to add MacOSX support
-
-Updated include/GL/glut.h to add MacOSX support
-
-Updated glu_util.h - added MacOSX support
+Removed examples/RCS/planets,v

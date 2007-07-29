@@ -13,7 +13,7 @@ README.os2
 README.Win32
 SUPPORTS
 TODO
-examples/RCS/planets,v
+
 examples/README
 examples/clip
 examples/cube
@@ -35,6 +35,9 @@ examples/tk_demo
 examples/tk_steal
 examples/try
 examples/wolf.bin
+fragment.arb
+fragment.cg
+fragment.glsl
 genvars.pl
 gl_const.h
 gl_util.c
@@ -60,6 +63,8 @@ menutest.pl
 os2pm_X.h
 ppport.h
 test.pl
+test.png
+test.tga
 typemap
 utils/cleanup.pl
 utils/const.pl
@@ -73,4 +78,7 @@ utils/makefile.mak
 utils/Makefile.macosx
 utils/opengl32.txt
 utils/wgl_ext.txt
+vertex.arb
+vertex.cg
+vertex.glsl
 META.yml                                 Module meta-data (added by MakeMaker)

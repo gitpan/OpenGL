@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-OpenGL - Perl module to display 3D data using OpenGL, GLU, GLUT, and GLX
+Perl OpenGL (POGL) - module to display 3D data using OpenGL, GLU, GLUT, and GLX
 
 =head1 SYNOPSIS
 
@@ -15,6 +15,16 @@ OpenGL - Perl module to display 3D data using OpenGL, GLU, GLUT, and GLX
 
 	use OpenGL qw(:all); # exports all new functionality, without the OpenGL
 	                     # 0.4 compatibility functions
+
+	See also: POGL Objects
+
+	* OpenGL::Array - optimized data arrays via C pointers
+
+	* OpenGL::Image - direct C pointer acces to ImageMagick image cache
+
+	* OpenGL::Shader - abstracted shader interface: ARB, GLSL and Cg
+
+
 
 =head1 DOCUMENTATION
 
@@ -151,7 +161,9 @@ a pointer to that string.
   gluBeginPolygon
   gluBeginSurface
   gluBeginTrim
+  gluBuild1DMipmaps_c
   gluBuild1DMipmaps_s
+  gluBuild2DMipmaps_c
   gluBuild2DMipmaps_s
   gluCylinder
   gluDeleteNurbsRenderer
@@ -557,6 +569,8 @@ a pointer to that string.
   glTranslated
   glTranslatef
   glVertexPointer_c
+  glVertexPointer_s
+  glVertexPointer_p
   glViewport
   glVertex2d
   glVertex2dv_p
@@ -819,11 +833,23 @@ a pointer to that string.
   glArrayElementEXT
   glDrawArraysEXT
   glVertexPointerEXT_c
+  glVertexPointerEXT_s
+  glVertexPointerEXT_p
   glNormalPointerEXT_c
+  glNormalPointerEXT_s
+  glNormalPointerEXT_p
   glColorPointerEXT_c
+  glColorPointerEXT_s
+  glColorPointerEXT_p
   glIndexPointerEXT_c
+  glIndexPointerEXT_s
+  glIndexPointerEXT_p
   glTexCoordPointerEXT_c
+  glTexCoordPointerEXT_s
+  glTexCoordPointerEXT_p
   glEdgeFlagPointerEXT_c
+  glEdgeFlagPointerEXT_s
+  glEdgeFlagPointerEXT_p
   glWindowPos2iMESA
   glWindowPos2dMESA
   glWindowPos3iMESA
@@ -1090,6 +1116,87 @@ a pointer to that string.
   glMultiTexCoord4svARB_c
   glMultiTexCoord4svARB_c
   glMultiTexCoord4svARB_c
+  glDeleteObjectARB
+  glGetGLhandleARB
+  glDetachObjectARB
+  glCreateShaderObjectARB
+  glShaderSourceARB_c
+  glShaderSourceARB_p
+  glCompileShaderARB
+  glCreateProgramObjectARB
+  glAttachObjectARB
+  glLinkProgramARB
+  glUseProgramObjectARB
+  glValidateProgramARB
+  glUniform1fARB
+  glUniform2fARB
+  glUniform3fARB
+  glUniform4fARB
+  glUniform1iARB
+  glUniform2iARB
+  glUniform3iARB
+  glUniform4iARB
+  glUniform1fvARB_c
+  glUniform1fvARB_s
+  glUniform1fvARB_p
+  glUniform2fvARB_c
+  glUniform2fvARB_s
+  glUniform2fvARB_p
+  glUniform3fvARB_c
+  glUniform3fvARB_s
+  glUniform3fvARB_p
+  glUniform4fvARB_c
+  glUniform4fvARB_s
+  glUniform4fvARB_p
+  glUniform1ivARB_c
+  glUniform1ivARB_s
+  glUniform1ivARB_p
+  glUniform2ivARB_c
+  glUniform2ivARB_s
+  glUniform2ivARB_p
+  glUniform3ivARB_c
+  glUniform3ivARB_s
+  glUniform3ivARB_p
+  glUniform4ivARB_c
+  glUniform4ivARB_s
+  glUniform4ivARB_p
+  glUniformMatrix2fvARB_c
+  glUniformMatrix2fvARB_s
+  glUniformMatrix2fvARB_p
+  glUniformMatrix3fvARB_c
+  glUniformMatrix3fvARB_s
+  glUniformMatrix3fvARB_p
+  glUniformMatrix4fvARB_c
+  glUniformMatrix4fvARB_s
+  glUniformMatrix4fvARB_p
+  glGetObjectParameterfvARB_c
+  glGetObjectParameterfvARB_s
+  glGetObjectParameterfvARB_p
+  glGetObjectParameterivARB_c
+  glGetObjectParameterivARB_s
+  glGetObjectParameterivARB_p
+  glGetInfoLogARB_c
+  glGetInfoLogARB_p
+  glGetAttachedObjectsARB_c
+  glGetAttachedObjectsARB_s
+  glGetAttachedObjectsARB_p
+  glGetUniformLocationARB_c
+  glGetUniformLocationARB_p
+  glGetActiveUniformARB_c
+  glGetActiveUniformARB_s
+  glGetActiveUniformARB_p
+  glGetUniformfvARB_c
+  glGetUniformfvARB_p
+  glGetUniformivARB_c
+  glGetUniformivARB_p
+  glGetShaderSourceARB_c
+  glGetShaderSourceARB_p
+  glBindAttribLocationARB
+  glGetActiveAttribARB_c
+  glGetActiveAttribARB_s
+  glGetActiveAttribARB_p
+  glGetAttribLocationARB_c
+  glGetAttribLocationARB_p
 
 =head2 GLX functions
 
@@ -1705,7 +1812,7 @@ Exports all symbols needed for the old functions.
 
 =head1 AUTHORS
 
-Primary CPAN OpenGL Owner/Maintainer: Bob Free - http://graphcomp.com/opengl
+Primary CPAN OpenGL Owner/Maintainer: Bob "grafman" Free - http://graphcomp.com/opengl
 
 Original Author: Stan Melax 
 
@@ -1718,10 +1825,10 @@ Copyright (c) 2000 Ilya Zakharevich. All rights reserved.
 
 Windows port: Jean-Louis Morel - http://www.bribes.org/perl/wopengl.html
 
-Primary author of 0.55: Bob Free; added support for 52 OpenGL extensions,
+Primary author of 0.55+: Bob Free; added support for 52 OpenGL extensions,
 including FBO, VBO and Vertex/Fragment Programs.
 
-Copyright (c) 2007 Bob Free <bfree@graphcomp.com>. All rights reserved.
+Copyright (c) 2007 Bob Free. All rights reserved.
 
 MacOSX port: Sherm Pendley
 
@@ -1731,9 +1838,10 @@ FreeBSD support: Nomura-san
 This program is free software; you can redistribute it and/or modify it 
 under the same terms as Perl itself.
 
+
 =head1 DISTRIBUTIONS
 
-INFO: http://graphcomp.com/opengl
+POGL Developer's Site: http://graphcomp.com/opengl
 
 =head2 SOURCE
 
@@ -1741,9 +1849,9 @@ CPAN: cpan.org
 
 SVN: svn checkout svn://graphcomp.org/cpan/OpenGL OpenGL
 
-TARBALL: http://graphcomp.com/opengl/OpenGL-0.55.tar.gz
+TARBALL: http://graphcomp.com/opengl/OpenGL-0.56.tar.gz
 
-ZIP: http://graphcomp.com/opengl/OpenGL-0.55.zip
+ZIP: http://graphcomp.com/opengl/OpenGL-0.56.zip
 
 =head2 WINDOWS BINARIES
 

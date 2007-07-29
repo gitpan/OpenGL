@@ -67,16 +67,16 @@ CPAN: cpan.org
 
 SVN: svn checkout svn://graphcomp.org/cpan/OpenGL OpenGL
 
-TARBALL: http://graphcomp.com/opengl/OpenGL-0.55.tar.gz
+TARBALL: http://graphcomp.com/opengl/OpenGL-0.56.tar.gz
 
-ZIP: http://graphcomp.com/opengl/OpenGL-0.55.zip
+ZIP: http://graphcomp.com/opengl/OpenGL-0.56.zip
 
 PPM 5.6.x: ppm install http://graphcomp.com/opengl/ppm56/OpenGL.ppd
 
 PPM 5.8.x: ppm install http://graphcomp.com/opengl/ppm58/OpenGL.ppd
 
 Enjoy!
-Bob Free <bfree@graphcomp.com>
+Bob "grafman" Free <grafman@graphcomp.com>
 
 
 
@@ -109,7 +109,7 @@ Changes:
 0.54:	Martien Verbruggen fixed another Mesa limitation.
 	#ifdef out unglob'ing: symbol not found on Solaris...
 
-0.55:	Bob Free <bfree@graphcomp.com>
+0.55:	Bob "grafman" Free <grafman@graphcomp.com>
 	Added OpenGL::Array->new_list
 	Added OpenGL::Array->elements
 	Added macro abstraction for wgl extensions
@@ -195,5 +195,43 @@ Changes:
 	Sherm Pendley
 	Added MacOSX support
 
-	Nomura-san
+	Daiki Nomura
 	Helped add FreeBSD support
+
+0.56:	Bob "grafman" Free <grafman@graphcomp.com>
+	Added $BUILD_VERSION
+	Updated OpenGL::Array->new
+	Added OpenGL::Array->length
+	Added OpenGL::Array->bind
+	Added OpenGL::Array->bound
+	Added OpenGL::Array->new_scalar
+	Added OpenGL::Array->new_pointer
+	Added OpenGL::Array->update_pointer
+	Updated OpenGL::Array->retrieve
+	Updated OpenGL::Array->retrieve_data
+	Added glVertexPointer_s
+	Added glNormalPointer_s
+	Added glColorPointer_s
+	Added glIndexPointer_s
+	Added glTexCoordPointer_s
+	Added glEdgeFlagPointer_s
+	Added glVertexPointerEXT_s
+	Added glNormalPointerEXT_s
+	Added glColorPointerEXT_s
+	Added glIndexPointerEXT_s
+	Added glTexCoordPointerEXT_s
+	Added glEdgeFlagPointerEXT_s
+	Added gluBuild1DMipmaps_c
+	Added gluBuild2DMipmaps_c
+	Added OpenGL::Image support to test.pl
+	Updated typemap to add GLcharARB and GLhandleARB
+	Implemented GL_EXT_texture_cube_map
+	Implemented GL_ARB_shader_objects
+	Implemented GL_ARB_fragment_shader
+	Implemented GL_ARB_vertex_shader
+	Implemented GL_ARB_shading_language_100
+	Implemented GL_EXT_Cg_shader
+	Updated test.pl to use OpenGL::Image and OpenGL::Shader
+
+	Geoffrey Broadwell
+	Fixed a bug in gl_pixelbuffer_size

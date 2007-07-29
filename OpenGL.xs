@@ -227,11 +227,16 @@ neoconstant(char * name, int arg)
 #ifdef _WIN32
 #define loadProc(proc,name) \
 { \
-  if (!proc) proc = (void *)wglGetProcAddress(name); \
-  if (!proc) croak(name " is not supported by this renderer"); \
+  if (!proc) \
+  { \
+    proc = (void *)wglGetProcAddress(name); \
+    if (!proc) croak(name " is not supported by this renderer"); \
+  } \
 }
+#define testProc(proc,name) ((proc) ? 1 : !!(proc = (void *)wglGetProcAddress(name)))
 #else
 #define loadProc(proc,name)
+#define testProc(proc,name) 1
 #endif
 #endif
 
@@ -255,7 +260,7 @@ static Bool WaitForNotify(Display *d, XEvent *e, char *arg) {
 
 HMQ hmq;
 AV *EventAv;
-unsigned long LastEventMask;	/* XXXX Common for all the windows */
+unsigned long LastEventMask;	/* !! Common for all the windows */
 Display myDisplay;
 
 #else
@@ -802,8 +807,11 @@ new(Class, count, type, ...)
 	GLenum	type
 	CODE:
 	{
-		oga_struct * oga = malloc(sizeof(oga_struct));
+		int oga_len = sizeof(oga_struct);
+		oga_struct * oga = malloc(oga_len);
 		int i,j;
+
+		memset(oga,0,oga_len);
 		
 		oga->type_count = items - 2;
 		oga->item_count = count;
@@ -818,25 +826,29 @@ new(Class, count, type, ...)
 		oga->total_types_width = j;
 		
 		oga->data_length = oga->total_types_width *
-			((count + oga->type_count-1) / oga->type_count);
+			// ((count + oga->type_count-1) / oga->type_count); # vas is das?
+			count;
 		
 		oga->data = malloc(oga->data_length);
+		memset(oga->data,0,oga->data_length);
+
 		oga->free_data = 1;
-		
-		memset(oga->data, '\0', oga->data_length);
 		
 		RETVAL = oga;
 	}
 	OUTPUT:
-	RETVAL
+		RETVAL
 
 OpenGL::Array
 new_list(Class, type, ...)
 	GLenum	type
 	CODE:
 	{
-		oga_struct * oga = malloc(sizeof(oga_struct));
-		
+		int oga_len = sizeof(oga_struct);
+		oga_struct * oga = malloc(oga_len);
+
+		memset(oga,0,oga_len);
+
 		oga->type_count = 1;
 		oga->item_count = items - 2;
 		oga->total_types_width = gl_type_size(type);
@@ -855,7 +867,73 @@ new_list(Class, type, ...)
 		RETVAL = oga;
 	}
 	OUTPUT:
-	RETVAL
+		RETVAL
+
+OpenGL::Array
+new_scalar(Class, type, data, length)
+	GLenum	type
+	SV *	data
+        GLsizei	length
+	CODE:
+	{
+		int width = gl_type_size(type);
+		void * data_s = EL(data, width*length);
+		int oga_len = sizeof(oga_struct);
+		oga_struct * oga = malloc(oga_len);
+
+		memset(oga,0,oga_len);
+
+		oga->type_count = 1;
+		oga->item_count = length / width;
+		oga->total_types_width = width;
+		oga->data_length = length;
+		
+		oga->types = malloc(sizeof(GLenum) * oga->type_count);
+		oga->type_offset = malloc(sizeof(GLint) * oga->type_count);
+		oga->data = malloc(oga->data_length);
+		oga->free_data = 1;
+
+		oga->type_offset[0] = 0;
+		oga->types[0] = type;
+
+		memcpy(oga->data,data_s,oga->data_length);
+		
+		RETVAL = oga;
+	}
+	OUTPUT:
+		RETVAL
+
+OpenGL::Array
+new_pointer(Class, type, ptr, elements)
+	GLenum	type
+	void *	ptr
+	GLsizei	elements
+	CODE:
+	{
+		int width = gl_type_size(type);
+		int oga_len = sizeof(oga_struct);
+		oga_struct * oga = malloc(sizeof(oga_struct));
+
+		memset(oga,0,oga_len);
+		
+		oga->type_count = 1;
+		oga->item_count = elements;
+		
+		oga->types = malloc(sizeof(GLenum) * oga->type_count);
+		oga->type_offset = malloc(sizeof(GLint) * oga->type_count);
+		oga->types[0] = type;
+		oga->type_offset[0] = 0;
+		oga->total_types_width = 1;
+		
+		oga->data_length = elements * width;
+		
+		oga->data = ptr;
+		oga->free_data = 0;
+		
+		RETVAL = oga;
+	}
+	OUTPUT:
+		RETVAL
 
 OpenGL::Array
 new_from_pointer(Class, ptr, length)
@@ -863,7 +941,10 @@ new_from_pointer(Class, ptr, length)
 	GLsizei	length
 	CODE:
 	{
+		int oga_len = sizeof(oga_struct);
 		oga_struct * oga = malloc(sizeof(oga_struct));
+
+		memset(oga,0,oga_len);
 		
 		oga->type_count = 1;
 		oga->item_count = length;
@@ -882,7 +963,45 @@ new_from_pointer(Class, ptr, length)
 		RETVAL = oga;
 	}
 	OUTPUT:
-	RETVAL
+		RETVAL
+
+GLboolean
+update_pointer(oga, ptr)
+	OpenGL::Array oga
+	void *	ptr
+	CODE:
+	{
+                RETVAL = (oga->data != ptr);
+		oga->data = ptr;
+	}
+	OUTPUT:
+		RETVAL
+
+void
+bind(oga, bind)
+	OpenGL::Array oga
+	GLint	bind
+	INIT:
+#ifdef GL_ARB_vertex_buffer_object
+		loadProc(glBindBufferARB,"glBindBufferARB");
+#endif
+	CODE:
+	{
+#ifdef GL_ARB_vertex_buffer_object
+		oga->bind = bind;
+		glBindBufferARB(GL_ARRAY_BUFFER_ARB,bind);
+#else
+		croak("OpenGL::Array::bind requires GL_ARB_vertex_buffer_object");
+#endif
+	}
+
+GLint
+bound(oga)
+	OpenGL::Array oga
+	CODE:
+		RETVAL = oga->bind;
+	OUTPUT:
+		RETVAL
 
 void
 assign(oga, pos, ...)
@@ -1026,16 +1145,16 @@ assign_data(oga, pos, data)
 	}
 
 void
-retrieve(oga, pos, len)	
+retrieve(oga, ...)	
 	OpenGL::Array	oga
-	GLint	pos
-	GLint	len
 	PPCODE:
 	{
+		GLint	pos = (items > 1) ? SvIV(ST(1)) : 0;
+		GLint	len = (items > 2) ? SvIV(ST(2)) : (oga->item_count - pos);
 		char * offset;
 		int end = pos + len;
 		int i;
-		
+
 		offset = ((char*)oga->data) +
 			(pos / oga->type_count * oga->total_types_width) + 
 			oga->type_offset[pos % oga->type_count];
@@ -1116,12 +1235,12 @@ retrieve(oga, pos, len)
 	}
 
 SV *
-retrieve_data(oga, pos, len)	
+retrieve_data(oga, ...)
 	OpenGL::Array	oga
-	GLint	pos
-	GLint	len
 	CODE:
 	{
+		GLint	pos = (items > 1) ? SvIV(ST(1)) : 0;
+		GLint	len = (items > 2) ? SvIV(ST(2)) : (oga->item_count - pos);
 		void * offset;
 		
 		offset = ((char*)oga->data) +
@@ -1138,6 +1257,14 @@ elements(oga)
 	OpenGL::Array	oga
 	CODE:
 		RETVAL = oga->item_count;
+	OUTPUT:
+		RETVAL
+
+GLsizei
+length(oga)
+	OpenGL::Array	oga
+	CODE:
+		RETVAL = oga->data_length;
 	OUTPUT:
 		RETVAL
 
@@ -1533,12 +1660,36 @@ glColorPointer_c(size, type, stride, pointer)
 	CODE:
 	glColorPointer(size, type, stride, pointer);
 
+
+void
+glColorPointer_s(size, type, stride, pointer)
+	GLint	size
+	GLenum	type
+	GLsizei	stride
+	SV *	pointer
+	CODE:
+	{
+		int width = stride ? stride : (sizeof(type)*size);
+		void * pointer_s = EL(pointer, width);
+		glColorPointer(size, type, stride, pointer_s);
+	}
+
 void
 glColorPointer_p(size, oga)
 	GLint	size
 	OpenGL::Array oga
 	CODE:
+	{
+#ifdef GL_ARB_vertex_buffer_object
+		if (testProc(glBindBufferARB,"glBindBufferARB"))
+		{
+			glBindBufferARB(GL_ARRAY_BUFFER_ARB, oga->bind);
+		}
+		glColorPointer(size, oga->types[0], 0, oga->bind ? 0 : oga->data);
+#else
 		glColorPointer(size, oga->types[0], 0, oga->data);
+#endif
+	}
 
 #endif
 
@@ -1880,10 +2031,31 @@ glEdgeFlagPointer_c(stride, pointer)
 	glEdgeFlagPointer(stride, pointer);
 
 void
+glEdgeFlagPointer_s(stride, pointer)
+	GLsizei	stride
+	SV *	pointer
+	CODE:
+	{
+		int width = stride ? stride : sizeof(GLboolean);
+		void * pointer_s = EL(pointer, width);
+		glEdgeFlagPointer(stride, pointer_s);
+	}
+
+void
 glEdgeFlagPointer_p(oga)
 	OpenGL::Array oga
 	CODE:
+	{
+#ifdef GL_ARB_vertex_buffer_object
+		if (testProc(glBindBufferARB,"glBindBufferARB"))
+		{
+			glBindBufferARB(GL_ARRAY_BUFFER_ARB, oga->bind);
+		}
+		glEdgeFlagPointer(0, oga->bind ? 0 : oga->data);
+#else
 		glEdgeFlagPointer(0, oga->data);
+#endif
+	}
 
 #endif
 
@@ -3183,10 +3355,32 @@ glIndexPointer_c(type, stride, pointer)
 	glIndexPointer(type, stride, pointer);
 
 void
+glIndexPointer_s(type, stride, pointer)
+	GLenum	type
+	GLsizei	stride
+	SV *	pointer
+	CODE:
+	{
+		int width = stride ? stride : sizeof(type);
+		void * pointer_s = EL(pointer, width);
+		glIndexPointer(type, stride, pointer_s);
+	}
+
+void
 glIndexPointer_p(oga)
 	OpenGL::Array oga
 	CODE:
+	{
+#ifdef GL_ARB_vertex_buffer_object
+		if (testProc(glBindBufferARB,"glBindBufferARB"))
+		{
+			glBindBufferARB(GL_ARRAY_BUFFER_ARB, oga->bind);
+		}
+		glIndexPointer(oga->types[0], 0, oga->bind ? 0 : oga->data);
+#else
 		glIndexPointer(oga->types[0], 0, oga->data);
+#endif
+	}
 
 #endif
 
@@ -3870,11 +4064,34 @@ glNormalPointer_c(type, stride, pointer)
 	CODE:
 	glNormalPointer(type, stride, pointer);
 
+
+void
+glNormalPointer_s(type, stride, pointer)
+	GLenum	type
+	GLsizei	stride
+	SV *	pointer
+	CODE:
+	{
+		int width = stride ? stride : (sizeof(type)*3);
+		void * pointer_s = EL(pointer, width);
+		glNormalPointer(type, stride, pointer_s);
+	}
+
 void
 glNormalPointer_p(oga)
 	OpenGL::Array oga
 	CODE:
+	{
+#ifdef GL_ARB_vertex_buffer_object
+		if (testProc(glBindBufferARB,"glBindBufferARB"))
+		{
+			glBindBufferARB(GL_ARRAY_BUFFER_ARB, oga->bind);
+		}
+		glNormalPointer(oga->types[0], 0, oga->bind ? 0 : oga->data);
+#else
 		glNormalPointer(oga->types[0], 0, oga->data);
+#endif
+	}
 
 #endif
 
@@ -4440,11 +4657,34 @@ glTexCoordPointer_c(size, type, stride, pointer)
 	glTexCoordPointer(size, type, stride, pointer);
 
 void
+glTexCoordPointer_s(size, type, stride, pointer)
+	GLint	size
+	GLenum	type
+	GLsizei	stride
+	SV *	pointer
+	CODE:
+	{
+		int width = stride ? stride : (sizeof(type)*size);
+		void * pointer_s = EL(pointer, width);
+		glTexCoordPointer(size, type, stride, pointer_s);
+	}
+
+void
 glTexCoordPointer_p(size, oga)
 	GLint	size
 	OpenGL::Array oga
 	CODE:
+	{
+#ifdef GL_ARB_vertex_buffer_object
+		if (testProc(glBindBufferARB,"glBindBufferARB"))
+		{
+			glBindBufferARB(GL_ARRAY_BUFFER_ARB, oga->bind);
+		}
+		glTexCoordPointer(size, oga->types[0], 0, oga->bind ? 0 : oga->data);
+#else
 		glTexCoordPointer(size, oga->types[0], 0, oga->data);
+#endif
+	}
 
 #endif
 
@@ -4686,7 +4926,8 @@ glTexImage1D_s(target, level, internalformat, width, border, format, type, pixel
 	SV *	pixels
 	CODE:
 	{
-	GLvoid * ptr = ELI(pixels, width, 1, format, type, gl_pixelbuffer_unpack);
+	GLvoid * ptr = ELI(pixels, width, 1, format, type,
+		gl_pixelbuffer_unpack);
 	glTexImage1D(target, level, internalformat,
 		width, border, format, type, ptr);
 	}
@@ -5165,11 +5406,34 @@ glVertexPointer_c(size, type, stride, pointer)
 		glVertexPointer(size, type, stride, pointer);
 
 void
+glVertexPointer_s(size, type, stride, pointer)
+	GLint	size
+	GLenum	type
+	GLsizei	stride
+	SV *	pointer
+	CODE:
+	{
+		int width = stride ? stride : (sizeof(type)*size);
+		void * pointer_s = EL(pointer, width);
+		glVertexPointer(size, type, stride, pointer_s);
+	}
+
+void
 glVertexPointer_p(size, oga)
 	GLint	size
 	OpenGL::Array oga
 	CODE:
+	{
+#ifdef GL_ARB_vertex_buffer_object
+		if (testProc(glBindBufferARB,"glBindBufferARB"))
+		{
+			glBindBufferARB(GL_ARRAY_BUFFER_ARB, oga->bind);
+		}
+		glVertexPointer(size, oga->types[0], 0, oga->bind ? 0 : oga->data);
+#else
 		glVertexPointer(size, oga->types[0], 0, oga->data);
+#endif
+	}
 
 #endif
 
@@ -7835,7 +8099,23 @@ glVertexPointerEXT_c(size, type, stride, count, pointer)
 	INIT:
 		loadProc(glVertexPointerEXT,"glVertexPointerEXT");
 	CODE:
-	glVertexPointerEXT(size, type, stride, count, pointer);
+		glVertexPointerEXT(size, type, stride, count, pointer);
+
+void
+glVertexPointerEXT_s(size, type, stride, count, pointer)
+	GLint	size
+	GLenum	type
+	GLsizei	stride
+	GLsizei	count
+	SV *	pointer
+	INIT:
+		loadProc(glVertexPointerEXT,"glVertexPointerEXT");
+	CODE:
+	{
+		int width = stride ? stride : (sizeof(type)*size);
+		void * pointer_s = EL(pointer, width*count);
+		glVertexPointerEXT(size, type, stride, count, pointer_s);
+	}
 
 void
 glVertexPointerEXT_p(size, oga)
@@ -7844,7 +8124,19 @@ glVertexPointerEXT_p(size, oga)
 	INIT:
 		loadProc(glVertexPointerEXT,"glVertexPointerEXT");
 	CODE:
-		glVertexPointerEXT(size, oga->types[0], 0, oga->item_count, oga->data);
+	{
+#ifdef GL_ARB_vertex_buffer_object
+		if (testProc(glBindBufferARB,"glBindBufferARB"))
+		{
+			glBindBufferARB(GL_ARRAY_BUFFER_ARB, oga->bind);
+		}
+		glVertexPointerEXT(size, oga->types[0], 0, oga->item_count/size,
+			oga->bind ? 0 : oga->data);
+#else
+		glVertexPointerEXT(size, oga->types[0], 0, oga->item_count/size,
+			oga->data);
+#endif
+	}
 
 void
 glNormalPointerEXT_c(type, stride, count, pointer)
@@ -7855,7 +8147,22 @@ glNormalPointerEXT_c(type, stride, count, pointer)
 	INIT:
 		loadProc(glNormalPointerEXT,"glNormalPointerEXT");
 	CODE:
-	glNormalPointerEXT(type, stride, count, pointer);
+		glNormalPointerEXT(type, stride, count, pointer);
+
+void
+glNormalPointerEXT_s(type, stride, count, pointer)
+	GLenum	type
+	GLsizei	stride
+	GLsizei	count
+	SV *	pointer
+	INIT:
+		loadProc(glNormalPointerEXT,"glNormalPointerEXT");
+	CODE:
+	{
+		int width = stride ? stride : (sizeof(type)*3);
+		void * pointer_s = EL(pointer, width*count);
+		glNormalPointerEXT(type, stride, count, pointer_s);
+	}
 
 void
 glNormalPointerEXT_p(oga)
@@ -7863,7 +8170,19 @@ glNormalPointerEXT_p(oga)
 	INIT:
 		loadProc(glNormalPointerEXT,"glNormalPointerEXT");
 	CODE:
-		glNormalPointerEXT(oga->types[0], 0, oga->item_count, oga->data);
+	{
+#ifdef GL_ARB_vertex_buffer_object
+		if (testProc(glBindBufferARB,"glBindBufferARB"))
+		{
+			glBindBufferARB(GL_ARRAY_BUFFER_ARB, oga->bind);
+		}
+		glNormalPointerEXT(oga->types[0], 0, oga->item_count/3,
+			oga->bind ? 0 : oga->data);
+#else
+		glNormalPointerEXT(oga->types[0], 0, oga->item_count/3,
+			oga->data);
+#endif
+	}
 
 void
 glColorPointerEXT_c(size, type, stride, count, pointer)
@@ -7875,7 +8194,23 @@ glColorPointerEXT_c(size, type, stride, count, pointer)
 	INIT:
 		loadProc(glColorPointerEXT,"glColorPointerEXT");
 	CODE:
-	glColorPointerEXT(size, type, stride, count, pointer);
+		glColorPointerEXT(size, type, stride, count, pointer);
+
+void
+glColorPointerEXT_s(size, type, stride, count, pointer)
+	GLint	size
+	GLenum	type
+	GLsizei	stride
+	GLsizei	count
+	SV *	pointer
+	INIT:
+		loadProc(glColorPointerEXT,"glColorPointerEXT");
+	CODE:
+	{
+		int width = stride ? stride : (sizeof(type)*size);
+		void * pointer_s = EL(pointer, width*count);
+		glColorPointerEXT(size, type, stride, count, pointer_s);
+	}
 
 void
 glColorPointerEXT_p(size, oga)
@@ -7884,7 +8219,19 @@ glColorPointerEXT_p(size, oga)
 	INIT:
 		loadProc(glColorPointerEXT,"glColorPointerEXT");
 	CODE:
-		glColorPointerEXT(size, oga->types[0], 0, oga->item_count, oga->data);
+	{
+#ifdef GL_ARB_vertex_buffer_object
+		if (testProc(glBindBufferARB,"glBindBufferARB"))
+		{
+			glBindBufferARB(GL_ARRAY_BUFFER_ARB, oga->bind);
+		}
+		glColorPointerEXT(size, oga->types[0], 0, oga->item_count/size,
+			oga->bind ? 0 : oga->data);
+#else
+		glColorPointerEXT(size, oga->types[0], 0, oga->item_count/size,
+			oga->data);
+#endif
+	}
 
 void
 glIndexPointerEXT_c(type, stride, count, pointer)
@@ -7895,7 +8242,22 @@ glIndexPointerEXT_c(type, stride, count, pointer)
 	INIT:
 		loadProc(glIndexPointerEXT,"glIndexPointerEXT");
 	CODE:
-	glIndexPointerEXT(type, stride, count, pointer);
+		glIndexPointerEXT(type, stride, count, pointer);
+
+void
+glIndexPointerEXT_s(type, stride, count, pointer)
+	GLenum	type
+	GLsizei	stride
+	GLsizei	count
+	SV *	pointer
+	INIT:
+		loadProc(glIndexPointerEXT,"glIndexPointerEXT");
+	CODE:
+	{
+		int width = stride ? stride : (sizeof(type));
+		void * pointer_s = EL(pointer, width*count);
+		glIndexPointerEXT(type, stride, count, pointer_s);
+	}
 
 void
 glIndexPointerEXT_p(oga)
@@ -7903,7 +8265,19 @@ glIndexPointerEXT_p(oga)
 	INIT:
 		loadProc(glIndexPointerEXT,"glIndexPointerEXT");
 	CODE:
-		glIndexPointerEXT(oga->types[0], 0, oga->item_count, oga->data);
+	{
+#ifdef GL_ARB_vertex_buffer_object
+		if (testProc(glBindBufferARB,"glBindBufferARB"))
+		{
+			glBindBufferARB(GL_ARRAY_BUFFER_ARB, oga->bind);
+		}
+		glIndexPointerEXT(oga->types[0], 0, oga->item_count,
+			oga->bind ? 0 : oga->data);
+#else
+		glIndexPointerEXT(oga->types[0], 0, oga->item_count,
+			oga->data);
+#endif
+	}
 
 void
 glTexCoordPointerEXT_c(size, type, stride, count, pointer)
@@ -7915,7 +8289,23 @@ glTexCoordPointerEXT_c(size, type, stride, count, pointer)
 	INIT:
 		loadProc(glTexCoordPointerEXT,"glTexCoordPointerEXT");
 	CODE:
-	glTexCoordPointerEXT(size, type, stride, count, pointer);
+		glTexCoordPointerEXT(size, type, stride, count, pointer);
+
+void
+glTexCoordPointerEXT_s(size, type, stride, count, pointer)
+	GLint	size
+	GLenum	type
+	GLsizei	stride
+	GLsizei	count
+	SV *	pointer
+	INIT:
+		loadProc(glTexCoordPointerEXT,"glTexCoordPointerEXT");
+	CODE:
+	{
+		int width = stride ? stride : (sizeof(type)*size);
+		void * pointer_s = EL(pointer, width*count);
+		glTexCoordPointerEXT(size, type, stride, count, pointer_s);
+	}
 
 void
 glTexCoordPointerEXT_p(size, oga)
@@ -7924,7 +8314,19 @@ glTexCoordPointerEXT_p(size, oga)
 	INIT:
 		loadProc(glTexCoordPointerEXT,"glTexCoordPointerEXT");
 	CODE:
-		glTexCoordPointerEXT(size, oga->types[0], 0, oga->item_count, oga->data);
+	{
+#ifdef GL_ARB_vertex_buffer_object
+		if (testProc(glBindBufferARB,"glBindBufferARB"))
+		{
+			glBindBufferARB(GL_ARRAY_BUFFER_ARB, oga->bind);
+		}
+		glTexCoordPointerEXT(size, oga->types[0], 0, oga->item_count/size,
+			oga->bind ? 0 : oga->data);
+#else
+		glTexCoordPointerEXT(size, oga->types[0], 0, oga->item_count/size,
+			oga->data);
+#endif
+	}
 
 void
 glEdgeFlagPointerEXT_c(stride, count, pointer)
@@ -7934,7 +8336,21 @@ glEdgeFlagPointerEXT_c(stride, count, pointer)
 	INIT:
 		loadProc(glEdgeFlagPointerEXT,"glEdgeFlagPointerEXT");
 	CODE:
-	glEdgeFlagPointerEXT(stride, count, pointer);
+		glEdgeFlagPointerEXT(stride, count, pointer);
+
+void
+glEdgeFlagPointerEXT_s(stride, count, pointer)
+	GLsizei	stride
+	GLsizei	count
+	SV *	pointer
+	INIT:
+		loadProc(glEdgeFlagPointerEXT,"glEdgeFlagPointerEXT");
+	CODE:
+	{
+		int width = stride ? stride : (sizeof(GLboolean));
+		void * pointer_s = EL(pointer, width*count);
+		glEdgeFlagPointerEXT(stride, count, pointer_s);
+	}
 
 void
 glEdgeFlagPointerEXT_p(oga)
@@ -7942,7 +8358,17 @@ glEdgeFlagPointerEXT_p(oga)
 	INIT:
 		loadProc(glEdgeFlagPointerEXT,"glEdgeFlagPointerEXT");
 	CODE:
+	{
+#ifdef GL_ARB_vertex_buffer_object
+		if (testProc(glBindBufferARB,"glBindBufferARB"))
+		{
+			glBindBufferARB(GL_ARRAY_BUFFER_ARB, oga->bind);
+		}
+		glEdgeFlagPointerEXT(0, oga->item_count, oga->bind ? 0 : oga->data);
+#else
 		glEdgeFlagPointerEXT(0, oga->item_count, oga->data);
+#endif
+	}
 
 #endif
 
@@ -8073,1830 +8499,6 @@ glDrawBuffers_p(...)
 			free(list);
 		}
 	}
-
-#endif
-
-#ifdef GL_ARB_vertex_program
-
-void
-glVertexAttrib1dARB(index,x)
-	GLuint index
-	GLdouble x
-	INIT:
-		loadProc(glVertexAttrib1dARB,"glVertexAttrib1dARB");
-
-void
-glVertexAttrib1dvARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib1dvARB,"glVertexAttrib1dvARB");
-	CODE:
-		glVertexAttrib1dvARB(index,(GLdouble*)v);
-
-void
-glVertexAttrib1dvARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib1dvARB,"glVertexAttrib1dvARB");
-	CODE:
-	{
-		GLdouble * v_s = EL(v, sizeof(GLdouble)*1);
-		glVertexAttrib1dvARB(index,v_s);
-	}
-
-void
-glVertexAttrib1dvARB_p(index,x)
-	GLuint index
-	GLdouble	x
-	INIT:
-		loadProc(glVertexAttrib1dvARB,"glVertexAttrib1dvARB");
-	CODE:
-	{
-		GLdouble param[1];
-		param[0] = x;
-		glVertexAttrib1dvARB(index,param);
-	}
-
-void
-glVertexAttrib1fARB(index,x)
-	GLuint index
-	GLfloat x
-	INIT:
-		loadProc(glVertexAttrib1fARB,"glVertexAttrib1fARB");
-
-void
-glVertexAttrib1sARB(index,x)
-	GLuint index
-	GLshort x
-	INIT:
-		loadProc(glVertexAttrib1s,"glVertexAttrib1s");
-
-void
-glVertexAttrib1svARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib1svARB,"glVertexAttrib1svARB");
-	CODE:
-		glVertexAttrib1svARB(index,(GLshort*)v);
-
-void
-glVertexAttrib1svARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib1svARB,"glVertexAttrib1svARB");
-	CODE:
-	{
-		GLshort * v_s = EL(v, sizeof(GLshort)*1);
-		glVertexAttrib1svARB(index,v_s);
-	}
-
-void
-glVertexAttrib1svARB_p(index,x)
-	GLuint index
-	GLshort	x
-	INIT:
-		loadProc(glVertexAttrib1svARB,"glVertexAttrib1svARB");
-	CODE:
-	{
-		GLshort param[1];
-		param[0] = x;
-		glVertexAttrib1svARB(index,param);
-	}
-
-void
-glVertexAttrib2dARB(index,x,y)
-	GLuint index
-	GLdouble x
-	GLdouble y
-	INIT:
-		loadProc(glVertexAttrib2dARB,"glVertexAttrib2dARB");
-
-void
-glVertexAttrib2dvARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib2dvARB,"glVertexAttrib2dvARB");
-	CODE:
-		glVertexAttrib2dvARB(index,(GLdouble*)v);
-
-void
-glVertexAttrib2dvARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib2dvARB,"glVertexAttrib2dvARB");
-	CODE:
-	{
-		GLdouble * v_s = EL(v, sizeof(GLdouble)*2);
-		glVertexAttrib2dvARB(index,v_s);
-	}
-
-void
-glVertexAttrib2dvARB_p(index,x,y)
-	GLuint index
-	GLdouble	x
-	GLdouble	y
-	INIT:
-		loadProc(glVertexAttrib2dvARB,"glVertexAttrib2dvARB");
-	CODE:
-	{
-		GLdouble param[2];
-		param[0] = x;
-		param[1] = y;
-		glVertexAttrib2dvARB(index,param);
-	}
-
-void
-glVertexAttrib2fARB(index,x,y)
-	GLuint index
-	GLfloat x
-	GLfloat y
-	INIT:
-		loadProc(glVertexAttrib2fARB,"glVertexAttrib2fARB");
-
-void
-glVertexAttrib2sARB(index,x,y)
-	GLuint index
-	GLshort x
-	GLshort y
-	INIT:
-		loadProc(glVertexAttrib2sARB,"glVertexAttrib2sARB");
-
-void
-glVertexAttrib2svARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib2svARB,"glVertexAttrib2svARB");
-	CODE:
-		glVertexAttrib2svARB(index,(GLshort*)v);
-
-void
-glVertexAttrib2svARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib2svARB,"glVertexAttrib2svARB");
-	CODE:
-	{
-		GLshort * v_s = EL(v, sizeof(GLshort)*2);
-		glVertexAttrib2svARB(index,v_s);
-	}
-
-void
-glVertexAttrib2svARB_p(index,x,y)
-	GLuint index
-	GLshort	x
-	GLshort	y
-	INIT:
-		loadProc(glVertexAttrib2svARB,"glVertexAttrib2svARB");
-	CODE:
-	{
-		GLshort param[2];
-		param[0] = x;
-		param[1] = y;
-		glVertexAttrib2svARB(index,param);
-	}
-
-void
-glVertexAttrib3dARB(index,x,y,z)
-	GLuint index
-	GLdouble x
-	GLdouble y
-	GLdouble z
-	INIT:
-		loadProc(glVertexAttrib3dARB,"glVertexAttrib3dARB");
-
-void
-glVertexAttrib3dvARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib3dvARB,"glVertexAttrib3dvARB");
-	CODE:
-		glVertexAttrib3dvARB(index,(GLdouble*)v);
-
-void
-glVertexAttrib3dvARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib3dvARB,"glVertexAttrib3dvARB");
-	CODE:
-	{
-		GLdouble * v_s = EL(v, sizeof(GLdouble)*3);
-		glVertexAttrib3dvARB(index,v_s);
-	}
-
-void
-glVertexAttrib3dvARB_p(index,x,y,z)
-	GLuint index
-	GLdouble	x
-	GLdouble	y
-	GLdouble	z
-	INIT:
-		loadProc(glVertexAttrib3dvARB,"glVertexAttrib3dvARB");
-	CODE:
-	{
-		GLdouble param[3];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		glVertexAttrib3dvARB(index,param);
-	}
-
-void
-glVertexAttrib3fARB(index,x,y,z)
-	GLuint index
-	GLfloat x
-	GLfloat y
-	GLfloat z
-	INIT:
-		loadProc(glVertexAttrib3fARB,"glVertexAttrib3fARB");
-
-void
-glVertexAttrib3fvARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib3fvARB,"glVertexAttrib3fvARB");
-	CODE:
-		glVertexAttrib3fvARB(index,(GLfloat*)v);
-
-void
-glVertexAttrib3fvARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib3fvARB,"glVertexAttrib3fvARB");
-	CODE:
-	{
-		GLfloat * v_s = EL(v, sizeof(GLfloat)*3);
-		glVertexAttrib3fvARB(index,v_s);
-	}
-
-void
-glVertexAttrib3fvARB_p(index,x,y,z)
-	GLuint index
-	GLfloat	x
-	GLfloat	y
-	GLfloat	z
-	INIT:
-		loadProc(glVertexAttrib3fvARB,"glVertexAttrib3fvARB");
-	CODE:
-	{
-		GLfloat param[3];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		glVertexAttrib3fvARB(index,param);
-	}
-
-void
-glVertexAttrib3sARB(index,x,y,z)
-	GLuint index
-	GLshort x
-	GLshort y
-	GLshort z
-	INIT:
-		loadProc(glVertexAttrib3sARB,"glVertexAttrib3sARB");
-
-void
-glVertexAttrib3svARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib3svARB,"glVertexAttrib3svARB");
-	CODE:
-		glVertexAttrib3svARB(index,(GLshort*)v);
-
-void
-glVertexAttrib3svARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib3svARB,"glVertexAttrib3svARB");
-	CODE:
-	{
-		GLshort * v_s = EL(v, sizeof(GLshort)*3);
-		glVertexAttrib3svARB(index,v_s);
-	}
-
-void
-glVertexAttrib3svARB_p(index,x,y,z)
-	GLuint index
-	GLshort	x
-	GLshort	y
-	GLshort	z
-	INIT:
-		loadProc(glVertexAttrib3svARB,"glVertexAttrib3svARB");
-	CODE:
-	{
-		GLshort param[3];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		glVertexAttrib3svARB(index,param);
-	}
-
-void
-glVertexAttrib4NbvARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib4NbvARB,"glVertexAttrib4NbvARB");
-	CODE:
-		glVertexAttrib4NbvARB(index,(GLbyte*)v);
-
-void
-glVertexAttrib4NbvARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib4NbvARB,"glVertexAttrib4NbvARB");
-	CODE:
-	{
-		GLbyte * v_s = EL(v, sizeof(GLbyte)*4);
-		glVertexAttrib4NbvARB(index,v_s);
-	}
-
-void
-glVertexAttrib4NbvARB_p(index,x,y,z,w)
-	GLuint index
-	GLbyte	x
-	GLbyte	y
-	GLbyte	z
-	GLbyte	w
-	INIT:
-		loadProc(glVertexAttrib4NbvARB,"glVertexAttrib4NbvARB");
-	CODE:
-	{
-		GLbyte param[4];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		param[3] = w;
-		glVertexAttrib4NbvARB(index,param);
-	}
-
-void
-glVertexAttrib4NivARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib4NivARB,"glVertexAttrib4NivARB");
-	CODE:
-		glVertexAttrib4NivARB(index,(GLint*)v);
-
-void
-glVertexAttrib4NivARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib4NivARB,"glVertexAttrib4NivARB");
-	CODE:
-	{
-		GLint * v_s = EL(v, sizeof(GLint)*4);
-		glVertexAttrib4NivARB(index,v_s);
-	}
-
-void
-glVertexAttrib4NivARB_p(index,x,y,z,w)
-	GLuint index
-	GLint	x
-	GLint	y
-	GLint	z
-	GLint	w
-	INIT:
-		loadProc(glVertexAttrib4NivARB,"glVertexAttrib4NivARB");
-	CODE:
-	{
-		GLint param[4];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		param[3] = w;
-		glVertexAttrib4NivARB(index,param);
-	}
-
-void
-glVertexAttrib4NsvARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib4NsvARB,"glVertexAttrib4NsvARB");
-	CODE:
-		glVertexAttrib4NsvARB(index,(GLshort*)v);
-
-void
-glVertexAttrib4NsvARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib4NsvARB,"glVertexAttrib4NsvARB");
-	CODE:
-	{
-		GLshort * v_s = EL(v, sizeof(GLshort)*4);
-		glVertexAttrib4NsvARB(index,v_s);
-	}
-
-void
-glVertexAttrib4NsvARB_p(index,x,y,z,w)
-	GLuint index
-	GLshort	x
-	GLshort	y
-	GLshort	z
-	GLshort	w
-	INIT:
-		loadProc(glVertexAttrib4NsvARB,"glVertexAttrib4NsvARB");
-	CODE:
-	{
-		GLshort param[4];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		param[3] = w;
-		glVertexAttrib4NsvARB(index,param);
-	}
-
-void
-glVertexAttrib4NubARB(index,x,y,z,w)
-	GLuint index
-	GLubyte x
-	GLubyte y
-	GLubyte z
-	GLubyte w
-	INIT:
-		loadProc(glVertexAttrib4NubARB,"glVertexAttrib4NubARB");
-
-void
-glVertexAttrib4NubvARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib4NubvARB,"glVertexAttrib4NubvARB");
-	CODE:
-		glVertexAttrib4NubvARB(index,(GLubyte*)v);
-
-void
-glVertexAttrib4NubvARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib4NubvARB,"glVertexAttrib4NubvARB");
-	CODE:
-	{
-		GLubyte * v_s = EL(v, sizeof(GLubyte)*4);
-		glVertexAttrib4NubvARB(index,v_s);
-	}
-
-void
-glVertexAttrib4NubvARB_p(index,x,y,z,w)
-	GLuint index
-	GLubyte	x
-	GLubyte	y
-	GLubyte	z
-	GLubyte	w
-	INIT:
-		loadProc(glVertexAttrib4NubvARB,"glVertexAttrib4NubvARB");
-	CODE:
-	{
-		GLubyte param[4];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		param[3] = w;
-		glVertexAttrib4NubvARB(index,param);
-	}
-
-void
-glVertexAttrib4NuivARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib4NuivARB,"glVertexAttrib4NuivARB");
-	CODE:
-		glVertexAttrib4NuivARB(index,(GLuint*)v);
-
-void
-glVertexAttrib4NuivARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib4NuivARB,"glVertexAttrib4NuivARB");
-	CODE:
-	{
-		GLuint * v_s = EL(v, sizeof(GLuint)*4);
-		glVertexAttrib4NuivARB(index,v_s);
-	}
-
-void
-glVertexAttrib4NuivARB_p(index,x,y,z,w)
-	GLuint index
-	GLuint	x
-	GLuint	y
-	GLuint	z
-	GLuint	w
-	INIT:
-		loadProc(glVertexAttrib4NuivARB,"glVertexAttrib4NuivARB");
-	CODE:
-	{
-		GLuint param[4];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		param[3] = w;
-		glVertexAttrib4NuivARB(index,param);
-	}
-
-void
-glVertexAttrib4NusvARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib4NusvARB,"glVertexAttrib4NusvARB");
-	CODE:
-		glVertexAttrib4NusvARB(index,(GLushort*)v);
-
-void
-glVertexAttrib4NusvARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib4NusvARB,"glVertexAttrib4NusvARB");
-	CODE:
-	{
-		GLushort * v_s = EL(v, sizeof(GLushort)*4);
-		glVertexAttrib4NusvARB(index,v_s);
-	}
-
-void
-glVertexAttrib4NusvARB_p(index,x,y,z,w)
-	GLuint index
-	GLushort	x
-	GLushort	y
-	GLushort	z
-	GLushort	w
-	INIT:
-		loadProc(glVertexAttrib4NusvARB,"glVertexAttrib4NusvARB");
-	CODE:
-	{
-		GLushort param[4];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		param[3] = w;
-		glVertexAttrib4NusvARB(index,param);
-	}
-
-void
-glVertexAttrib4bvARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib4bvARB,"glVertexAttrib4bvARB");
-	CODE:
-		glVertexAttrib4bvARB(index,(GLbyte*)v);
-
-void
-glVertexAttrib4bvARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib4bvARB,"glVertexAttrib4bvARB");
-	CODE:
-	{
-		GLbyte * v_s = EL(v, sizeof(GLbyte)*4);
-		glVertexAttrib4bvARB(index,v_s);
-	}
-
-void
-glVertexAttrib4bvARB_p(index,x,y,z,w)
-	GLuint index
-	GLbyte	x
-	GLbyte	y
-	GLbyte	z
-	GLbyte	w
-	INIT:
-		loadProc(glVertexAttrib4bvARB,"glVertexAttrib4bvARB");
-	CODE:
-	{
-		GLbyte param[4];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		param[3] = w;
-		glVertexAttrib4bvARB(index,param);
-	}
-
-void
-glVertexAttrib4dARB(index,x,y,z,w)
-	GLuint index
-	GLdouble x
-	GLdouble y
-	GLdouble z
-	GLdouble w
-	INIT:
-		loadProc(glVertexAttrib4dARB,"glVertexAttrib4dARB");
-
-void
-glVertexAttrib4dvARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib4dvARB,"glVertexAttrib4dvARB");
-	CODE:
-		glVertexAttrib4dvARB(index,(GLdouble*)v);
-
-void
-glVertexAttrib4dvARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib4dvARB,"glVertexAttrib4dvARB");
-	CODE:
-	{
-		GLdouble * v_s = EL(v, sizeof(GLdouble)*4);
-		glVertexAttrib4dvARB(index,v_s);
-	}
-
-void
-glVertexAttrib4dvARB_p(index,x,y,z,w)
-	GLuint index
-	GLdouble	x
-	GLdouble	y
-	GLdouble	z
-	GLdouble	w
-	INIT:
-		loadProc(glVertexAttrib4dvARB,"glVertexAttrib4dvARB");
-	CODE:
-	{
-		GLdouble param[4];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		param[3] = w;
-		glVertexAttrib4dvARB(index,param);
-	}
-
-void
-glVertexAttrib4fARB(index,x,y,z,w)
-	GLuint index
-	GLfloat x
-	GLfloat y
-	GLfloat z
-	GLfloat w
-	INIT:
-		loadProc(glVertexAttrib4fARB,"glVertexAttrib4fARB");
-
-void
-glVertexAttrib4fvARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib4fvARB,"glVertexAttrib4fvARB");
-	CODE:
-		glVertexAttrib4fvARB(index,(GLfloat*)v);
-
-void
-glVertexAttrib4fvARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib4fvARB,"glVertexAttrib4fvARB");
-	CODE:
-	{
-		GLfloat * v_s = EL(v, sizeof(GLfloat)*4);
-		glVertexAttrib4fvARB(index,v_s);
-	}
-
-void
-glVertexAttrib4fvARB_p(index,x,y,z,w)
-	GLuint index
-	GLfloat	x
-	GLfloat	y
-	GLfloat	z
-	GLfloat	w
-	INIT:
-		loadProc(glVertexAttrib4fvARB,"glVertexAttrib4fvARB");
-	CODE:
-	{
-		GLfloat param[4];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		param[3] = w;
-		glVertexAttrib4fvARB(index,param);
-	}
-
-void
-glVertexAttrib4ivARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib4ivARB,"glVertexAttrib4ivARB");
-	CODE:
-		glVertexAttrib4ivARB(index,(GLint*)v);
-
-void
-glVertexAttrib4ivARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib4ivARB,"glVertexAttrib4ivARB");
-	CODE:
-	{
-		GLint * v_s = EL(v, sizeof(GLint)*4);
-		glVertexAttrib4ivARB(index,v_s);
-	}
-
-void
-glVertexAttrib4ivARB_p(index,x,y,z,w)
-	GLuint index
-	GLint	x
-	GLint	y
-	GLint	z
-	GLint	w
-	INIT:
-		loadProc(glVertexAttrib4ivARB,"glVertexAttrib4ivARB");
-	CODE:
-	{
-		GLint param[4];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		param[3] = w;
-		glVertexAttrib4ivARB(index,param);
-	}
-
-void
-glVertexAttrib4sARB(index,x,y,z,w)
-	GLuint index
-	GLshort x
-	GLshort y
-	GLshort z
-	GLshort w
-	INIT:
-		loadProc(glVertexAttrib4sARB,"glVertexAttrib4sARB");
-
-void
-glVertexAttrib4svARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib4svARB,"glVertexAttrib4svARB");
-	CODE:
-		glVertexAttrib4svARB(index,(GLshort*)v);
-
-void
-glVertexAttrib4svARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib4svARB,"glVertexAttrib4svARB");
-	CODE:
-	{
-		GLshort * v_s = EL(v, sizeof(GLshort)*4);
-		glVertexAttrib4svARB(index,v_s);
-	}
-
-void
-glVertexAttrib4svARB_p(index,x,y,z,w)
-	GLuint index
-	GLshort	x
-	GLshort	y
-	GLshort	z
-	GLshort	w
-	INIT:
-		loadProc(glVertexAttrib4svARB,"glVertexAttrib4svARB");
-	CODE:
-	{
-		GLshort param[4];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		param[3] = w;
-		glVertexAttrib4svARB(index,param);
-	}
-
-void
-glVertexAttrib4ubvARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib4ubvARB,"glVertexAttrib4ubvARB");
-	CODE:
-		glVertexAttrib4ubvARB(index,(GLubyte*)v);
-
-void
-glVertexAttrib4ubvARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib4ubvARB,"glVertexAttrib4ubvARB");
-	CODE:
-	{
-		GLubyte * v_s = EL(v, sizeof(GLubyte)*4);
-		glVertexAttrib4ubvARB(index,v_s);
-	}
-
-void
-glVertexAttrib4ubvARB_p(index,x,y,z,w)
-	GLuint index
-	GLubyte	x
-	GLubyte	y
-	GLubyte	z
-	GLubyte	w
-	INIT:
-		loadProc(glVertexAttrib4ubvARB,"glVertexAttrib4ubvARB");
-	CODE:
-	{
-		GLubyte param[4];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		param[3] = w;
-		glVertexAttrib4ubvARB(index,param);
-	}
-
-void
-glVertexAttrib4uivARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib4uivARB,"glVertexAttrib4uivARB");
-	CODE:
-		glVertexAttrib4uivARB(index,(GLuint*)v);
-
-void
-glVertexAttrib4uivARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib4uivARB,"glVertexAttrib4uivARB");
-	CODE:
-	{
-		GLuint * v_s = EL(v, sizeof(GLuint)*4);
-		glVertexAttrib4uivARB(index,v_s);
-	}
-
-void
-glVertexAttrib4uivARB_p(index,x,y,z,w)
-	GLuint index
-	GLuint	x
-	GLuint	y
-	GLuint	z
-	GLuint	w
-	INIT:
-		loadProc(glVertexAttrib4uivARB,"glVertexAttrib4uivARB");
-	CODE:
-	{
-		GLuint param[4];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		param[3] = w;
-		glVertexAttrib4uivARB(index,param);
-	}
-
-void
-glVertexAttrib4usvARB_c(index,v)
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glVertexAttrib4usvARB,"glVertexAttrib4usvARB");
-	CODE:
-		glVertexAttrib4usvARB(index,(GLushort*)v);
-
-void
-glVertexAttrib4usvARB_s(index,v)
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glVertexAttrib4usvARB,"glVertexAttrib4usvARB");
-	CODE:
-	{
-		GLushort * v_s = EL(v, sizeof(GLushort)*4);
-		glVertexAttrib4usvARB(index,v_s);
-	}
-
-void
-glVertexAttrib4usvARB_p(index,x,y,z,w)
-	GLuint index
-	GLushort	x
-	GLushort	y
-	GLushort	z
-	GLushort	w
-	INIT:
-		loadProc(glVertexAttrib4usvARB,"glVertexAttrib4usvARB");
-	CODE:
-	{
-		GLushort param[4];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		param[3] = w;
-		glVertexAttrib4usvARB(index,param);
-	}
-
-void
-glVertexAttribPointerARB_c(index,size,type,normalized,stride,pointer)
-	GLuint index
-	GLint size
-	GLenum type
-	GLboolean normalized
-	GLsizei stride
-	void * pointer
-	INIT:
-		loadProc(glVertexAttribPointerARB,"glVertexAttribPointerARB");
-	CODE:
-		glVertexAttribPointerARB(index,size,type,
-			normalized,stride,pointer);
-
-void
-glVertexAttribPointerARB_p(index,type,normalized,stride,...)
-	GLuint index
-	GLenum type
-	GLboolean normalized
-	GLsizei stride
-	INIT:
-		loadProc(glVertexAttribPointerARB,"glVertexAttribPointerARB");
-	CODE:
-	{
-		GLuint count = items - 4;
-		GLuint size = gl_type_size(type);
-		void * pointer = malloc(count * size);
-
-		SvItems(type,4,count,pointer);
-
-		glVertexAttribPointerARB(index,count,type,
-			normalized,stride,pointer);
-
-		free(pointer);
-	}
-
-void
-glEnableVertexAttribArrayARB(index)
-	GLuint index
-	INIT:
-		loadProc(glEnableVertexAttribArrayARB,"glEnableVertexAttribArrayARB");
-
-void
-glDisableVertexAttribArrayARB(index)
-	GLuint index
-	INIT:
-		loadProc(glDisableVertexAttribArrayARB,"glDisableVertexAttribArrayARB");
-
-void
-glProgramStringARB_c(target,format,len,string)
-	GLenum target
-	GLenum format
-	GLsizei len
-	void * string
-	INIT:
-		loadProc(glProgramStringARB,"glProgramStringARB");
-	CODE:
-		glProgramStringARB(target,format,len,string);
-
-void
-glProgramStringARB_s(target,format,len,string)
-	GLenum target
-	GLenum format
-	GLsizei len
-	SV *	string
-	INIT:
-		loadProc(glProgramStringARB,"glProgramStringARB");
-	CODE:
-	{
-		GLvoid * string_s = EL(string, len);
-		glProgramStringARB(target,format,len,string_s);
-	}
-
-void
-glProgramStringARB_p(target,string)
-	GLenum target
-	char * string
-	INIT:
-		loadProc(glProgramStringARB,"glProgramStringARB");
-	CODE:
-	{
-		int len = strlen(string);
-		glProgramStringARB(target,GL_PROGRAM_FORMAT_ASCII_ARB,len,string);
-	}
-
-void
-glBindProgramARB(target,program)
-	GLenum target
-	GLuint program
-	INIT:
-		loadProc(glBindProgramARB,"glBindProgramARB");
-
-void
-glDeleteProgramsARB_c(n,programs)
-	GLsizei n
-	void *	programs
-	INIT:
-		loadProc(glDeleteProgramsARB,"glDeleteProgramsARB");
-	CODE:
-	{
-		glDeleteProgramsARB(n,(GLuint*)programs);
-	}
-
-void
-glDeleteProgramsARB_s(n,programs)
-	GLsizei n
-	SV *	programs
-	INIT:
-		loadProc(glDeleteProgramsARB,"glDeleteProgramsARB");
-	CODE:
-	{
-		GLuint * programs_s = EL(programs, sizeof(GLuint)*n);
-		glDeleteProgramsARB(n,programs_s);
-	}
-
-void
-glDeleteProgramsARB_p(...)
-	INIT:
-		loadProc(glDeleteProgramsARB,"glDeleteProgramsARB");
-	CODE:
-	{
-		if (items) {
-			GLuint * list = malloc(sizeof(GLuint) * items);
-			int i;
-
-			for (i=0;i<items;i++)
-				list[i] = SvIV(ST(i));
-
-			glDeleteProgramsARB(items, list);
-			free(list);
-		}
-	}
-
-void
-glGenProgramsARB_c(n,programs)
-	GLsizei n
-	void *	programs
-	INIT:
-		loadProc(glGenProgramsARB,"glGenProgramsARB");
-	CODE:
-	{
-		glGenProgramsARB(n,(GLuint*)programs);
-	}
-
-void
-glGenProgramsARB_s(n,programs)
-	GLsizei n
-	SV *	programs
-	INIT:
-		loadProc(glGenProgramsARB,"glGenProgramsARB");
-	CODE:
-	{
-		GLuint * programs_s = EL(programs, sizeof(GLuint)*n);
-		glGenProgramsARB(n, programs_s);
-	}
-
-void
-glGenProgramsARB_p(n)
-	GLsizei n
-	INIT:
-		loadProc(glGenProgramsARB,"glGenProgramsARB");
-	PPCODE:
-	if (n)
-	{
-		GLuint * programs = malloc(sizeof(GLuint) * n);
-		int i;
-
-		glGenProgramsARB(n, programs);
-
-		EXTEND(sp, n);
-		for(i=0;i<n;i++)
-			PUSHs(sv_2mortal(newSViv(programs[i])));
-
-		free(programs);
-	} 
-
-void
-glProgramEnvParameter4dARB(target,index,x,y,z,w)
-	GLenum target
-	GLuint index
-	GLdouble x
-	GLdouble y
-	GLdouble z
-	GLdouble w
-	INIT:
-		loadProc(glProgramEnvParameter4dARB,"glProgramEnvParameter4dARB");
-
-void
-glProgramEnvParameter4dvARB_c(target,index,v)
-	GLenum target
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glProgramEnvParameter4dvARB,"glProgramEnvParameter4dvARB");
-	CODE:
-		glProgramEnvParameter4dvARB(target,index,(GLdouble*)v);
-
-void
-glProgramEnvParameter4dvARB_s(target,index,v)
-	GLenum target
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glProgramEnvParameter4dvARB,"glProgramEnvParameter4dvARB");
-	CODE:
-	{
-		GLdouble * v_s = EL(v, sizeof(GLdouble)*4);
-		glProgramEnvParameter4dvARB(target,index,v_s);
-	}
-
-void
-glProgramEnvParameter4dvARB_p(target,index,x,y,z,w)
-	GLenum target
-	GLuint index
-	GLdouble	x
-	GLdouble	y
-	GLdouble	z
-	GLdouble	w
-	INIT:
-		loadProc(glProgramEnvParameter4dvARB,"glProgramEnvParameter4dvARB");
-	CODE:
-	{
-		GLdouble param[4];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		param[3] = w;
-		glProgramEnvParameter4dvARB(target,index,param);
-	}
-
-void
-glProgramEnvParameter4fARB(target,index,x,y,z,w)
-	GLenum target
-	GLuint index
-	GLfloat x
-	GLfloat y
-	GLfloat z
-	GLfloat w
-	INIT:
-		loadProc(glProgramEnvParameter4fARB,"glProgramEnvParameter4fARB");
-
-void
-glProgramEnvParameter4fvARB_c(target,index,v)
-	GLenum target
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glProgramEnvParameter4fvARB,"glProgramEnvParameter4fvARB");
-	CODE:
-		glProgramEnvParameter4fvARB(target,index,(GLfloat*)v);
-
-void
-glProgramEnvParameter4fvARB_s(target,index,v)
-	GLenum target
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glProgramEnvParameter4fvARB,"glProgramEnvParameter4fvARB");
-	CODE:
-	{
-		GLfloat * v_s = EL(v, sizeof(GLfloat)*4);
-		glProgramEnvParameter4fvARB(target,index,v_s);
-	}
-
-void
-glProgramEnvParameter4fvARB_p(target,index,x,y,z,w)
-	GLenum target
-	GLuint index
-	GLfloat	x
-	GLfloat	y
-	GLfloat	z
-	GLfloat	w
-	INIT:
-		loadProc(glProgramEnvParameter4fvARB,"glProgramEnvParameter4fvARB");
-	CODE:
-	{
-		GLfloat param[4];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		param[3] = w;
-		glProgramEnvParameter4fvARB(target,index,param);
-	}
-
-void
-glProgramLocalParameter4dARB(target,index,x,y,z,w)
-	GLenum target
-	GLuint index
-	GLdouble x
-	GLdouble y
-	GLdouble z
-	GLdouble w
-	INIT:
-		loadProc(glProgramLocalParameter4dARB,"glProgramLocalParameter4dARB");
-
-void
-glProgramLocalParameter4dvARB_c(target,index,v)
-	GLenum target
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glProgramLocalParameter4dvARB,"glProgramLocalParameter4dvARB");
-	CODE:
-		glProgramLocalParameter4dvARB(target,index,(GLdouble*)v);
-
-void
-glProgramLocalParameter4dvARB_s(target,index,v)
-	GLenum target
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glProgramLocalParameter4dvARB,"glProgramLocalParameter4dvARB");
-	CODE:
-	{
-		GLdouble * v_s = EL(v, sizeof(GLdouble)*4);
-		glProgramLocalParameter4dvARB(target,index,v_s);
-	}
-
-void
-glProgramLocalParameter4dvARB_p(target,index,x,y,z,w)
-	GLenum target
-	GLuint index
-	GLdouble	x
-	GLdouble	y
-	GLdouble	z
-	GLdouble	w
-	INIT:
-		loadProc(glProgramLocalParameter4dvARB,"glProgramLocalParameter4dvARB");
-	CODE:
-	{
-		GLdouble param[4];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		param[3] = w;
-		glProgramLocalParameter4dvARB(target,index,param);
-	}
-
-void
-glProgramLocalParameter4fARB(target,index,x,y,z,w)
-	GLenum target
-	GLuint index
-	GLfloat x
-	GLfloat y
-	GLfloat z
-	GLfloat w
-	INIT:
-		loadProc(glProgramLocalParameter4fARB,"glProgramLocalParameter4fARB");
-
-void
-glProgramLocalParameter4fvARB_c(target,index,v)
-	GLenum target
-	GLuint index
-	void *	v
-	INIT:
-		loadProc(glProgramLocalParameter4fvARB,"glProgramLocalParameter4fvARB");
-	CODE:
-		glProgramLocalParameter4fvARB(target,index,(GLfloat*)v);
-
-void
-glProgramLocalParameter4fvARB_s(target,index,v)
-	GLenum target
-	GLuint index
-	SV *	v
-	INIT:
-		loadProc(glProgramLocalParameter4fvARB,"glProgramLocalParameter4fvARB");
-	CODE:
-	{
-		GLfloat * v_s = EL(v, sizeof(GLfloat)*4);
-		glProgramLocalParameter4fvARB(target,index,v_s);
-	}
-
-void
-glProgramLocalParameter4fvARB_p(target,index,x,y,z,w)
-	GLenum target
-	GLuint index
-	GLfloat	x
-	GLfloat	y
-	GLfloat	z
-	GLfloat	w
-	INIT:
-		loadProc(glProgramLocalParameter4fvARB,"glProgramLocalParameter4fvARB");
-	CODE:
-	{
-		GLfloat param[4];
-		param[0] = x;
-		param[1] = y;
-		param[2] = z;
-		param[3] = w;
-		glProgramLocalParameter4fvARB(target,index,param);
-	}
-
-void
-glGetProgramEnvParameterdvARB_c(target,index,params)
-	GLenum	target
-	GLint	index
-	void *	params
-	INIT:
-		loadProc(glGetProgramEnvParameterdvARB,"glGetProgramEnvParameterdvARB");
-	CODE:
-		glGetProgramEnvParameterdvARB(target,index,(GLdouble*)params);
-
-void
-glGetProgramEnvParameterdvARB_s(target,index,params)
-	GLenum	target
-	GLint	index
-	SV *	params
-	INIT:
-		loadProc(glGetProgramEnvParameterdvARB,"glGetProgramEnvParameterdvARB");
-	CODE:
-	{
-		GLdouble * params_s = EL(params, sizeof(GLdouble) * 4);
-		glGetProgramEnvParameterdvARB(target,index,params_s);
-	}
-
-void
-glGetProgramEnvParameterdvARB_p(target,index)
-	GLenum	target
-	GLint	index
-	INIT:
-		loadProc(glGetProgramEnvParameterdvARB,"glGetProgramEnvParameterdvARB");
-	PPCODE:
-	{
-		GLdouble params[4];
-		glGetProgramEnvParameterdvARB(target,index,params);
-
-		EXTEND(sp, 4);
-		PUSHs(sv_2mortal(newSVnv(params[0])));
-		PUSHs(sv_2mortal(newSVnv(params[1])));
-		PUSHs(sv_2mortal(newSVnv(params[2])));
-		PUSHs(sv_2mortal(newSVnv(params[3])));
-	}
-
-void
-glGetProgramEnvParameterfvARB_c(target,index,params)
-	GLenum	target
-	GLint	index
-	void *	params
-	INIT:
-		loadProc(glGetProgramEnvParameterfvARB,"glGetProgramEnvParameterfvARB");
-	CODE:
-		glGetProgramEnvParameterfvARB(target,index,(GLfloat*)params);
-
-void
-glGetProgramEnvParameterfvARB_s(target,index,params)
-	GLenum	target
-	GLint	index
-	SV *	params
-	INIT:
-		loadProc(glGetProgramEnvParameterfvARB,"glGetProgramEnvParameterfvARB");
-	CODE:
-	{
-		GLfloat * params_s = EL(params, sizeof(GLfloat) * 4);
-		glGetProgramEnvParameterfvARB(target,index,params_s);
-	}
-
-void
-glGetProgramEnvParameterfvARB_p(target,index)
-	GLenum	target
-	GLint	index
-	INIT:
-		loadProc(glGetProgramEnvParameterfvARB,"glGetProgramEnvParameterfvARB");
-	PPCODE:
-	{
-		GLfloat params[4];
-		glGetProgramEnvParameterfvARB(target,index,params);
-
-		EXTEND(sp, 4);
-		PUSHs(sv_2mortal(newSVnv(params[0])));
-		PUSHs(sv_2mortal(newSVnv(params[1])));
-		PUSHs(sv_2mortal(newSVnv(params[2])));
-		PUSHs(sv_2mortal(newSVnv(params[3])));
-	}
-
-void
-glGetProgramLocalParameterdvARB_c(target,index,params)
-	GLenum	target
-	GLint	index
-	void *	params
-	INIT:
-		loadProc(glGetProgramLocalParameterdvARB,"glGetProgramLocalParameterdvARB");
-	CODE:
-		glGetProgramLocalParameterdvARB(target,index,(GLdouble*)params);
-
-void
-glGetProgramLocalParameterdvARB_s(target,index,params)
-	GLenum	target
-	GLint	index
-	SV *	params
-	INIT:
-		loadProc(glGetProgramLocalParameterdvARB,"glGetProgramLocalParameterdvARB");
-	CODE:
-	{
-		GLdouble * params_s = EL(params, sizeof(GLdouble) * 4);
-		glGetProgramLocalParameterdvARB(target,index,params_s);
-	}
-
-void
-glGetProgramLocalParameterdvARB_p(target,index)
-	GLenum	target
-	GLint	index
-	INIT:
-		loadProc(glGetProgramLocalParameterdvARB,"glGetProgramLocalParameterdvARB");
-	PPCODE:
-	{
-		GLdouble params[4];
-		glGetProgramLocalParameterdvARB(target,index,params);
-
-		EXTEND(sp, 4);
-		PUSHs(sv_2mortal(newSVnv(params[0])));
-		PUSHs(sv_2mortal(newSVnv(params[1])));
-		PUSHs(sv_2mortal(newSVnv(params[2])));
-		PUSHs(sv_2mortal(newSVnv(params[3])));
-	}
-
-void
-glGetProgramLocalParameterfvARB_c(target,index,params)
-	GLenum	target
-	GLint	index
-	void *	params
-	INIT:
-		loadProc(glGetProgramLocalParameterfvARB,"glGetProgramLocalParameterfvARB");
-	CODE:
-		glGetProgramLocalParameterfvARB(target,index,(GLfloat*)params);
-
-void
-glGetProgramLocalParameterfvARB_s(target,index,params)
-	GLenum	target
-	GLint	index
-	SV *	params
-	INIT:
-		loadProc(glGetProgramLocalParameterfvARB,"glGetProgramLocalParameterfvARB");
-	CODE:
-	{
-		GLfloat * params_s = EL(params, sizeof(GLfloat) * 4);
-		glGetProgramLocalParameterfvARB(target,index,params_s);
-	}
-
-void
-glGetProgramLocalParameterfvARB_p(target,index)
-	GLenum	target
-	GLint	index
-	INIT:
-		loadProc(glGetProgramLocalParameterfvARB,"glGetProgramLocalParameterfvARB");
-	PPCODE:
-	{
-		GLfloat params[4];
-		glGetProgramLocalParameterfvARB(target,index,params);
-
-		EXTEND(sp, 4);
-		PUSHs(sv_2mortal(newSVnv(params[0])));
-		PUSHs(sv_2mortal(newSVnv(params[1])));
-		PUSHs(sv_2mortal(newSVnv(params[2])));
-		PUSHs(sv_2mortal(newSVnv(params[3])));
-	}
-
-void
-glGetProgramivARB_c(target,pname,params)
-	GLenum	target
-	GLenum	pname
-	void *	params
-	INIT:
-		loadProc(glGetProgramivARB,"glGetProgramivARB");
-	CODE:
-		glGetProgramivARB(target,pname,params);
-
-void
-glGetProgramivARB_s(target,pname,params)
-	GLenum	target
-	GLenum	pname
-	SV *	params
-	INIT:
-		loadProc(glGetProgramivARB,"glGetProgramivARB");
-	CODE:
-	{
-		GLint * params_s = EL(params, sizeof(GLint)*gl_get_count(pname));
-		glGetProgramivARB(target,pname,params_s);
-	}
-
-GLuint
-glGetProgramivARB_p(target,pname)
-	GLenum	target
-	GLenum	pname
-	INIT:
-		loadProc(glGetProgramivARB,"glGetProgramivARB");
-	CODE:
-	{
-		GLuint param;
-		glGetProgramivARB(target,pname,(void *)&param);
-		RETVAL = param;
-	}
-	OUTPUT:
-		RETVAL
-
-void
-glGetProgramStringARB_c(target,pname,string)
-	GLenum	target
-	GLenum	pname
-	void *	string
-	INIT:
-		loadProc(glGetProgramStringARB,"glGetProgramStringARB");
-	CODE:
-		glGetProgramStringARB(target,pname,string);
-
-void
-glGetProgramStringARB_s(target,pname,string)
-	GLenum	target
-	GLenum	pname
-	SV *	string
-	INIT:
-		loadProc(glGetProgramivARB,"glGetProgramivARB");
-		loadProc(glGetProgramStringARB,"glGetProgramStringARB");
-	CODE:
-	{
-		GLint len;
-		glGetProgramivARB(target,GL_PROGRAM_LENGTH_ARB,(GLvoid *)&len);
-		if (len)
-		{
-			GLubyte * string_s = EL(string, sizeof(GLubyte)*len);
-			glGetProgramStringARB(target,pname,string_s);
-		}
-	}
-
-SV *
-glGetProgramStringARB_p(target,pname=GL_PROGRAM_STRING_ARB)
-	GLenum	target
-	GLenum	pname
-	INIT:
-		loadProc(glGetProgramivARB,"glGetProgramivARB");
-		loadProc(glGetProgramStringARB,"glGetProgramStringARB");
-	CODE:
-	{
-		GLint len;
-		glGetProgramivARB(target,GL_PROGRAM_LENGTH_ARB,(GLvoid *)&len);
-		if (len)
-		{
-			char * string = malloc(len+1);
-			glGetProgramStringARB(target,pname,(GLubyte*)string);
-			string[len] = 0;
-			if (*string)
-				RETVAL = newSVpv(string, 0);
-			else
-				RETVAL = newSVsv(&PL_sv_undef);
-
-			free(string);
-		}
-		else
-		{
-			RETVAL = newSVsv(&PL_sv_undef);
-		}
-	}
-	OUTPUT:
-		RETVAL
-
-void
-glGetVertexAttribdvARB_c(index,pname,params)
-	GLuint	index
-	GLenum	pname
-	void *	params
-	INIT:
-		loadProc(glGetVertexAttribdvARB,"glGetVertexAttribdvARB");
-	CODE:
-		glGetVertexAttribdvARB(index,pname,(GLdouble*)params);
-
-void
-glGetVertexAttribdvARB_s(index,pname,params)
-	GLuint	index
-	GLenum	pname
-	SV *	params
-	INIT:
-		loadProc(glGetVertexAttribdvARB,"glGetVertexAttribdvARB");
-	CODE:
-	{
-		GLdouble * params_s = EL(params, sizeof(GLdouble) * 4);
-		glGetVertexAttribdvARB(index,pname,params_s);
-	}
-
-GLdouble
-glGetVertexAttribdvARB_p(index,pname)
-	GLuint	index
-	GLenum	pname
-	INIT:
-		loadProc(glGetVertexAttribdvARB,"glGetVertexAttribdvARB");
-	CODE:
-	{
-		GLdouble param;
-		glGetVertexAttribdvARB(index,pname,(void *)&param);
-		RETVAL = param;
-	}
-	OUTPUT:
-		RETVAL
-
-void
-glGetVertexAttribfvARB_c(index,pname,params)
-	GLuint	index
-	GLenum	pname
-	void *	params
-	INIT:
-		loadProc(glGetVertexAttribfvARB,"glGetVertexAttribfvARB");
-	CODE:
-		glGetVertexAttribfvARB(index,pname,(GLfloat*)params);
-
-void
-glGetVertexAttribfvARB_s(index,pname,params)
-	GLuint	index
-	GLenum	pname
-	SV *	params
-	INIT:
-		loadProc(glGetVertexAttribfvARB,"glGetVertexAttribfvARB");
-	CODE:
-	{
-		GLfloat * params_s = EL(params, sizeof(GLfloat) * 4);
-		glGetVertexAttribfvARB(index,pname,params_s);
-	}
-
-GLfloat
-glGetVertexAttribfvARB_p(index,pname)
-	GLuint	index
-	GLenum	pname
-	INIT:
-		loadProc(glGetVertexAttribfvARB,"glGetVertexAttribfvARB");
-	CODE:
-	{
-		GLfloat param;
-		glGetVertexAttribfvARB(index,pname,(void *)&param);
-		RETVAL = param;
-	}
-	OUTPUT:
-		RETVAL
-
-void
-glGetVertexAttribivARB_c(index,pname,params)
-	GLuint	index
-	GLenum	pname
-	void *	params
-	INIT:
-		loadProc(glGetVertexAttribivARB,"glGetVertexAttribivARB");
-	CODE:
-		glGetVertexAttribivARB(index,pname,(GLint*)params);
-
-void
-glGetVertexAttribivARB_s(index,pname,params)
-	GLuint	index
-	GLenum	pname
-	SV *	params
-	INIT:
-		loadProc(glGetVertexAttribivARB,"glGetVertexAttribivARB");
-	CODE:
-	{
-		GLint * params_s = EL(params, sizeof(GLint) * 4);
-		glGetVertexAttribivARB(index,pname,params_s);
-	}
-
-GLuint
-glGetVertexAttribivARB_p(index,pname)
-	GLuint	index
-	GLenum	pname
-	INIT:
-		loadProc(glGetVertexAttribivARB,"glGetVertexAttribivARB");
-	CODE:
-	{
-		GLuint param;
-		glGetVertexAttribivARB(index,pname,(void *)&param);
-		RETVAL = param;
-	}
-	OUTPUT:
-		RETVAL
-
-void
-glGetVertexAttribPointervARB_c(index,pname,pointer)
-	GLuint	index
-	GLenum	pname
-	void *	pointer
-	INIT:
-		loadProc(glGetVertexAttribPointervARB,"glGetVertexAttribPointervARB");
-	CODE:
-		glGetVertexAttribPointervARB(index,pname,pointer);
-
-void
-glGetVertexAttribPointervARB_p(index,pname)
-	GLuint	index
-	GLenum	pname
-	INIT:
-		loadProc(glGetVertexAttribPointervARB,"glGetVertexAttribPointervARB");
-		loadProc(glGetVertexAttribivARB,"glGetVertexAttribivARB");
-	PPCODE:
-	{
-		void * pointer;
-		GLuint i,count,type;
-
-		glGetVertexAttribPointervARB(index,pname,&pointer);
-
-		glGetVertexAttribivARB(index,GL_VERTEX_ATTRIB_ARRAY_SIZE_ARB,(void *)&count);
-		glGetVertexAttribivARB(index,GL_VERTEX_ATTRIB_ARRAY_TYPE_ARB,(void *)&type);
-
-		EXTEND(sp, count);
-
-		switch (type)
-		{
-#ifdef GL_VERSION_1_2
-			case GL_UNSIGNED_BYTE_3_3_2:
-			case GL_UNSIGNED_BYTE_2_3_3_REV:
-				for (i=0;i<count;i++)
-				{
-				  PUSHs(sv_2mortal(newSViv(((GLubyte*)pointer)[i])));
-				}
-				break;
-			case GL_UNSIGNED_SHORT_5_6_5:
-			case GL_UNSIGNED_SHORT_5_6_5_REV:
-			case GL_UNSIGNED_SHORT_4_4_4_4:
-			case GL_UNSIGNED_SHORT_4_4_4_4_REV:
-			case GL_UNSIGNED_SHORT_5_5_5_1:
-			case GL_UNSIGNED_SHORT_1_5_5_5_REV:
-				for (i=0;i<count;i++)
-				{
-				  PUSHs(sv_2mortal(newSViv(((GLushort*)pointer)[i])));
-				}
-				break;
-			case GL_UNSIGNED_INT_8_8_8_8:
-			case GL_UNSIGNED_INT_8_8_8_8_REV:
-			case GL_UNSIGNED_INT_10_10_10_2:
-			case GL_UNSIGNED_INT_2_10_10_10_REV:
-				for (i=0;i<count;i++)
-				{
-				  PUSHs(sv_2mortal(newSViv(((GLuint*)pointer)[i])));
-				}
-				break;
-#endif
-			case GL_UNSIGNED_BYTE:
-			case GL_BITMAP:
-				for (i=0;i<count;i++)
-				{
-				  PUSHs(sv_2mortal(newSViv(((GLubyte*)pointer)[i])));
-				}
-				break;
-			case GL_BYTE:
-				for (i=0;i<count;i++)
-				{
-				  PUSHs(sv_2mortal(newSViv(((GLbyte*)pointer)[i])));
-				}
-				break;
-			case GL_UNSIGNED_SHORT:
-				for (i=0;i<count;i++)
-				{
-				  PUSHs(sv_2mortal(newSViv(((GLushort*)pointer)[i])));
-				}
-				break;
-			case GL_SHORT:
-				for (i=0;i<count;i++)
-				{
-				  PUSHs(sv_2mortal(newSViv(((GLushort*)pointer)[i])));
-				}
-				break;
-			case GL_UNSIGNED_INT:
-				for (i=0;i<count;i++)
-				{
-				  PUSHs(sv_2mortal(newSViv(((GLuint*)pointer)[i])));
-				}
-				break;
-			case GL_INT:
-				for (i=0;i<count;i++)
-				{
-				  PUSHs(sv_2mortal(newSViv(((GLint*)pointer)[i])));
-				}
-				break;
-			case GL_FLOAT: 
-				for (i=0;i<count;i++)
-				{
-				  PUSHs(sv_2mortal(newSVnv(((GLfloat*)pointer)[i])));
-				}
-				break;
-			case GL_DOUBLE: 
-				for (i=0;i<count;i++)
-				{
-				  PUSHs(sv_2mortal(newSVnv(((GLdouble*)pointer)[i])));
-				}
-				break;
-			default:
-				croak("unknown type");
-		}
-	}
-
-GLboolean
-glIsProgramARB(program)
-	GLuint	program
-	INIT:
-		loadProc(glIsProgramARB,"glIsProgramARB");
-	CODE:
-	{
-		RETVAL = glIsProgramARB(program);
-	}
-	OUTPUT:
-		RETVAL
 
 #endif
 
@@ -11513,6 +10115,3080 @@ glMultiTexCoord4svARB_p(target,s,t,r,q)
 
 
 
+#ifdef GL_ARB_shader_objects
+
+void
+glDeleteObjectARB(obj)
+	GLhandleARB	obj
+	INIT:
+		loadProc(glDeleteObjectARB,"glDeleteObjectARB");
+	CODE:
+	{
+		glDeleteObjectARB(obj);
+	}
+
+GLhandleARB
+glGetHandleARB(pname)
+	GLenum	pname
+	INIT:
+		loadProc(glGetHandleARB,"glGetHandleARB");
+	CODE:
+	{
+		RETVAL = glGetHandleARB(pname);
+	}
+	OUTPUT:
+		RETVAL
+
+void
+glDetachObjectARB(containerObj, attachedObj)
+	GLhandleARB containerObj
+	GLhandleARB attachedObj
+	INIT:
+		loadProc(glDetachObjectARB,"glDetachObjectARB");
+	CODE:
+	{
+		glDetachObjectARB(containerObj, attachedObj);
+	}
+
+GLhandleARB
+glCreateShaderObjectARB(shaderType)
+	GLenum shaderType
+	INIT:
+		loadProc(glCreateShaderObjectARB,"glCreateShaderObjectARB");
+	CODE:
+	{
+		RETVAL = glCreateShaderObjectARB(shaderType);
+	}
+	OUTPUT:
+		RETVAL
+
+void
+glShaderSourceARB_c(shaderObj, count, string, length)
+	GLhandleARB shaderObj
+	GLsizei count
+	void	*string
+	void	*length
+	INIT:
+		loadProc(glShaderSourceARB,"glShaderSourceARB");
+	CODE:
+	{
+		glShaderSourceARB(shaderObj, count, string, length);
+	}
+
+void
+glShaderSourceARB_p(shaderObj, ...)
+	GLhandleARB shaderObj
+	INIT:
+		loadProc(glShaderSourceARB,"glShaderSourceARB");
+	CODE:
+	{
+		int i;
+		int count = items - 1;
+		GLcharARB **string = malloc(sizeof(GLcharARB *) * count);
+		GLint *length = malloc(sizeof(GLint) * count);
+
+		for(i=0;i<count;i++) {
+			string[i] = (GLcharARB *)SvPV(ST(i+1),PL_na);
+			length[i] = strlen(string[i]);
+		}
+
+		glShaderSourceARB(shaderObj, count, (const GLcharARB**)string,
+			(const GLint *)length);
+
+		free(length);
+                free(string);
+	}
+
+void
+glCompileShaderARB(shaderObj)
+	GLhandleARB shaderObj
+	INIT:
+		loadProc(glCompileShaderARB,"glCompileShaderARB");
+	CODE:
+	{
+		glCompileShaderARB(shaderObj);
+	}
+
+GLhandleARB
+glCreateProgramObjectARB()
+	INIT:
+		loadProc(glCreateProgramObjectARB,"glCreateProgramObjectARB");
+	CODE:
+	{
+		RETVAL = glCreateProgramObjectARB();
+	}
+	OUTPUT:
+		RETVAL
+
+void
+glAttachObjectARB(containerObj, obj)
+	GLhandleARB containerObj
+	GLhandleARB obj
+	INIT:
+		loadProc(glAttachObjectARB,"glAttachObjectARB");
+	CODE:
+	{
+		glAttachObjectARB(containerObj, obj);
+	}
+
+void
+glLinkProgramARB(programObj)
+	GLhandleARB programObj
+	INIT:
+		loadProc(glLinkProgramARB,"glLinkProgramARB");
+	CODE:
+	{
+		glLinkProgramARB(programObj);
+	}
+
+void
+glUseProgramObjectARB(programObj)
+	GLhandleARB programObj
+	INIT:
+		loadProc(glUseProgramObjectARB,"glUseProgramObjectARB");
+	CODE:
+	{
+		glUseProgramObjectARB(programObj);
+	}
+
+void
+glValidateProgramARB(programObj)
+	GLhandleARB programObj
+	INIT:
+		loadProc(glValidateProgramARB,"glValidateProgramARB");
+	CODE:
+	{
+		glValidateProgramARB(programObj);
+	}
+
+void
+glUniform1fARB(location, v0)
+	GLint location
+	GLfloat v0
+	INIT:
+		loadProc(glUniform1fARB,"glUniform1fARB");
+	CODE:
+	{
+		glUniform1fARB(location, v0);
+	}
+
+void
+glUniform2fARB(location, v0, v1)
+	GLint location
+	GLfloat v0
+	GLfloat v1
+	INIT:
+		loadProc(glUniform2fARB,"glUniform2fARB");
+	CODE:
+	{
+		glUniform2fARB(location, v0, v1);
+	}
+
+void
+glUniform3fARB(location, v0, v1, v2)
+	GLint location
+	GLfloat v0
+	GLfloat v1
+	GLfloat v2
+	INIT:
+		loadProc(glUniform3fARB,"glUniform3fARB");
+	CODE:
+	{
+		glUniform3fARB(location, v0, v1, v2);
+	}
+
+void
+glUniform4fARB(location, v0, v1, v2, v3)
+	GLint location
+	GLfloat v0
+	GLfloat v1
+	GLfloat v2
+	GLfloat v3
+	INIT:
+		loadProc(glUniform4fARB,"glUniform4fARB");
+	CODE:
+	{
+		glUniform4fARB(location, v0, v1, v2, v3);
+	}
+
+void
+glUniform1iARB(location, v0)
+	GLint location
+	GLint v0
+	INIT:
+		loadProc(glUniform1iARB,"glUniform1iARB");
+	CODE:
+	{
+		glUniform1iARB(location, v0);
+	}
+
+void
+glUniform2iARB(location, v0, v1)
+	GLint location
+	GLint v0
+	GLint v1
+	INIT:
+		loadProc(glUniform2iARB,"glUniform2iARB");
+	CODE:
+	{
+		glUniform2iARB(location, v0, v1);
+	}
+
+void
+glUniform3iARB(location, v0, v1, v2)
+	GLint location
+	GLint v0
+	GLint v1
+	GLint v2
+	INIT:
+		loadProc(glUniform3iARB,"glUniform3iARB");
+	CODE:
+	{
+		glUniform3iARB(location, v0, v1, v2);
+	}
+
+void
+glUniform4iARB(location, v0, v1, v2, v3)
+	GLint location
+	GLint v0
+	GLint v1
+	GLint v2
+	GLint v3
+	INIT:
+		loadProc(glUniform4iARB,"glUniform4iARB");
+	CODE:
+	{
+		glUniform4iARB(location, v0, v1, v2, v3);
+	}
+
+void
+glUniform1fvARB_c(location, count, value)
+	GLint	location
+	GLsizei	count
+	void	*value
+	INIT:
+		loadProc(glUniform1fvARB,"glUniform1fvARB");
+	CODE:
+		glUniform1fvARB(location, count, value);
+
+void
+glUniform1fvARB_s(location, count, value)
+	GLint	location
+	GLsizei count
+	SV	*value
+	INIT:
+		loadProc(glUniform1fvARB,"glUniform1fvARB");
+	CODE:
+	{
+		GLfloat * value_s = EL(value, sizeof(GLfloat));
+		glUniform1fvARB(location, count, value_s);
+	}
+
+void
+glUniform1fvARB_p(location, ...)
+	GLint location
+	INIT:
+		loadProc(glUniform1fvARB,"glUniform1fvARB");
+	CODE:
+	{
+		int i;
+		GLsizei count = items - 1;
+		GLfloat *value = malloc(sizeof(GLfloat) * count);
+
+		for(i=0;i<count;i++) {
+			value[i] = SvNV(ST(i+1));
+		}
+
+		glUniform1fvARB(location, count, value);
+
+		free(value);
+	}
+
+void
+glUniform2fvARB_c(location, count, value)
+	GLint	location
+	GLsizei	count
+	void	*value
+	INIT:
+		loadProc(glUniform2fvARB,"glUniform2fvARB");
+	CODE:
+		glUniform2fvARB(location, count, value);
+
+void
+glUniform2fvARB_s(location, count, value)
+	GLint	location
+	GLsizei	count
+	SV	*value
+	INIT:
+		loadProc(glUniform2fvARB,"glUniform2fvARB");
+	CODE:
+	{
+		GLfloat * value_s = EL(value, sizeof(GLfloat));
+		glUniform2fvARB(location, count, value_s);
+	}
+
+void
+glUniform2fvARB_p(location, ...)
+	GLint location
+	INIT:
+		loadProc(glUniform2fvARB,"glUniform2fvARB");
+	CODE:
+	{
+		int i;
+		GLsizei elements = items - 1;
+		GLsizei count = elements >> 1;
+		GLfloat *value = malloc(sizeof(GLfloat) * elements);
+
+		for(i=0;i<elements;i++) {
+			value[i] = SvNV(ST(i+1));
+		}
+
+		glUniform2fvARB(location, count, value);
+
+		free(value);
+	}
+
+void
+glUniform3fvARB_c(location, count, value)
+	GLint	location
+	GLsizei	count
+	void	*value
+	INIT:
+		loadProc(glUniform3fvARB,"glUniform3fvARB");
+	CODE:
+		glUniform3fvARB(location, count, value);
+
+void
+glUniform3fvARB_s(location, count, value)
+	GLint	location
+	GLsizei	count
+	SV	*value
+	INIT:
+		loadProc(glUniform3fvARB,"glUniform3fvARB");
+	CODE:
+	{
+		GLfloat * value_s = EL(value, sizeof(GLfloat));
+		glUniform3fvARB(location, count, value_s);
+	}
+
+void
+glUniform3fvARB_p(location, ...)
+	GLint location
+	INIT:
+		loadProc(glUniform3fvARB,"glUniform3fvARB");
+	CODE:
+	{
+		int i;
+		GLsizei elements = items - 1;
+		GLsizei count = elements / 3;
+		GLfloat *value = malloc(sizeof(GLfloat) * elements);
+
+		for(i=0;i<elements;i++) {
+			value[i] = SvNV(ST(i+1));
+		}
+
+		glUniform3fvARB(location, count, value);
+
+		free(value);
+	}
+
+void
+glUniform4fvARB_c(location, count, value)
+	GLint	location
+	GLsizei	count
+	void	*value
+	INIT:
+		loadProc(glUniform4fvARB,"glUniform4fvARB");
+	CODE:
+		glUniform4fvARB(location, count, value);
+
+void
+glUniform4fvARB_s(location, count, value)
+	GLint	location
+	GLsizei	count
+	SV	*value
+	INIT:
+		loadProc(glUniform4fvARB,"glUniform4fvARB");
+	CODE:
+	{
+		GLfloat * value_s = EL(value, sizeof(GLfloat));
+		glUniform4fvARB(location, count, value_s);
+	}
+
+void
+glUniform4fvARB_p(location, ...)
+	GLint location
+	INIT:
+		loadProc(glUniform4fvARB,"glUniform4fvARB");
+	CODE:
+	{
+		int i;
+		GLsizei elements = items - 1;
+		GLsizei count = elements >> 2;
+		GLfloat *value = malloc(sizeof(GLfloat) * elements);
+
+		for(i=0;i<elements;i++) {
+			value[i] = SvNV(ST(i+1));
+		}
+
+		glUniform4fvARB(location, count, value);
+
+		free(value);
+	}
+
+void
+glUniform1ivARB_c(location, count, value)
+	GLint	location
+	GLsizei	count
+	void	*value
+	INIT:
+		loadProc(glUniform1ivARB,"glUniform1ivARB");
+	CODE:
+		glUniform1ivARB(location, count, value);
+
+void
+glUniform1ivARB_s(location, count, value)
+	GLint	location
+	GLsizei	count
+	SV	*value
+	INIT:
+		loadProc(glUniform1ivARB,"glUniform1ivARB");
+	CODE:
+	{
+		GLint * value_s = EL(value, sizeof(GLint));
+		glUniform1ivARB(location, count, value_s);
+	}
+
+void
+glUniform1ivARB_p(location, ...)
+	GLint location
+	INIT:
+		loadProc(glUniform1ivARB,"glUniform1ivARB");
+	CODE:
+	{
+		int i;
+		GLsizei count = items - 1;
+		GLint *value = malloc(sizeof(GLint) * count);
+
+		for(i=0;i<count;i++) {
+			value[i] = SvIV(ST(i+1));
+		}
+
+		glUniform1ivARB(location, count, value);
+
+		free(value);
+	}
+
+void
+glUniform2ivARB_c(location, count, value)
+	GLint	location
+	GLsizei	count
+	void	*value
+	INIT:
+		loadProc(glUniform2ivARB,"glUniform2ivARB");
+	CODE:
+		glUniform2ivARB(location, count, value);
+
+void
+glUniform2ivARB_s(location, count, value)
+	GLint	location
+	GLsizei	count
+	SV	*value
+	INIT:
+		loadProc(glUniform2ivARB,"glUniform2ivARB");
+	CODE:
+	{
+		GLint * value_s = EL(value, sizeof(GLint));
+		glUniform2ivARB(location, count, value_s);
+	}
+
+void
+glUniform2ivARB_p(location, ...)
+	GLint location
+	INIT:
+		loadProc(glUniform2ivARB,"glUniform2ivARB");
+	CODE:
+	{
+		int i;
+		GLsizei elements = items - 1;
+		GLsizei count = elements >> 1;
+		GLint *value = malloc(sizeof(GLint) * elements);
+
+		for(i=0;i<elements;i++) {
+			value[i] = SvIV(ST(i+1));
+		}
+
+		glUniform2ivARB(location, count, value);
+
+		free(value);
+	}
+
+void
+glUniform3ivARB_c(location, count, value)
+	GLint	location
+	GLsizei	count
+	void	*value
+	INIT:
+		loadProc(glUniform3ivARB,"glUniform3ivARB");
+	CODE:
+		glUniform3ivARB(location, count, value);
+
+void
+glUniform3ivARB_s(location, count, value)
+	GLint	location
+	GLsizei	count
+	SV	*value
+	INIT:
+		loadProc(glUniform3ivARB,"glUniform3ivARB");
+	CODE:
+	{
+		GLint * value_s = EL(value, sizeof(GLint));
+		glUniform3ivARB(location, count, value_s);
+	}
+
+void
+glUniform3ivARB_p(location, ...)
+	GLint location
+	INIT:
+		loadProc(glUniform3ivARB,"glUniform3ivARB");
+	CODE:
+	{
+		int i;
+		GLsizei elements = items - 1;
+		GLsizei count = elements / 3;
+		GLint *value = malloc(sizeof(GLint) * elements);
+
+		for(i=0;i<elements;i++) {
+			value[i] = SvIV(ST(i+1));
+		}
+
+		glUniform3ivARB(location, count, value);
+
+		free(value);
+	}
+
+void
+glUniform4ivARB_c(location, count, value)
+	GLint	location
+	GLsizei	count
+	void	*value
+	INIT:
+		loadProc(glUniform4ivARB,"glUniform4ivARB");
+	CODE:
+		glUniform4ivARB(location, count, value);
+
+void
+glUniform4ivARB_s(location, count, value)
+	GLint	location
+	GLsizei	count
+	SV	*value
+	INIT:
+		loadProc(glUniform4ivARB,"glUniformifvARB");
+	CODE:
+	{
+		GLint * value_s = EL(value, sizeof(GLint));
+		glUniform4ivARB(location, count, value_s);
+	}
+
+void
+glUniform4ivARB_p(location, ...)
+	GLint location
+	INIT:
+		loadProc(glUniform4ivARB,"glUniform4ivARB");
+	CODE:
+	{
+		int i;
+		GLsizei elements = items - 1;
+		GLsizei count = elements >> 2;
+		GLint *value = malloc(sizeof(GLint) * elements);
+
+		for(i=0;i<elements;i++) {
+			value[i] = SvIV(ST(i+1));
+		}
+
+		glUniform4ivARB(location, count, value);
+
+		free(value);
+	}
+
+void
+glUniformMatrix2fvARB_c(location, count, transpose, value)
+	GLint	location
+	GLsizei	count
+	GLboolean transpose
+	void	*value
+	INIT:
+		loadProc(glUniformMatrix2fvARB,"glUniformMatrix2fvARB");
+	CODE:
+		glUniformMatrix2fvARB(location, count, transpose, value);
+
+void
+glUniformMatrix2fvARB_s(location, count, transpose, value)
+	GLint	location
+	GLsizei	count
+	GLboolean transpose
+	SV	*value
+	INIT:
+		loadProc(glUniformMatrix2fvARB,"glUniformMatrix2fvARB");
+	CODE:
+	{
+		GLfloat * value_s = EL(value, sizeof(GLfloat));
+		glUniformMatrix2fvARB(location, count, transpose, value_s);
+	}
+
+void
+glUniformMatrix2fvARB_p(location, transpose, ...)
+	GLint location
+	GLboolean transpose
+	INIT:
+		loadProc(glUniformMatrix2fvARB,"glUniformMatrix2fvARB");
+	CODE:
+	{
+		int i;
+		GLsizei elements = items - 2;
+		GLsizei count = elements / 4;
+		GLfloat *value = malloc(sizeof(GLfloat) * elements);
+
+		for(i=0;i<elements;i++) {
+			value[i] = SvNV(ST(i+2));
+		}
+
+		glUniformMatrix2fvARB(location, count, transpose, value);
+
+		free(value);
+	}
+
+void
+glUniformMatrix3fvARB_c(location, count, transpose, value)
+	GLint	location
+	GLsizei	count
+	GLboolean transpose
+	void	*value
+	INIT:
+		loadProc(glUniformMatrix3fvARB,"glUniformMatrix2fvARB");
+	CODE:
+		glUniformMatrix3fvARB(location, count, transpose, value);
+
+void
+glUniformMatrix3fvARB_s(location, count, transpose, value)
+	GLint	location
+	GLsizei	count
+	GLboolean transpose
+	SV	*value
+	INIT:
+		loadProc(glUniformMatrix3fvARB,"glUniformMatrix3fvARB");
+	CODE:
+	{
+		GLfloat * value_s = EL(value, sizeof(GLfloat));
+		glUniformMatrix3fvARB(location, count, transpose, value_s);
+	}
+
+void
+glUniformMatrix3fvARB_p(location, transpose, ...)
+	GLint location
+	GLboolean transpose
+	INIT:
+		loadProc(glUniformMatrix3fvARB,"glUniformMatrix3fvARB");
+	CODE:
+	{
+		int i;
+		GLsizei elements = items - 2;
+		GLsizei count = elements / 9;
+		GLfloat *value = malloc(sizeof(GLfloat) * elements);
+
+		for(i=0;i<elements;i++) {
+			value[i] = SvNV(ST(i+2));
+		}
+
+		glUniformMatrix3fvARB(location, count, transpose, value);
+
+		free(value);
+	}
+
+void
+glUniformMatrix4fvARB_c(location, count, transpose, value)
+	GLint	location
+	GLsizei	count
+	GLboolean transpose
+	void	*value
+	INIT:
+		loadProc(glUniformMatrix4fvARB,"glUniformMatrix4fvARB");
+	CODE:
+		glUniformMatrix4fvARB(location, count, transpose, value);
+
+void
+glUniformMatrix4fvARB_s(location, count, transpose, value)
+	GLint	location
+	GLsizei	count
+	GLboolean transpose
+	SV	*value
+	INIT:
+		loadProc(glUniformMatrix4fvARB,"glUniformMatrix4fvARB");
+	CODE:
+	{
+		GLfloat * value_s = EL(value, sizeof(GLfloat));
+		glUniformMatrix4fvARB(location, count, transpose, value_s);
+	}
+
+void
+glUniformMatrix4fvARB_p(location, transpose, ...)
+	GLint location
+	GLboolean transpose
+	INIT:
+		loadProc(glUniformMatrix4fvARB,"glUniformMatrix4fvARB");
+	CODE:
+	{
+		int i;
+		GLsizei elements = items - 2;
+		GLsizei count = elements / 16;
+		GLfloat *value = malloc(sizeof(GLfloat) * elements);
+
+		for(i=0;i<elements;i++) {
+			value[i] = SvNV(ST(i+2));
+		}
+
+		glUniformMatrix4fvARB(location, count, transpose, value);
+
+		free(value);
+	}
+
+void
+glGetObjectParameterfvARB_c(obj,pname,params)
+	GLhandleARB obj
+	GLenum	pname
+	void	*params
+	INIT:
+		loadProc(glGetObjectParameterfvARB,"glGetObjectParameterfvARB");
+	CODE:
+		glGetObjectParameterfvARB(obj,pname,params);
+
+void
+glGetObjectParameterfvARB_s(obj,pname,params)
+	GLhandleARB obj
+	GLenum	pname
+	SV	*params
+	INIT:
+		loadProc(glGetObjectParameterfvARB,"glGetObjectParameterfvARB");
+	CODE:
+	{
+		GLfloat * params_s = EL(params, sizeof(GLfloat));
+		glGetObjectParameterfvARB(obj,pname,params_s);
+	}
+
+GLfloat
+glGetObjectParameterfvARB_p(obj,pname)
+	GLhandleARB obj
+	GLenum pname
+	INIT:
+		loadProc(glGetObjectParameterfvARB,"glGetObjectParameterfvARB");
+	CODE:
+	{
+		GLfloat	ret;
+		glGetObjectParameterfvARB(obj,pname,&ret);
+		RETVAL = ret;
+	}
+	OUTPUT:
+		RETVAL
+
+void
+glGetObjectParameterivARB_c(obj,pname,params)
+	GLhandleARB obj
+	GLenum	pname
+	void	*params
+	INIT:
+		loadProc(glGetObjectParameterivARB,"glGetObjectParameterivARB");
+	CODE:
+		glGetObjectParameterivARB(obj,pname,params);
+
+void
+glGetObjectParameterivARB_s(obj,pname,params)
+	GLhandleARB obj
+	GLenum	pname
+	SV	*params
+	INIT:
+		loadProc(glGetObjectParameterivARB,"glGetObjectParameterivARB");
+	CODE:
+	{
+		GLint * params_s = EL(params, sizeof(GLint));
+		glGetObjectParameterivARB(obj,pname,params_s);
+	}
+
+GLint
+glGetObjectParameterivARB_p(obj,pname)
+	GLhandleARB obj
+	GLenum pname
+	INIT:
+		loadProc(glGetObjectParameterivARB,"glGetObjectParameterivARB");
+	CODE:
+	{
+		GLint	ret;
+		glGetObjectParameterivARB(obj,pname,&ret);
+		RETVAL = ret;
+	}
+	OUTPUT:
+		RETVAL
+
+void
+glGetInfoLogARB_c(obj, maxLength, length, infoLog)
+	GLhandleARB obj
+	GLsizei	maxLength
+	void	*length
+	void	*infoLog
+	INIT:
+		loadProc(glGetInfoLogARB,"glGetInfoLogARB");
+	CODE:
+		glGetInfoLogARB(obj, maxLength, length, infoLog);
+
+SV *
+glGetInfoLogARB_p(obj)
+	GLhandleARB obj
+	INIT:
+		loadProc(glGetObjectParameterivARB,"glGetObjectParameterivARB");
+		loadProc(glGetInfoLogARB,"glGetInfoLogARB");
+	CODE:
+	{
+		GLint maxLength;
+		glGetObjectParameterivARB(obj,GL_OBJECT_INFO_LOG_LENGTH_ARB,(GLvoid *)&maxLength);
+		if (maxLength)
+		{
+			GLint length;
+			GLcharARB * infoLog = malloc(maxLength+1);
+			glGetInfoLogARB(obj,maxLength,&length,infoLog);
+			infoLog[length] = 0;
+			if (*infoLog)
+				RETVAL = newSVpv(infoLog, 0);
+			else
+				RETVAL = newSVsv(&PL_sv_undef);
+
+			free(infoLog);
+		}
+		else
+		{
+			RETVAL = newSVsv(&PL_sv_undef);
+		}
+	}
+	OUTPUT:
+		RETVAL
+
+void
+glGetAttachedObjectsARB_c(containerObj, maxCount, count, obj)
+	GLhandleARB containerObj
+	GLsizei	maxCount
+	void	*count
+	void	*obj
+	INIT:
+		loadProc(glGetAttachedObjectsARB,"glGetAttachedObjectsARB");
+	CODE:
+		glGetAttachedObjectsARB(containerObj, maxCount, count, obj);
+
+void
+glGetAttachedObjectsARB_s(containerObj, maxCount, count, obj)
+	GLhandleARB containerObj
+	GLsizei	maxCount
+	void	*count
+	SV	*obj
+	INIT:
+		loadProc(glGetObjectParameterivARB,"glGetObjectParameterivARB");
+		loadProc(glGetAttachedObjectsARB,"glGetAttachedObjectsARB");
+	CODE:
+	{
+		GLint len;
+		glGetObjectParameterivARB(containerObj,GL_OBJECT_ATTACHED_OBJECTS_ARB,
+			(GLvoid *)&len);
+		if (len)
+		{
+			GLsizei * count_s = EL(count, sizeof(GLsizei));
+			GLhandleARB * obj_s = EL(obj, sizeof(GLhandleARB)*len);
+			glGetAttachedObjectsARB(containerObj, maxCount, count_s, obj_s);
+		}
+	}
+
+void
+glGetAttachedObjectsARB_p(containerObj)
+	GLhandleARB containerObj
+	INIT:
+		loadProc(glGetObjectParameterivARB,"glGetObjectParameterivARB");
+		loadProc(glGetAttachedObjectsARB,"glGetAttachedObjectsARB");
+	PPCODE:
+	{
+		GLsizei maxCount;
+		GLsizei count;
+		GLhandleARB *obj;
+		int i;
+
+		glGetObjectParameterivARB(containerObj,GL_OBJECT_ATTACHED_OBJECTS_ARB,
+			(GLvoid *)&maxCount);
+		obj = malloc(sizeof(GLhandleARB)*maxCount);
+
+		glGetAttachedObjectsARB(containerObj, maxCount, &count, obj);
+
+		EXTEND(sp, count);
+		for(i=0;i<count;i++)
+			PUSHs(sv_2mortal(newSViv(obj[i])));
+
+		free(obj);
+	}
+
+GLint
+glGetUniformLocationARB_c(programObj, name)
+	GLhandleARB programObj
+	void	*name
+	INIT:
+		loadProc(glGetUniformLocationARB,"glGetUniformLocationARB");
+	CODE:
+		RETVAL = glGetUniformLocationARB(programObj, name);
+	OUTPUT:
+		RETVAL
+
+GLint
+glGetUniformLocationARB_p(programObj, ...)
+	GLhandleARB programObj
+	INIT:
+		loadProc(glGetUniformLocationARB,"glGetUniformLocationARB");
+	CODE:
+	{
+		GLcharARB *name = (GLcharARB *)SvPV(ST(1),PL_na);
+		RETVAL = glGetUniformLocationARB(programObj, name);
+	}
+	OUTPUT:
+		RETVAL
+
+void
+glGetActiveUniformARB_c(programObj, index, maxLength, length, size, type, name)
+	GLhandleARB programObj
+	GLuint	index
+	GLsizei	maxLength
+	void	*length
+	void	*size
+	void	*type
+	void	*name
+	INIT:
+		loadProc(glGetActiveUniformARB,"glGetActiveUniformARB");
+	CODE:
+		glGetActiveUniformARB(programObj,index,maxLength,length,size,type,name);
+
+void
+glGetActiveUniformARB_s(programObj, index, maxLength, length, size, type, name)
+	GLhandleARB programObj
+	GLuint	index
+	GLsizei	maxLength
+	SV	*length
+	SV	*size
+	SV	*type
+	SV	*name
+	INIT:
+		loadProc(glGetActiveUniformARB,"glGetActiveUniformARB");
+	CODE:
+	{
+		GLsizei	  *length_s = EL(length, sizeof(GLsizei));
+		GLint	  *size_s = EL(size, sizeof(GLint));
+		GLenum	  *type_s = EL(type, sizeof(GLenum));
+		GLcharARB *name_s = EL(name, sizeof(GLcharARB));
+		glGetActiveUniformARB(programObj,index,maxLength,length_s,size_s,type_s,name_s);
+	}
+
+void
+glGetActiveUniformARB_p(programObj, index)
+	GLhandleARB programObj
+	GLuint index
+	INIT:
+		loadProc(glGetObjectParameterivARB,"glGetObjectParameterivARB");
+		loadProc(glGetActiveUniformARB,"glGetActiveUniformARB");
+	PPCODE:
+	{
+		GLsizei maxLength;
+		glGetObjectParameterivARB(programObj,GL_OBJECT_ACTIVE_UNIFORM_MAX_LENGTH_ARB,
+			(GLvoid *)&maxLength);
+		if (maxLength)
+		{
+			GLsizei length;
+			GLint size;
+			GLenum type;
+			GLcharARB *name;
+
+			name = malloc(maxLength+1);
+			glGetActiveUniformARB(programObj,index,maxLength,
+				&length,&size,&type,name);
+			name[length] = 0;
+
+			if (*name)
+			{
+				EXTEND(sp,3);
+				PUSHs(sv_2mortal(newSVpv(name,0)));
+				PUSHs(sv_2mortal(newSViv(type)));
+				PUSHs(sv_2mortal(newSViv(size)));
+			}
+			else
+			{
+				EXTEND(sp,1);
+				PUSHs(sv_2mortal(newSVsv(&PL_sv_undef)));
+			}
+
+			free(name);
+		}
+		else
+		{
+			EXTEND(sp,1);
+			PUSHs(sv_2mortal(newSVsv(&PL_sv_undef)));
+		}
+	}
+
+void
+glGetUniformfvARB_c(programObj, location, params)
+	GLhandleARB programObj
+	GLint	location
+	void	*params
+	INIT:
+		loadProc(glGetUniformfvARB,"glGetUniformfvARB");
+	CODE:
+		glGetUniformfvARB(programObj, location, params);
+
+void
+glGetUniformfvARB_p(programObj, location, count=1)
+	GLhandleARB programObj
+	GLint location
+	int count
+	INIT:
+		loadProc(glGetUniformfvARB,"glGetUniformfvARB");
+	CODE:
+	{
+		int i;
+		GLfloat	*ret = malloc(sizeof(GLfloat)*count);
+		glGetUniformfvARB(programObj, location, ret);
+
+		for(i=0;i<count;i++)
+			PUSHs(sv_2mortal(newSVnv(ret[i])));
+	}
+
+void
+glGetUniformivARB_c(programObj, location, params)
+	GLhandleARB programObj
+	GLint	location
+	void	*params
+	INIT:
+		loadProc(glGetUniformivARB,"glGetUniformivARB");
+	CODE:
+		glGetUniformivARB(programObj, location, params);
+
+void
+glGetUniformivARB_p(programObj, location, count=1)
+	GLhandleARB programObj
+	GLint	location
+	int count
+	INIT:
+		loadProc(glGetUniformivARB,"glGetUniformivARB");
+	CODE:
+	{
+		int i;
+		GLint	*ret = malloc(sizeof(GLint)*count);
+		glGetUniformivARB(programObj, location, ret);
+
+		for(i=0;i<count;i++)
+			PUSHs(sv_2mortal(newSViv(ret[i])));
+	}
+
+void
+glGetShaderSourceARB_c(obj, maxLength, length, source)
+	GLhandleARB obj
+	GLsizei	maxLength
+	void	*length
+	void	*source
+	INIT:
+		loadProc(glGetShaderSourceARB,"glGetShaderSourceARB");
+	CODE:
+		glGetShaderSourceARB(obj, maxLength, length, source);
+
+void
+glGetShaderSourceARB_p(obj)
+	GLhandleARB obj
+	INIT:
+		loadProc(glGetObjectParameterivARB,"glGetObjectParameterivARB");
+		loadProc(glGetShaderSourceARB,"glGetShaderSourceARB");
+	PPCODE:
+	{
+		GLsizei maxLength;
+		glGetObjectParameterivARB(obj,GL_OBJECT_SHADER_SOURCE_LENGTH_ARB,
+			(GLvoid *)&maxLength);
+
+		EXTEND(sp,1);
+
+		if (maxLength)
+		{
+			GLsizei length;
+			GLcharARB *source;
+
+			source = malloc(maxLength+1);
+			glGetShaderSourceARB(obj,maxLength,&length,source);
+			source[length] = 0;
+
+			if (*source)
+			{
+				PUSHs(sv_2mortal(newSVpv(source,0)));
+			}
+			else
+			{
+				PUSHs(sv_2mortal(newSVsv(&PL_sv_undef)));
+			}
+
+			free(source);
+		}
+		else
+		{
+			PUSHs(sv_2mortal(newSVsv(&PL_sv_undef)));
+		}
+	}
+
+#endif
+
+
+#ifdef GL_ARB_vertex_program
+
+void
+glProgramStringARB_c(target,format,len,string)
+	GLenum target
+	GLenum format
+	GLsizei len
+	void * string
+	INIT:
+		loadProc(glProgramStringARB,"glProgramStringARB");
+	CODE:
+		glProgramStringARB(target,format,len,string);
+
+void
+glProgramStringARB_s(target,format,len,string)
+	GLenum target
+	GLenum format
+	GLsizei len
+	SV *	string
+	INIT:
+		loadProc(glProgramStringARB,"glProgramStringARB");
+	CODE:
+	{
+		GLvoid * string_s = EL(string, len);
+		glProgramStringARB(target,format,len,string_s);
+	}
+
+void
+glProgramStringARB_p(target,string)
+	GLenum target
+	char * string
+	INIT:
+		loadProc(glProgramStringARB,"glProgramStringARB");
+	CODE:
+	{
+		int len = strlen(string);
+		glProgramStringARB(target,GL_PROGRAM_FORMAT_ASCII_ARB,len,string);
+	}
+
+void
+glBindProgramARB(target,program)
+	GLenum target
+	GLuint program
+	INIT:
+		loadProc(glBindProgramARB,"glBindProgramARB");
+
+void
+glDeleteProgramsARB_c(n,programs)
+	GLsizei n
+	void *	programs
+	INIT:
+		loadProc(glDeleteProgramsARB,"glDeleteProgramsARB");
+	CODE:
+	{
+		glDeleteProgramsARB(n,(GLuint*)programs);
+	}
+
+void
+glDeleteProgramsARB_s(n,programs)
+	GLsizei n
+	SV *	programs
+	INIT:
+		loadProc(glDeleteProgramsARB,"glDeleteProgramsARB");
+	CODE:
+	{
+		GLuint * programs_s = EL(programs, sizeof(GLuint)*n);
+		glDeleteProgramsARB(n,programs_s);
+	}
+
+void
+glDeleteProgramsARB_p(...)
+	INIT:
+		loadProc(glDeleteProgramsARB,"glDeleteProgramsARB");
+	CODE:
+	{
+		if (items) {
+			GLuint * list = malloc(sizeof(GLuint) * items);
+			int i;
+
+			for (i=0;i<items;i++)
+				list[i] = SvIV(ST(i));
+
+			glDeleteProgramsARB(items, list);
+			free(list);
+		}
+	}
+
+void
+glGenProgramsARB_c(n,programs)
+	GLsizei n
+	void *	programs
+	INIT:
+		loadProc(glGenProgramsARB,"glGenProgramsARB");
+	CODE:
+	{
+		glGenProgramsARB(n,(GLuint*)programs);
+	}
+
+void
+glGenProgramsARB_s(n,programs)
+	GLsizei n
+	SV *	programs
+	INIT:
+		loadProc(glGenProgramsARB,"glGenProgramsARB");
+	CODE:
+	{
+		GLuint * programs_s = EL(programs, sizeof(GLuint)*n);
+		glGenProgramsARB(n, programs_s);
+	}
+
+void
+glGenProgramsARB_p(n)
+	GLsizei n
+	INIT:
+		loadProc(glGenProgramsARB,"glGenProgramsARB");
+	PPCODE:
+	if (n)
+	{
+		GLuint * programs = malloc(sizeof(GLuint) * n);
+		int i;
+
+		glGenProgramsARB(n, programs);
+
+		EXTEND(sp, n);
+		for(i=0;i<n;i++)
+			PUSHs(sv_2mortal(newSViv(programs[i])));
+
+		free(programs);
+	} 
+
+void
+glProgramEnvParameter4dARB(target,index,x,y,z,w)
+	GLenum target
+	GLuint index
+	GLdouble x
+	GLdouble y
+	GLdouble z
+	GLdouble w
+	INIT:
+		loadProc(glProgramEnvParameter4dARB,"glProgramEnvParameter4dARB");
+
+void
+glProgramEnvParameter4dvARB_c(target,index,v)
+	GLenum target
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glProgramEnvParameter4dvARB,"glProgramEnvParameter4dvARB");
+	CODE:
+		glProgramEnvParameter4dvARB(target,index,(GLdouble*)v);
+
+void
+glProgramEnvParameter4dvARB_s(target,index,v)
+	GLenum target
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glProgramEnvParameter4dvARB,"glProgramEnvParameter4dvARB");
+	CODE:
+	{
+		GLdouble * v_s = EL(v, sizeof(GLdouble)*4);
+		glProgramEnvParameter4dvARB(target,index,v_s);
+	}
+
+void
+glProgramEnvParameter4dvARB_p(target,index,x,y,z,w)
+	GLenum target
+	GLuint index
+	GLdouble	x
+	GLdouble	y
+	GLdouble	z
+	GLdouble	w
+	INIT:
+		loadProc(glProgramEnvParameter4dvARB,"glProgramEnvParameter4dvARB");
+	CODE:
+	{
+		GLdouble param[4];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		param[3] = w;
+		glProgramEnvParameter4dvARB(target,index,param);
+	}
+
+void
+glProgramEnvParameter4fARB(target,index,x,y,z,w)
+	GLenum target
+	GLuint index
+	GLfloat x
+	GLfloat y
+	GLfloat z
+	GLfloat w
+	INIT:
+		loadProc(glProgramEnvParameter4fARB,"glProgramEnvParameter4fARB");
+
+void
+glProgramEnvParameter4fvARB_c(target,index,v)
+	GLenum target
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glProgramEnvParameter4fvARB,"glProgramEnvParameter4fvARB");
+	CODE:
+		glProgramEnvParameter4fvARB(target,index,(GLfloat*)v);
+
+void
+glProgramEnvParameter4fvARB_s(target,index,v)
+	GLenum target
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glProgramEnvParameter4fvARB,"glProgramEnvParameter4fvARB");
+	CODE:
+	{
+		GLfloat * v_s = EL(v, sizeof(GLfloat)*4);
+		glProgramEnvParameter4fvARB(target,index,v_s);
+	}
+
+void
+glProgramEnvParameter4fvARB_p(target,index,x,y,z,w)
+	GLenum target
+	GLuint index
+	GLfloat	x
+	GLfloat	y
+	GLfloat	z
+	GLfloat	w
+	INIT:
+		loadProc(glProgramEnvParameter4fvARB,"glProgramEnvParameter4fvARB");
+	CODE:
+	{
+		GLfloat param[4];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		param[3] = w;
+		glProgramEnvParameter4fvARB(target,index,param);
+	}
+
+void
+glProgramLocalParameter4dARB(target,index,x,y,z,w)
+	GLenum target
+	GLuint index
+	GLdouble x
+	GLdouble y
+	GLdouble z
+	GLdouble w
+	INIT:
+		loadProc(glProgramLocalParameter4dARB,"glProgramLocalParameter4dARB");
+
+void
+glProgramLocalParameter4dvARB_c(target,index,v)
+	GLenum target
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glProgramLocalParameter4dvARB,"glProgramLocalParameter4dvARB");
+	CODE:
+		glProgramLocalParameter4dvARB(target,index,(GLdouble*)v);
+
+void
+glProgramLocalParameter4dvARB_s(target,index,v)
+	GLenum target
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glProgramLocalParameter4dvARB,"glProgramLocalParameter4dvARB");
+	CODE:
+	{
+		GLdouble * v_s = EL(v, sizeof(GLdouble)*4);
+		glProgramLocalParameter4dvARB(target,index,v_s);
+	}
+
+void
+glProgramLocalParameter4dvARB_p(target,index,x,y,z,w)
+	GLenum target
+	GLuint index
+	GLdouble	x
+	GLdouble	y
+	GLdouble	z
+	GLdouble	w
+	INIT:
+		loadProc(glProgramLocalParameter4dvARB,"glProgramLocalParameter4dvARB");
+	CODE:
+	{
+		GLdouble param[4];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		param[3] = w;
+		glProgramLocalParameter4dvARB(target,index,param);
+	}
+
+void
+glProgramLocalParameter4fARB(target,index,x,y,z,w)
+	GLenum target
+	GLuint index
+	GLfloat x
+	GLfloat y
+	GLfloat z
+	GLfloat w
+	INIT:
+		loadProc(glProgramLocalParameter4fARB,"glProgramLocalParameter4fARB");
+
+void
+glProgramLocalParameter4fvARB_c(target,index,v)
+	GLenum target
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glProgramLocalParameter4fvARB,"glProgramLocalParameter4fvARB");
+	CODE:
+		glProgramLocalParameter4fvARB(target,index,(GLfloat*)v);
+
+void
+glProgramLocalParameter4fvARB_s(target,index,v)
+	GLenum target
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glProgramLocalParameter4fvARB,"glProgramLocalParameter4fvARB");
+	CODE:
+	{
+		GLfloat * v_s = EL(v, sizeof(GLfloat)*4);
+		glProgramLocalParameter4fvARB(target,index,v_s);
+	}
+
+void
+glProgramLocalParameter4fvARB_p(target,index,x,y,z,w)
+	GLenum target
+	GLuint index
+	GLfloat	x
+	GLfloat	y
+	GLfloat	z
+	GLfloat	w
+	INIT:
+		loadProc(glProgramLocalParameter4fvARB,"glProgramLocalParameter4fvARB");
+	CODE:
+	{
+		GLfloat param[4];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		param[3] = w;
+		glProgramLocalParameter4fvARB(target,index,param);
+	}
+
+void
+glGetProgramEnvParameterdvARB_c(target,index,params)
+	GLenum	target
+	GLint	index
+	void *	params
+	INIT:
+		loadProc(glGetProgramEnvParameterdvARB,"glGetProgramEnvParameterdvARB");
+	CODE:
+		glGetProgramEnvParameterdvARB(target,index,(GLdouble*)params);
+
+void
+glGetProgramEnvParameterdvARB_s(target,index,params)
+	GLenum	target
+	GLint	index
+	SV *	params
+	INIT:
+		loadProc(glGetProgramEnvParameterdvARB,"glGetProgramEnvParameterdvARB");
+	CODE:
+	{
+		GLdouble * params_s = EL(params, sizeof(GLdouble) * 4);
+		glGetProgramEnvParameterdvARB(target,index,params_s);
+	}
+
+void
+glGetProgramEnvParameterdvARB_p(target,index)
+	GLenum	target
+	GLint	index
+	INIT:
+		loadProc(glGetProgramEnvParameterdvARB,"glGetProgramEnvParameterdvARB");
+	PPCODE:
+	{
+		GLdouble params[4];
+		glGetProgramEnvParameterdvARB(target,index,params);
+
+		EXTEND(sp, 4);
+		PUSHs(sv_2mortal(newSVnv(params[0])));
+		PUSHs(sv_2mortal(newSVnv(params[1])));
+		PUSHs(sv_2mortal(newSVnv(params[2])));
+		PUSHs(sv_2mortal(newSVnv(params[3])));
+	}
+
+void
+glGetProgramEnvParameterfvARB_c(target,index,params)
+	GLenum	target
+	GLint	index
+	void *	params
+	INIT:
+		loadProc(glGetProgramEnvParameterfvARB,"glGetProgramEnvParameterfvARB");
+	CODE:
+		glGetProgramEnvParameterfvARB(target,index,(GLfloat*)params);
+
+void
+glGetProgramEnvParameterfvARB_s(target,index,params)
+	GLenum	target
+	GLint	index
+	SV *	params
+	INIT:
+		loadProc(glGetProgramEnvParameterfvARB,"glGetProgramEnvParameterfvARB");
+	CODE:
+	{
+		GLfloat * params_s = EL(params, sizeof(GLfloat) * 4);
+		glGetProgramEnvParameterfvARB(target,index,params_s);
+	}
+
+void
+glGetProgramEnvParameterfvARB_p(target,index)
+	GLenum	target
+	GLint	index
+	INIT:
+		loadProc(glGetProgramEnvParameterfvARB,"glGetProgramEnvParameterfvARB");
+	PPCODE:
+	{
+		GLfloat params[4];
+		glGetProgramEnvParameterfvARB(target,index,params);
+
+		EXTEND(sp, 4);
+		PUSHs(sv_2mortal(newSVnv(params[0])));
+		PUSHs(sv_2mortal(newSVnv(params[1])));
+		PUSHs(sv_2mortal(newSVnv(params[2])));
+		PUSHs(sv_2mortal(newSVnv(params[3])));
+	}
+
+void
+glGetProgramLocalParameterdvARB_c(target,index,params)
+	GLenum	target
+	GLint	index
+	void *	params
+	INIT:
+		loadProc(glGetProgramLocalParameterdvARB,"glGetProgramLocalParameterdvARB");
+	CODE:
+		glGetProgramLocalParameterdvARB(target,index,(GLdouble*)params);
+
+void
+glGetProgramLocalParameterdvARB_s(target,index,params)
+	GLenum	target
+	GLint	index
+	SV *	params
+	INIT:
+		loadProc(glGetProgramLocalParameterdvARB,"glGetProgramLocalParameterdvARB");
+	CODE:
+	{
+		GLdouble * params_s = EL(params, sizeof(GLdouble) * 4);
+		glGetProgramLocalParameterdvARB(target,index,params_s);
+	}
+
+void
+glGetProgramLocalParameterdvARB_p(target,index)
+	GLenum	target
+	GLint	index
+	INIT:
+		loadProc(glGetProgramLocalParameterdvARB,"glGetProgramLocalParameterdvARB");
+	PPCODE:
+	{
+		GLdouble params[4];
+		glGetProgramLocalParameterdvARB(target,index,params);
+
+		EXTEND(sp, 4);
+		PUSHs(sv_2mortal(newSVnv(params[0])));
+		PUSHs(sv_2mortal(newSVnv(params[1])));
+		PUSHs(sv_2mortal(newSVnv(params[2])));
+		PUSHs(sv_2mortal(newSVnv(params[3])));
+	}
+
+void
+glGetProgramLocalParameterfvARB_c(target,index,params)
+	GLenum	target
+	GLint	index
+	void *	params
+	INIT:
+		loadProc(glGetProgramLocalParameterfvARB,"glGetProgramLocalParameterfvARB");
+	CODE:
+		glGetProgramLocalParameterfvARB(target,index,(GLfloat*)params);
+
+void
+glGetProgramLocalParameterfvARB_s(target,index,params)
+	GLenum	target
+	GLint	index
+	SV *	params
+	INIT:
+		loadProc(glGetProgramLocalParameterfvARB,"glGetProgramLocalParameterfvARB");
+	CODE:
+	{
+		GLfloat * params_s = EL(params, sizeof(GLfloat) * 4);
+		glGetProgramLocalParameterfvARB(target,index,params_s);
+	}
+
+void
+glGetProgramLocalParameterfvARB_p(target,index)
+	GLenum	target
+	GLint	index
+	INIT:
+		loadProc(glGetProgramLocalParameterfvARB,"glGetProgramLocalParameterfvARB");
+	PPCODE:
+	{
+		GLfloat params[4];
+		glGetProgramLocalParameterfvARB(target,index,params);
+
+		EXTEND(sp, 4);
+		PUSHs(sv_2mortal(newSVnv(params[0])));
+		PUSHs(sv_2mortal(newSVnv(params[1])));
+		PUSHs(sv_2mortal(newSVnv(params[2])));
+		PUSHs(sv_2mortal(newSVnv(params[3])));
+	}
+
+void
+glGetProgramivARB_c(target,pname,params)
+	GLenum	target
+	GLenum	pname
+	void *	params
+	INIT:
+		loadProc(glGetProgramivARB,"glGetProgramivARB");
+	CODE:
+		glGetProgramivARB(target,pname,params);
+
+void
+glGetProgramivARB_s(target,pname,params)
+	GLenum	target
+	GLenum	pname
+	SV *	params
+	INIT:
+		loadProc(glGetProgramivARB,"glGetProgramivARB");
+	CODE:
+	{
+		GLint * params_s = EL(params, sizeof(GLint)*gl_get_count(pname));
+		glGetProgramivARB(target,pname,params_s);
+	}
+
+GLuint
+glGetProgramivARB_p(target,pname)
+	GLenum	target
+	GLenum	pname
+	INIT:
+		loadProc(glGetProgramivARB,"glGetProgramivARB");
+	CODE:
+	{
+		GLuint param;
+		glGetProgramivARB(target,pname,(void *)&param);
+		RETVAL = param;
+	}
+	OUTPUT:
+		RETVAL
+
+void
+glGetProgramStringARB_c(target,pname,string)
+	GLenum	target
+	GLenum	pname
+	void *	string
+	INIT:
+		loadProc(glGetProgramStringARB,"glGetProgramStringARB");
+	CODE:
+		glGetProgramStringARB(target,pname,string);
+
+void
+glGetProgramStringARB_s(target,pname,string)
+	GLenum	target
+	GLenum	pname
+	SV *	string
+	INIT:
+		loadProc(glGetProgramivARB,"glGetProgramivARB");
+		loadProc(glGetProgramStringARB,"glGetProgramStringARB");
+	CODE:
+	{
+		GLint len;
+		glGetProgramivARB(target,GL_PROGRAM_LENGTH_ARB,(GLvoid *)&len);
+		if (len)
+		{
+			GLubyte * string_s = EL(string, sizeof(GLubyte)*len);
+			glGetProgramStringARB(target,pname,string_s);
+		}
+	}
+
+SV *
+glGetProgramStringARB_p(target,pname=GL_PROGRAM_STRING_ARB)
+	GLenum	target
+	GLenum	pname
+	INIT:
+		loadProc(glGetProgramivARB,"glGetProgramivARB");
+		loadProc(glGetProgramStringARB,"glGetProgramStringARB");
+	CODE:
+	{
+		GLint len;
+		glGetProgramivARB(target,GL_PROGRAM_LENGTH_ARB,(GLvoid *)&len);
+		if (len)
+		{
+			char * string = malloc(len+1);
+			glGetProgramStringARB(target,pname,(GLubyte*)string);
+			string[len] = 0;
+			if (*string)
+				RETVAL = newSVpv(string, 0);
+			else
+				RETVAL = newSVsv(&PL_sv_undef);
+
+			free(string);
+		}
+		else
+		{
+			RETVAL = newSVsv(&PL_sv_undef);
+		}
+	}
+	OUTPUT:
+		RETVAL
+
+GLboolean
+glIsProgramARB(program)
+	GLuint	program
+	INIT:
+		loadProc(glIsProgramARB,"glIsProgramARB");
+	CODE:
+	{
+		RETVAL = glIsProgramARB(program);
+	}
+	OUTPUT:
+		RETVAL
+
+#endif
+
+
+#if defined(GL_ARB_vertex_program) || defined(GL_ARB_vertex_shader)
+
+void
+glVertexAttrib1dARB(index,x)
+	GLuint index
+	GLdouble x
+	INIT:
+		loadProc(glVertexAttrib1dARB,"glVertexAttrib1dARB");
+
+void
+glVertexAttrib1dvARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib1dvARB,"glVertexAttrib1dvARB");
+	CODE:
+		glVertexAttrib1dvARB(index,(GLdouble*)v);
+
+void
+glVertexAttrib1dvARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib1dvARB,"glVertexAttrib1dvARB");
+	CODE:
+	{
+		GLdouble * v_s = EL(v, sizeof(GLdouble)*1);
+		glVertexAttrib1dvARB(index,v_s);
+	}
+
+void
+glVertexAttrib1dvARB_p(index,x)
+	GLuint index
+	GLdouble	x
+	INIT:
+		loadProc(glVertexAttrib1dvARB,"glVertexAttrib1dvARB");
+	CODE:
+	{
+		GLdouble param[1];
+		param[0] = x;
+		glVertexAttrib1dvARB(index,param);
+	}
+
+void
+glVertexAttrib1fARB(index,x)
+	GLuint index
+	GLfloat x
+	INIT:
+		loadProc(glVertexAttrib1fARB,"glVertexAttrib1fARB");
+
+void
+glVertexAttrib1sARB(index,x)
+	GLuint index
+	GLshort x
+	INIT:
+		loadProc(glVertexAttrib1s,"glVertexAttrib1s");
+
+void
+glVertexAttrib1svARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib1svARB,"glVertexAttrib1svARB");
+	CODE:
+		glVertexAttrib1svARB(index,(GLshort*)v);
+
+void
+glVertexAttrib1svARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib1svARB,"glVertexAttrib1svARB");
+	CODE:
+	{
+		GLshort * v_s = EL(v, sizeof(GLshort)*1);
+		glVertexAttrib1svARB(index,v_s);
+	}
+
+void
+glVertexAttrib1svARB_p(index,x)
+	GLuint index
+	GLshort	x
+	INIT:
+		loadProc(glVertexAttrib1svARB,"glVertexAttrib1svARB");
+	CODE:
+	{
+		GLshort param[1];
+		param[0] = x;
+		glVertexAttrib1svARB(index,param);
+	}
+
+void
+glVertexAttrib2dARB(index,x,y)
+	GLuint index
+	GLdouble x
+	GLdouble y
+	INIT:
+		loadProc(glVertexAttrib2dARB,"glVertexAttrib2dARB");
+
+void
+glVertexAttrib2dvARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib2dvARB,"glVertexAttrib2dvARB");
+	CODE:
+		glVertexAttrib2dvARB(index,(GLdouble*)v);
+
+void
+glVertexAttrib2dvARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib2dvARB,"glVertexAttrib2dvARB");
+	CODE:
+	{
+		GLdouble * v_s = EL(v, sizeof(GLdouble)*2);
+		glVertexAttrib2dvARB(index,v_s);
+	}
+
+void
+glVertexAttrib2dvARB_p(index,x,y)
+	GLuint index
+	GLdouble	x
+	GLdouble	y
+	INIT:
+		loadProc(glVertexAttrib2dvARB,"glVertexAttrib2dvARB");
+	CODE:
+	{
+		GLdouble param[2];
+		param[0] = x;
+		param[1] = y;
+		glVertexAttrib2dvARB(index,param);
+	}
+
+void
+glVertexAttrib2fARB(index,x,y)
+	GLuint index
+	GLfloat x
+	GLfloat y
+	INIT:
+		loadProc(glVertexAttrib2fARB,"glVertexAttrib2fARB");
+
+void
+glVertexAttrib2sARB(index,x,y)
+	GLuint index
+	GLshort x
+	GLshort y
+	INIT:
+		loadProc(glVertexAttrib2sARB,"glVertexAttrib2sARB");
+
+void
+glVertexAttrib2svARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib2svARB,"glVertexAttrib2svARB");
+	CODE:
+		glVertexAttrib2svARB(index,(GLshort*)v);
+
+void
+glVertexAttrib2svARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib2svARB,"glVertexAttrib2svARB");
+	CODE:
+	{
+		GLshort * v_s = EL(v, sizeof(GLshort)*2);
+		glVertexAttrib2svARB(index,v_s);
+	}
+
+void
+glVertexAttrib2svARB_p(index,x,y)
+	GLuint index
+	GLshort	x
+	GLshort	y
+	INIT:
+		loadProc(glVertexAttrib2svARB,"glVertexAttrib2svARB");
+	CODE:
+	{
+		GLshort param[2];
+		param[0] = x;
+		param[1] = y;
+		glVertexAttrib2svARB(index,param);
+	}
+
+void
+glVertexAttrib3dARB(index,x,y,z)
+	GLuint index
+	GLdouble x
+	GLdouble y
+	GLdouble z
+	INIT:
+		loadProc(glVertexAttrib3dARB,"glVertexAttrib3dARB");
+
+void
+glVertexAttrib3dvARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib3dvARB,"glVertexAttrib3dvARB");
+	CODE:
+		glVertexAttrib3dvARB(index,(GLdouble*)v);
+
+void
+glVertexAttrib3dvARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib3dvARB,"glVertexAttrib3dvARB");
+	CODE:
+	{
+		GLdouble * v_s = EL(v, sizeof(GLdouble)*3);
+		glVertexAttrib3dvARB(index,v_s);
+	}
+
+void
+glVertexAttrib3dvARB_p(index,x,y,z)
+	GLuint index
+	GLdouble	x
+	GLdouble	y
+	GLdouble	z
+	INIT:
+		loadProc(glVertexAttrib3dvARB,"glVertexAttrib3dvARB");
+	CODE:
+	{
+		GLdouble param[3];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		glVertexAttrib3dvARB(index,param);
+	}
+
+void
+glVertexAttrib3fARB(index,x,y,z)
+	GLuint index
+	GLfloat x
+	GLfloat y
+	GLfloat z
+	INIT:
+		loadProc(glVertexAttrib3fARB,"glVertexAttrib3fARB");
+
+void
+glVertexAttrib3fvARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib3fvARB,"glVertexAttrib3fvARB");
+	CODE:
+		glVertexAttrib3fvARB(index,(GLfloat*)v);
+
+void
+glVertexAttrib3fvARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib3fvARB,"glVertexAttrib3fvARB");
+	CODE:
+	{
+		GLfloat * v_s = EL(v, sizeof(GLfloat)*3);
+		glVertexAttrib3fvARB(index,v_s);
+	}
+
+void
+glVertexAttrib3fvARB_p(index,x,y,z)
+	GLuint index
+	GLfloat	x
+	GLfloat	y
+	GLfloat	z
+	INIT:
+		loadProc(glVertexAttrib3fvARB,"glVertexAttrib3fvARB");
+	CODE:
+	{
+		GLfloat param[3];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		glVertexAttrib3fvARB(index,param);
+	}
+
+void
+glVertexAttrib3sARB(index,x,y,z)
+	GLuint index
+	GLshort x
+	GLshort y
+	GLshort z
+	INIT:
+		loadProc(glVertexAttrib3sARB,"glVertexAttrib3sARB");
+
+void
+glVertexAttrib3svARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib3svARB,"glVertexAttrib3svARB");
+	CODE:
+		glVertexAttrib3svARB(index,(GLshort*)v);
+
+void
+glVertexAttrib3svARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib3svARB,"glVertexAttrib3svARB");
+	CODE:
+	{
+		GLshort * v_s = EL(v, sizeof(GLshort)*3);
+		glVertexAttrib3svARB(index,v_s);
+	}
+
+void
+glVertexAttrib3svARB_p(index,x,y,z)
+	GLuint index
+	GLshort	x
+	GLshort	y
+	GLshort	z
+	INIT:
+		loadProc(glVertexAttrib3svARB,"glVertexAttrib3svARB");
+	CODE:
+	{
+		GLshort param[3];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		glVertexAttrib3svARB(index,param);
+	}
+
+void
+glVertexAttrib4NbvARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib4NbvARB,"glVertexAttrib4NbvARB");
+	CODE:
+		glVertexAttrib4NbvARB(index,(GLbyte*)v);
+
+void
+glVertexAttrib4NbvARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib4NbvARB,"glVertexAttrib4NbvARB");
+	CODE:
+	{
+		GLbyte * v_s = EL(v, sizeof(GLbyte)*4);
+		glVertexAttrib4NbvARB(index,v_s);
+	}
+
+void
+glVertexAttrib4NbvARB_p(index,x,y,z,w)
+	GLuint index
+	GLbyte	x
+	GLbyte	y
+	GLbyte	z
+	GLbyte	w
+	INIT:
+		loadProc(glVertexAttrib4NbvARB,"glVertexAttrib4NbvARB");
+	CODE:
+	{
+		GLbyte param[4];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		param[3] = w;
+		glVertexAttrib4NbvARB(index,param);
+	}
+
+void
+glVertexAttrib4NivARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib4NivARB,"glVertexAttrib4NivARB");
+	CODE:
+		glVertexAttrib4NivARB(index,(GLint*)v);
+
+void
+glVertexAttrib4NivARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib4NivARB,"glVertexAttrib4NivARB");
+	CODE:
+	{
+		GLint * v_s = EL(v, sizeof(GLint)*4);
+		glVertexAttrib4NivARB(index,v_s);
+	}
+
+void
+glVertexAttrib4NivARB_p(index,x,y,z,w)
+	GLuint index
+	GLint	x
+	GLint	y
+	GLint	z
+	GLint	w
+	INIT:
+		loadProc(glVertexAttrib4NivARB,"glVertexAttrib4NivARB");
+	CODE:
+	{
+		GLint param[4];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		param[3] = w;
+		glVertexAttrib4NivARB(index,param);
+	}
+
+void
+glVertexAttrib4NsvARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib4NsvARB,"glVertexAttrib4NsvARB");
+	CODE:
+		glVertexAttrib4NsvARB(index,(GLshort*)v);
+
+void
+glVertexAttrib4NsvARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib4NsvARB,"glVertexAttrib4NsvARB");
+	CODE:
+	{
+		GLshort * v_s = EL(v, sizeof(GLshort)*4);
+		glVertexAttrib4NsvARB(index,v_s);
+	}
+
+void
+glVertexAttrib4NsvARB_p(index,x,y,z,w)
+	GLuint index
+	GLshort	x
+	GLshort	y
+	GLshort	z
+	GLshort	w
+	INIT:
+		loadProc(glVertexAttrib4NsvARB,"glVertexAttrib4NsvARB");
+	CODE:
+	{
+		GLshort param[4];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		param[3] = w;
+		glVertexAttrib4NsvARB(index,param);
+	}
+
+void
+glVertexAttrib4NubARB(index,x,y,z,w)
+	GLuint index
+	GLubyte x
+	GLubyte y
+	GLubyte z
+	GLubyte w
+	INIT:
+		loadProc(glVertexAttrib4NubARB,"glVertexAttrib4NubARB");
+
+void
+glVertexAttrib4NubvARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib4NubvARB,"glVertexAttrib4NubvARB");
+	CODE:
+		glVertexAttrib4NubvARB(index,(GLubyte*)v);
+
+void
+glVertexAttrib4NubvARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib4NubvARB,"glVertexAttrib4NubvARB");
+	CODE:
+	{
+		GLubyte * v_s = EL(v, sizeof(GLubyte)*4);
+		glVertexAttrib4NubvARB(index,v_s);
+	}
+
+void
+glVertexAttrib4NubvARB_p(index,x,y,z,w)
+	GLuint index
+	GLubyte	x
+	GLubyte	y
+	GLubyte	z
+	GLubyte	w
+	INIT:
+		loadProc(glVertexAttrib4NubvARB,"glVertexAttrib4NubvARB");
+	CODE:
+	{
+		GLubyte param[4];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		param[3] = w;
+		glVertexAttrib4NubvARB(index,param);
+	}
+
+void
+glVertexAttrib4NuivARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib4NuivARB,"glVertexAttrib4NuivARB");
+	CODE:
+		glVertexAttrib4NuivARB(index,(GLuint*)v);
+
+void
+glVertexAttrib4NuivARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib4NuivARB,"glVertexAttrib4NuivARB");
+	CODE:
+	{
+		GLuint * v_s = EL(v, sizeof(GLuint)*4);
+		glVertexAttrib4NuivARB(index,v_s);
+	}
+
+void
+glVertexAttrib4NuivARB_p(index,x,y,z,w)
+	GLuint index
+	GLuint	x
+	GLuint	y
+	GLuint	z
+	GLuint	w
+	INIT:
+		loadProc(glVertexAttrib4NuivARB,"glVertexAttrib4NuivARB");
+	CODE:
+	{
+		GLuint param[4];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		param[3] = w;
+		glVertexAttrib4NuivARB(index,param);
+	}
+
+void
+glVertexAttrib4NusvARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib4NusvARB,"glVertexAttrib4NusvARB");
+	CODE:
+		glVertexAttrib4NusvARB(index,(GLushort*)v);
+
+void
+glVertexAttrib4NusvARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib4NusvARB,"glVertexAttrib4NusvARB");
+	CODE:
+	{
+		GLushort * v_s = EL(v, sizeof(GLushort)*4);
+		glVertexAttrib4NusvARB(index,v_s);
+	}
+
+void
+glVertexAttrib4NusvARB_p(index,x,y,z,w)
+	GLuint index
+	GLushort	x
+	GLushort	y
+	GLushort	z
+	GLushort	w
+	INIT:
+		loadProc(glVertexAttrib4NusvARB,"glVertexAttrib4NusvARB");
+	CODE:
+	{
+		GLushort param[4];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		param[3] = w;
+		glVertexAttrib4NusvARB(index,param);
+	}
+
+void
+glVertexAttrib4bvARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib4bvARB,"glVertexAttrib4bvARB");
+	CODE:
+		glVertexAttrib4bvARB(index,(GLbyte*)v);
+
+void
+glVertexAttrib4bvARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib4bvARB,"glVertexAttrib4bvARB");
+	CODE:
+	{
+		GLbyte * v_s = EL(v, sizeof(GLbyte)*4);
+		glVertexAttrib4bvARB(index,v_s);
+	}
+
+void
+glVertexAttrib4bvARB_p(index,x,y,z,w)
+	GLuint index
+	GLbyte	x
+	GLbyte	y
+	GLbyte	z
+	GLbyte	w
+	INIT:
+		loadProc(glVertexAttrib4bvARB,"glVertexAttrib4bvARB");
+	CODE:
+	{
+		GLbyte param[4];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		param[3] = w;
+		glVertexAttrib4bvARB(index,param);
+	}
+
+void
+glVertexAttrib4dARB(index,x,y,z,w)
+	GLuint index
+	GLdouble x
+	GLdouble y
+	GLdouble z
+	GLdouble w
+	INIT:
+		loadProc(glVertexAttrib4dARB,"glVertexAttrib4dARB");
+
+void
+glVertexAttrib4dvARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib4dvARB,"glVertexAttrib4dvARB");
+	CODE:
+		glVertexAttrib4dvARB(index,(GLdouble*)v);
+
+void
+glVertexAttrib4dvARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib4dvARB,"glVertexAttrib4dvARB");
+	CODE:
+	{
+		GLdouble * v_s = EL(v, sizeof(GLdouble)*4);
+		glVertexAttrib4dvARB(index,v_s);
+	}
+
+void
+glVertexAttrib4dvARB_p(index,x,y,z,w)
+	GLuint index
+	GLdouble	x
+	GLdouble	y
+	GLdouble	z
+	GLdouble	w
+	INIT:
+		loadProc(glVertexAttrib4dvARB,"glVertexAttrib4dvARB");
+	CODE:
+	{
+		GLdouble param[4];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		param[3] = w;
+		glVertexAttrib4dvARB(index,param);
+	}
+
+void
+glVertexAttrib4fARB(index,x,y,z,w)
+	GLuint index
+	GLfloat x
+	GLfloat y
+	GLfloat z
+	GLfloat w
+	INIT:
+		loadProc(glVertexAttrib4fARB,"glVertexAttrib4fARB");
+
+void
+glVertexAttrib4fvARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib4fvARB,"glVertexAttrib4fvARB");
+	CODE:
+		glVertexAttrib4fvARB(index,(GLfloat*)v);
+
+void
+glVertexAttrib4fvARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib4fvARB,"glVertexAttrib4fvARB");
+	CODE:
+	{
+		GLfloat * v_s = EL(v, sizeof(GLfloat)*4);
+		glVertexAttrib4fvARB(index,v_s);
+	}
+
+void
+glVertexAttrib4fvARB_p(index,x,y,z,w)
+	GLuint index
+	GLfloat	x
+	GLfloat	y
+	GLfloat	z
+	GLfloat	w
+	INIT:
+		loadProc(glVertexAttrib4fvARB,"glVertexAttrib4fvARB");
+	CODE:
+	{
+		GLfloat param[4];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		param[3] = w;
+		glVertexAttrib4fvARB(index,param);
+	}
+
+void
+glVertexAttrib4ivARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib4ivARB,"glVertexAttrib4ivARB");
+	CODE:
+		glVertexAttrib4ivARB(index,(GLint*)v);
+
+void
+glVertexAttrib4ivARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib4ivARB,"glVertexAttrib4ivARB");
+	CODE:
+	{
+		GLint * v_s = EL(v, sizeof(GLint)*4);
+		glVertexAttrib4ivARB(index,v_s);
+	}
+
+void
+glVertexAttrib4ivARB_p(index,x,y,z,w)
+	GLuint index
+	GLint	x
+	GLint	y
+	GLint	z
+	GLint	w
+	INIT:
+		loadProc(glVertexAttrib4ivARB,"glVertexAttrib4ivARB");
+	CODE:
+	{
+		GLint param[4];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		param[3] = w;
+		glVertexAttrib4ivARB(index,param);
+	}
+
+void
+glVertexAttrib4sARB(index,x,y,z,w)
+	GLuint index
+	GLshort x
+	GLshort y
+	GLshort z
+	GLshort w
+	INIT:
+		loadProc(glVertexAttrib4sARB,"glVertexAttrib4sARB");
+
+void
+glVertexAttrib4svARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib4svARB,"glVertexAttrib4svARB");
+	CODE:
+		glVertexAttrib4svARB(index,(GLshort*)v);
+
+void
+glVertexAttrib4svARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib4svARB,"glVertexAttrib4svARB");
+	CODE:
+	{
+		GLshort * v_s = EL(v, sizeof(GLshort)*4);
+		glVertexAttrib4svARB(index,v_s);
+	}
+
+void
+glVertexAttrib4svARB_p(index,x,y,z,w)
+	GLuint index
+	GLshort	x
+	GLshort	y
+	GLshort	z
+	GLshort	w
+	INIT:
+		loadProc(glVertexAttrib4svARB,"glVertexAttrib4svARB");
+	CODE:
+	{
+		GLshort param[4];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		param[3] = w;
+		glVertexAttrib4svARB(index,param);
+	}
+
+void
+glVertexAttrib4ubvARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib4ubvARB,"glVertexAttrib4ubvARB");
+	CODE:
+		glVertexAttrib4ubvARB(index,(GLubyte*)v);
+
+void
+glVertexAttrib4ubvARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib4ubvARB,"glVertexAttrib4ubvARB");
+	CODE:
+	{
+		GLubyte * v_s = EL(v, sizeof(GLubyte)*4);
+		glVertexAttrib4ubvARB(index,v_s);
+	}
+
+void
+glVertexAttrib4ubvARB_p(index,x,y,z,w)
+	GLuint index
+	GLubyte	x
+	GLubyte	y
+	GLubyte	z
+	GLubyte	w
+	INIT:
+		loadProc(glVertexAttrib4ubvARB,"glVertexAttrib4ubvARB");
+	CODE:
+	{
+		GLubyte param[4];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		param[3] = w;
+		glVertexAttrib4ubvARB(index,param);
+	}
+
+void
+glVertexAttrib4uivARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib4uivARB,"glVertexAttrib4uivARB");
+	CODE:
+		glVertexAttrib4uivARB(index,(GLuint*)v);
+
+void
+glVertexAttrib4uivARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib4uivARB,"glVertexAttrib4uivARB");
+	CODE:
+	{
+		GLuint * v_s = EL(v, sizeof(GLuint)*4);
+		glVertexAttrib4uivARB(index,v_s);
+	}
+
+void
+glVertexAttrib4uivARB_p(index,x,y,z,w)
+	GLuint index
+	GLuint	x
+	GLuint	y
+	GLuint	z
+	GLuint	w
+	INIT:
+		loadProc(glVertexAttrib4uivARB,"glVertexAttrib4uivARB");
+	CODE:
+	{
+		GLuint param[4];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		param[3] = w;
+		glVertexAttrib4uivARB(index,param);
+	}
+
+void
+glVertexAttrib4usvARB_c(index,v)
+	GLuint index
+	void *	v
+	INIT:
+		loadProc(glVertexAttrib4usvARB,"glVertexAttrib4usvARB");
+	CODE:
+		glVertexAttrib4usvARB(index,(GLushort*)v);
+
+void
+glVertexAttrib4usvARB_s(index,v)
+	GLuint index
+	SV *	v
+	INIT:
+		loadProc(glVertexAttrib4usvARB,"glVertexAttrib4usvARB");
+	CODE:
+	{
+		GLushort * v_s = EL(v, sizeof(GLushort)*4);
+		glVertexAttrib4usvARB(index,v_s);
+	}
+
+void
+glVertexAttrib4usvARB_p(index,x,y,z,w)
+	GLuint index
+	GLushort	x
+	GLushort	y
+	GLushort	z
+	GLushort	w
+	INIT:
+		loadProc(glVertexAttrib4usvARB,"glVertexAttrib4usvARB");
+	CODE:
+	{
+		GLushort param[4];
+		param[0] = x;
+		param[1] = y;
+		param[2] = z;
+		param[3] = w;
+		glVertexAttrib4usvARB(index,param);
+	}
+
+void
+glVertexAttribPointerARB_c(index,size,type,normalized,stride,pointer)
+	GLuint index
+	GLint size
+	GLenum type
+	GLboolean normalized
+	GLsizei stride
+	void * pointer
+	INIT:
+		loadProc(glVertexAttribPointerARB,"glVertexAttribPointerARB");
+	CODE:
+		glVertexAttribPointerARB(index,size,type,
+			normalized,stride,pointer);
+
+void
+glVertexAttribPointerARB_p(index,type,normalized,stride,...)
+	GLuint index
+	GLenum type
+	GLboolean normalized
+	GLsizei stride
+	INIT:
+		loadProc(glVertexAttribPointerARB,"glVertexAttribPointerARB");
+	CODE:
+	{
+		GLuint count = items - 4;
+		GLuint size = gl_type_size(type);
+		void * pointer = malloc(count * size);
+
+		SvItems(type,4,count,pointer);
+
+		glVertexAttribPointerARB(index,count,type,
+			normalized,stride,pointer);
+
+		free(pointer);
+	}
+
+void
+glEnableVertexAttribArrayARB(index)
+	GLuint index
+	INIT:
+		loadProc(glEnableVertexAttribArrayARB,"glEnableVertexAttribArrayARB");
+
+void
+glDisableVertexAttribArrayARB(index)
+	GLuint index
+	INIT:
+		loadProc(glDisableVertexAttribArrayARB,"glDisableVertexAttribArrayARB");
+
+void
+glGetVertexAttribdvARB_c(index,pname,params)
+	GLuint	index
+	GLenum	pname
+	void *	params
+	INIT:
+		loadProc(glGetVertexAttribdvARB,"glGetVertexAttribdvARB");
+	CODE:
+		glGetVertexAttribdvARB(index,pname,(GLdouble*)params);
+
+void
+glGetVertexAttribdvARB_s(index,pname,params)
+	GLuint	index
+	GLenum	pname
+	SV *	params
+	INIT:
+		loadProc(glGetVertexAttribdvARB,"glGetVertexAttribdvARB");
+	CODE:
+	{
+		GLdouble * params_s = EL(params, sizeof(GLdouble) * 4);
+		glGetVertexAttribdvARB(index,pname,params_s);
+	}
+
+GLdouble
+glGetVertexAttribdvARB_p(index,pname)
+	GLuint	index
+	GLenum	pname
+	INIT:
+		loadProc(glGetVertexAttribdvARB,"glGetVertexAttribdvARB");
+	CODE:
+	{
+		GLdouble param;
+		glGetVertexAttribdvARB(index,pname,(void *)&param);
+		RETVAL = param;
+	}
+	OUTPUT:
+		RETVAL
+
+void
+glGetVertexAttribfvARB_c(index,pname,params)
+	GLuint	index
+	GLenum	pname
+	void *	params
+	INIT:
+		loadProc(glGetVertexAttribfvARB,"glGetVertexAttribfvARB");
+	CODE:
+		glGetVertexAttribfvARB(index,pname,(GLfloat*)params);
+
+void
+glGetVertexAttribfvARB_s(index,pname,params)
+	GLuint	index
+	GLenum	pname
+	SV *	params
+	INIT:
+		loadProc(glGetVertexAttribfvARB,"glGetVertexAttribfvARB");
+	CODE:
+	{
+		GLfloat * params_s = EL(params, sizeof(GLfloat) * 4);
+		glGetVertexAttribfvARB(index,pname,params_s);
+	}
+
+GLfloat
+glGetVertexAttribfvARB_p(index,pname)
+	GLuint	index
+	GLenum	pname
+	INIT:
+		loadProc(glGetVertexAttribfvARB,"glGetVertexAttribfvARB");
+	CODE:
+	{
+		GLfloat param;
+		glGetVertexAttribfvARB(index,pname,(void *)&param);
+		RETVAL = param;
+	}
+	OUTPUT:
+		RETVAL
+
+void
+glGetVertexAttribivARB_c(index,pname,params)
+	GLuint	index
+	GLenum	pname
+	void *	params
+	INIT:
+		loadProc(glGetVertexAttribivARB,"glGetVertexAttribivARB");
+	CODE:
+		glGetVertexAttribivARB(index,pname,(GLint*)params);
+
+void
+glGetVertexAttribivARB_s(index,pname,params)
+	GLuint	index
+	GLenum	pname
+	SV *	params
+	INIT:
+		loadProc(glGetVertexAttribivARB,"glGetVertexAttribivARB");
+	CODE:
+	{
+		GLint * params_s = EL(params, sizeof(GLint) * 4);
+		glGetVertexAttribivARB(index,pname,params_s);
+	}
+
+GLuint
+glGetVertexAttribivARB_p(index,pname)
+	GLuint	index
+	GLenum	pname
+	INIT:
+		loadProc(glGetVertexAttribivARB,"glGetVertexAttribivARB");
+	CODE:
+	{
+		GLuint param;
+		glGetVertexAttribivARB(index,pname,(void *)&param);
+		RETVAL = param;
+	}
+	OUTPUT:
+		RETVAL
+
+void
+glGetVertexAttribPointervARB_c(index,pname,pointer)
+	GLuint	index
+	GLenum	pname
+	void *	pointer
+	INIT:
+		loadProc(glGetVertexAttribPointervARB,"glGetVertexAttribPointervARB");
+	CODE:
+		glGetVertexAttribPointervARB(index,pname,pointer);
+
+void
+glGetVertexAttribPointervARB_p(index,pname)
+	GLuint	index
+	GLenum	pname
+	INIT:
+		loadProc(glGetVertexAttribPointervARB,"glGetVertexAttribPointervARB");
+		loadProc(glGetVertexAttribivARB,"glGetVertexAttribivARB");
+	PPCODE:
+	{
+		void * pointer;
+		GLuint i,count,type;
+
+		glGetVertexAttribPointervARB(index,pname,&pointer);
+
+		glGetVertexAttribivARB(index,GL_VERTEX_ATTRIB_ARRAY_SIZE_ARB,(void *)&count);
+		glGetVertexAttribivARB(index,GL_VERTEX_ATTRIB_ARRAY_TYPE_ARB,(void *)&type);
+
+		EXTEND(sp, count);
+
+		switch (type)
+		{
+#ifdef GL_VERSION_1_2
+			case GL_UNSIGNED_BYTE_3_3_2:
+			case GL_UNSIGNED_BYTE_2_3_3_REV:
+				for (i=0;i<count;i++)
+				{
+				  PUSHs(sv_2mortal(newSViv(((GLubyte*)pointer)[i])));
+				}
+				break;
+			case GL_UNSIGNED_SHORT_5_6_5:
+			case GL_UNSIGNED_SHORT_5_6_5_REV:
+			case GL_UNSIGNED_SHORT_4_4_4_4:
+			case GL_UNSIGNED_SHORT_4_4_4_4_REV:
+			case GL_UNSIGNED_SHORT_5_5_5_1:
+			case GL_UNSIGNED_SHORT_1_5_5_5_REV:
+				for (i=0;i<count;i++)
+				{
+				  PUSHs(sv_2mortal(newSViv(((GLushort*)pointer)[i])));
+				}
+				break;
+			case GL_UNSIGNED_INT_8_8_8_8:
+			case GL_UNSIGNED_INT_8_8_8_8_REV:
+			case GL_UNSIGNED_INT_10_10_10_2:
+			case GL_UNSIGNED_INT_2_10_10_10_REV:
+				for (i=0;i<count;i++)
+				{
+				  PUSHs(sv_2mortal(newSViv(((GLuint*)pointer)[i])));
+				}
+				break;
+#endif
+			case GL_UNSIGNED_BYTE:
+			case GL_BITMAP:
+				for (i=0;i<count;i++)
+				{
+				  PUSHs(sv_2mortal(newSViv(((GLubyte*)pointer)[i])));
+				}
+				break;
+			case GL_BYTE:
+				for (i=0;i<count;i++)
+				{
+				  PUSHs(sv_2mortal(newSViv(((GLbyte*)pointer)[i])));
+				}
+				break;
+			case GL_UNSIGNED_SHORT:
+				for (i=0;i<count;i++)
+				{
+				  PUSHs(sv_2mortal(newSViv(((GLushort*)pointer)[i])));
+				}
+				break;
+			case GL_SHORT:
+				for (i=0;i<count;i++)
+				{
+				  PUSHs(sv_2mortal(newSViv(((GLushort*)pointer)[i])));
+				}
+				break;
+			case GL_UNSIGNED_INT:
+				for (i=0;i<count;i++)
+				{
+				  PUSHs(sv_2mortal(newSViv(((GLuint*)pointer)[i])));
+				}
+				break;
+			case GL_INT:
+				for (i=0;i<count;i++)
+				{
+				  PUSHs(sv_2mortal(newSViv(((GLint*)pointer)[i])));
+				}
+				break;
+			case GL_FLOAT: 
+				for (i=0;i<count;i++)
+				{
+				  PUSHs(sv_2mortal(newSVnv(((GLfloat*)pointer)[i])));
+				}
+				break;
+			case GL_DOUBLE: 
+				for (i=0;i<count;i++)
+				{
+				  PUSHs(sv_2mortal(newSVnv(((GLdouble*)pointer)[i])));
+				}
+				break;
+			default:
+				croak("unknown type");
+		}
+	}
+
+#endif
+
+
+#ifdef GL_ARB_vertex_shader
+
+void
+glBindAttribLocationARB(programObj, index, name)
+	GLhandleARB programObj
+	GLuint index
+	void *name
+	INIT:
+		loadProc(glBindAttribLocationARB,"glBindAttribLocationARB");
+	CODE:
+		glBindAttribLocationARB(programObj,index,name);
+
+void
+glGetActiveAttribARB_c(programObj, index, maxLength, length, size, type, name)
+	GLhandleARB programObj
+	GLuint	index
+	GLsizei	maxLength
+	void	*length
+	void	*size
+	void	*type
+	void	*name
+	INIT:
+		loadProc(glGetActiveAttribARB,"glGetActiveAttribARB");
+	CODE:
+		glGetActiveAttribARB(programObj,index,maxLength,length,size,type,name);
+
+void
+glGetActiveAttribARB_s(programObj, index, maxLength, length, size, type, name)
+	GLhandleARB programObj
+	GLuint	index
+	GLsizei	maxLength
+	SV	*length
+	SV	*size
+	SV	*type
+	SV	*name
+	INIT:
+		loadProc(glGetActiveAttribARB,"glGetActiveAttribARB");
+	CODE:
+	{
+		GLsizei	  *length_s = EL(length, sizeof(GLsizei));
+		GLint	  *size_s = EL(size, sizeof(GLint));
+		GLenum	  *type_s = EL(type, sizeof(GLenum));
+		GLcharARB *name_s = EL(name, sizeof(GLcharARB));
+		glGetActiveAttribARB(programObj,index,maxLength,length_s,size_s,type_s,name_s);
+	}
+
+void
+glGetActiveAttribARB_p(programObj, index)
+	GLhandleARB programObj
+	GLuint index
+	INIT:
+		loadProc(glGetObjectParameterivARB,"glGetObjectParameterivARB");
+		loadProc(glGetActiveAttribARB,"glGetActiveAttribARB");
+	PPCODE:
+	{
+		GLsizei maxLength;
+		glGetObjectParameterivARB(programObj,GL_OBJECT_ACTIVE_ATTRIBUTES_ARB,
+			(GLvoid *)&maxLength);
+		if (maxLength)
+		{
+			GLsizei length;
+			GLint size;
+			GLenum type;
+			GLcharARB *name;
+
+			name = malloc(maxLength+1);
+			glGetActiveAttribARB(programObj,index,maxLength,
+				&length,&size,&type,name);
+			name[length] = 0;
+
+			if (*name)
+			{
+				EXTEND(sp,3);
+				PUSHs(sv_2mortal(newSVpv(name,0)));
+				PUSHs(sv_2mortal(newSViv(type)));
+				PUSHs(sv_2mortal(newSViv(size)));
+			}
+			else
+			{
+				EXTEND(sp,1);
+				PUSHs(sv_2mortal(newSVsv(&PL_sv_undef)));
+			}
+
+			free(name);
+		}
+		else
+		{
+			EXTEND(sp,1);
+			PUSHs(sv_2mortal(newSVsv(&PL_sv_undef)));
+		}
+	}
+
+GLint
+glGetAttribLocationARB_c(programObj, name)
+	GLhandleARB programObj
+	void	*name
+	INIT:
+		loadProc(glGetAttribLocationARB,"glGetAttribLocationARB");
+	CODE:
+		RETVAL = glGetAttribLocationARB(programObj, name);
+	OUTPUT:
+		RETVAL
+
+GLint
+glGetAttribLocationARB_p(programObj, ...)
+	GLhandleARB programObj
+	INIT:
+		loadProc(glGetAttribLocationARB,"glGetAttribLocationARB");
+	CODE:
+	{
+		GLcharARB *name = (GLcharARB *)SvPV(ST(1),PL_na);
+		RETVAL = glGetAttribLocationARB(programObj, name);
+	}
+	OUTPUT:
+		RETVAL
+
+#endif
+
 
 
 #endif /* HAVE_GL */
@@ -11558,6 +13234,22 @@ gluEndTrim(nurb)
 	GLUnurbsObj *	nurb
 
 GLint
+gluBuild1DMipmaps_c(target, internalformat, width, format, type, data)
+	GLenum	target
+	GLuint	internalformat
+	GLsizei	width
+	GLenum	format
+	GLenum	type
+	void *	data
+	CODE:
+	{
+		RETVAL=gluBuild1DMipmaps(target, internalformat,
+			width, format, type, data);
+	}
+	OUTPUT:
+	  RETVAL
+
+GLint
 gluBuild1DMipmaps_s(target, internalformat, width, format, type, data)
 	GLenum	target
 	GLuint	internalformat
@@ -11569,6 +13261,23 @@ gluBuild1DMipmaps_s(target, internalformat, width, format, type, data)
 	{
 	GLvoid * ptr = ELI(data, width, 1, format, type, gl_pixelbuffer_unpack);
 	RETVAL=gluBuild1DMipmaps(target, internalformat, width, format, type, ptr);
+	}
+	OUTPUT:
+	  RETVAL
+
+GLint
+gluBuild2DMipmaps_c(target, internalformat, width, height, format, type, data)
+	GLenum	target
+	GLuint	internalformat
+	GLsizei	width
+	GLsizei	height
+	GLenum	format
+	GLenum	type
+	void *	data
+	CODE:
+	{
+		RETVAL=gluBuild2DMipmaps(target, internalformat,
+			width, height, format, type, data);
 	}
 	OUTPUT:
 	  RETVAL
