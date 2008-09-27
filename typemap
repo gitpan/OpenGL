@@ -1,5 +1,7 @@
 TYPEMAP
 
+const unsigned char *	T_PV
+
 GLsizei			T_INT
 GLfloat			T_FLOAT
 GLdouble		T_DOUBLE
@@ -30,7 +32,7 @@ GLXDrawable		T_PTR
 INPUT
 
 T_FASTPTROBJ
-        $var = ($type)SvIV($arg);
+        $var = INT2PTR($type,SvIV($arg));
 
 OUTPUT
 

@@ -12,7 +12,7 @@ void main(void)
   float a = atan(pos.x/pos.y) / 3.1415;
   if (a < 0.0) a += 1.0;
   a *= 2.0;
-  a -= int(a);
+  a -= float(int(a));
 
   pos -= center;
   float h = pos.z;

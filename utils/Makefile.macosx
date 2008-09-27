@@ -1,9 +1,9 @@
 #!make
 
 CC=cc
-CCFLAGS=
+CCFLAGS=-I../include -I/usr/X11/include
 LINK=cc
-LDFLAGS=-framework OpenGL -framework GLUT
+LDFLAGS=-framework AGL -framework OpenGL -framework GLUT
 
 all: glversion.txt
 

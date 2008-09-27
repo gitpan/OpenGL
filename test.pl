@@ -1,6 +1,11 @@
 #!/usr/bin/perl -w
 use strict;
 
+my $stat = `perl -v`;
+our $IS_ACTIVEPERL = ($stat =~ m|ActiveState|s);
+our $PERL_VERSION = $^V;
+$PERL_VERSION =~ s|^v||;
+
 use OpenGL qw/ :all /;
 
 eval 'use OpenGL::Image';
@@ -35,8 +40,44 @@ $|++;
 #
 
 
+# Requires GLUT/FreeGLUT
+if (!glpHasGLUT())
+{
+  print qq
+  {
+    This test requires GLUT:
+    If you have X installed, you can try the scripts in ./examples/
+    Most of them do not use GLUT.
+
+    It is recommended that you install FreeGLUT for improved Makefile.PL
+    configuration, installation and debugging.
+
+  };
+
+  print "Attempting to run examples/texhack instead...\n";
+  `perl examples/texhack`;
+  exit 0;
+}
+
+
 use constant PROGRAM_TITLE => "OpenGL Test App";
 use constant DO_TESTS => 0;
+
+
+# Run in Game Mode
+my $gameMode;
+if (lc($ARGV[0]) eq 'gamemode')
+{
+  $gameMode = $ARGV[1] || '';
+}
+
+# Keyboard modifiers
+my $key_mods =
+{
+  eval(GLUT_ACTIVE_SHIFT) => "SHIFT",
+  eval(GLUT_ACTIVE_CTRL) => "CTRL",
+  eval(GLUT_ACTIVE_ALT) => "ALT"
+};
 
 # Some global variables.
 my $useMipMap = 1;
@@ -44,6 +85,8 @@ my $hasFBO = 0;
 my $hasVBO = 0;
 my $hasFragProg = 0;
 my $hasImagePointer = 0;
+my $idleTime = time();
+my $idleSecsMax = 30;
 my $er;
 
 # Window and texture IDs, window width and height.
@@ -52,10 +95,10 @@ my $Window_Width = 300;
 my $Window_Height = 300;
 my $Inset_Width = 90;
 my $Inset_Height = 90;
-my $Save_Width;
-my $Save_Height;
+my $Window_State;
 
 # Texture dimanesions
+#my $Tex_File = 'test.jpg';
 my $Tex_File = 'test.tga';
 my $Tex_Width = 128;
 my $Tex_Height = 128;
@@ -99,6 +142,11 @@ my $Z_Off   =-5.0;
 my @Light_Ambient  = ( 0.1, 0.1, 0.1, 1.0 );
 my @Light_Diffuse  = ( 1.2, 1.2, 1.2, 1.0 );
 my @Light_Position = ( 2.0, 2.0, 0.0, 1.0 );
+
+# Model/Projection/Viewport Matrices
+my $mm = OpenGL::Array->new(16,GL_DOUBLE);
+my $pm = OpenGL::Array->new(16,GL_DOUBLE);
+my $vp = OpenGL::Array->new(4,GL_INT);
 
 # Vertex Buffer Object data
 my($VertexObjID,$NormalObjID,$ColorObjID,$TexCoordObjID,$IndexObjID);
@@ -709,6 +757,14 @@ sub ourInitShaders
 
 sub cbRenderScene
 {
+  # Quit if inactive
+  if ($idleSecsMax < (time()-$idleTime))
+  {
+    print "Idle timeout; completing test\n";
+    ourCleanup();
+    exit(0);
+  }
+
   my $buf; # For our strings.
 
   # Animated Texture Rendering
@@ -1025,10 +1081,15 @@ sub Inset
 
     glReadPixels_c( $Capture_X, $Capture_Y, $Inset_Width, $Inset_Height,
       $fmt, $size, $frame->Ptr() );
+
+    # Do this before making native calls
     $frame->Sync();
 
     # For grins, use ImageMagick to modify the inset
     $frame->Native->Blur(radius=>2,sigma=>2);
+
+    # Do this when done making native calls
+    $frame->SyncOGA();
 
     glRasterPos2f( $Inset_X, $Inset_Y );
     glDrawPixels_c( $Inset_Width, $Inset_Height, $fmt, $size, $frame->Ptr() );
@@ -1070,10 +1131,30 @@ sub ourCleanup
 {
   # Disable app
   glutHideWindow();
+  glutKeyboardUpFunc();
   glutKeyboardFunc();
+  glutSpecialUpFunc();
   glutSpecialFunc();
   glutIdleFunc();
   glutReshapeFunc();
+
+  ReleaseResources();
+
+  # Now you can destroy window
+  if (defined($gameMode))
+  {
+    glutLeaveGameMode();
+  }
+  else
+  {
+    glutDestroyWindow($Window_ID);
+  }
+  undef($Window_ID);
+}
+
+sub ReleaseResources
+{
+  return if (!defined($Window_ID));
 
   if ($hasFBO)
   {
@@ -1111,9 +1192,6 @@ sub ourCleanup
   }
 
   glDeleteTextures_p($TextureID_image,$TextureID_FBO);
-
-  # Now you can destroy window
-  glutDestroyWindow($Window_ID);
 }
 
 # ------
@@ -1138,6 +1216,10 @@ sub cbKeyPressed
     else {
       glEnable(GL_BLEND);
     }
+  }
+  elsif ($c eq 'K')
+  {
+    glutLeaveMainLoop();
   }
   elsif ($c eq 'L')
   {
@@ -1182,15 +1264,13 @@ sub cbKeyPressed
     $Fullscreen_On = !$Fullscreen_On;
     if ($Fullscreen_On)
     {
-      $Save_Width = $Window_Width;
-      $Save_Height = $Window_Height;
-      glutFullScreen();
+      $Window_State = glpFullScreen();
+      $Window_Width = $Window_State->{w};
+      $Window_Height = $Window_State->{h};
     }
     else
     {
-      $Window_Width = $Save_Width;
-      $Window_Height = $Save_Height;
-      glutReshapeWindow($Window_Width,$Window_Height);
+      glpRestoreScreen($Window_State);
     }
   }
   elsif ($c eq 'C' && $hasImage)
@@ -1201,6 +1281,8 @@ sub cbKeyPressed
   {
     printf "KP: No action for %d.\n", $key;
   }
+
+  $idleTime = time();
 }
 
 # ------
@@ -1238,6 +1320,119 @@ sub cbSpecialKeyPressed
   {
     printf "SKP: No action for %d.\n", $key;
   }
+
+  $idleTime = time();
+}
+
+# ------
+# Callback function called for key-up events.
+
+sub cbKeyUp
+{
+  my($key) = @_;
+  my $mod = GetKeyModifier();
+  print "Key up: $key w/ $mod\n" if ($mod);
+}
+
+# ------
+# Callback function called for special key-up events.
+
+sub cbSpecialKeyUp
+{
+  my($key) = @_;
+  my $mod = GetKeyModifier();
+  print "Special Key up: $key w/ $mod\n" if ($mod);
+}
+
+# ------
+# Callback function called for handling mouse clicks.
+
+sub cbMouseClick
+{
+  my($button,$state,$x,$y) = @_;
+
+  if ($button == GLUT_LEFT_BUTTON)
+  {
+    print "Left";
+  }
+  elsif ($button == GLUT_MIDDLE_BUTTON)
+  {
+    print "Middle";
+  }
+  elsif ($button == GLUT_RIGHT_BUTTON)
+  {
+    print "Right";
+  }
+  else
+  {
+    print "Unknown";
+  }
+  print " mouse button, ";
+
+  if ($state == GLUT_DOWN)
+  {
+    print "DOWN";
+  }
+  elsif ($state == GLUT_UP)
+  {
+    print "UP";
+  }
+  else
+  {
+    print "State UNKNOWN";
+  }
+
+  my $mod = GetKeyModifier();
+  print " w/ $mod" if ($mod);
+  print ": $x, $y\n";
+
+  # Example of using GLU to determine 3D click points
+  if ($state == GLUT_UP)
+  {
+    print "\n";
+
+    glGetDoublev_c(GL_MODELVIEW_MATRIX,$mm->ptr());
+    my @model = $mm->retrieve(0,16);
+
+    glGetDoublev_c(GL_PROJECTION_MATRIX,$pm->ptr());
+    my @projection = $pm->retrieve(0,16);
+
+    glGetIntegerv_c(GL_VIEWPORT,$vp->ptr());
+    my @viewport = $vp->retrieve(0,4);
+
+    print "Model Matrix:      $model[0], $model[1], $model[2], $model[3]\n";
+    print "                   $model[4], $model[5], $model[6], $model[7]\n";
+    print "                   $model[8], $model[9], $model[10], $model[11]\n";
+    print "                   $model[12], $model[13], $model[14], $model[15]\n";
+
+    print "Projection Matrix: $projection[0], $projection[1], $projection[2], $projection[3]\n";
+    print "                   $projection[4], $projection[5], $projection[6], $projection[7]\n";
+    print "                   $projection[8], $projection[9], $projection[10], $projection[11]\n";
+    print "                   $projection[12], $projection[13], $projection[14], $projection[15]\n";
+
+    print "Viewport: $viewport[0], $viewport[1], $viewport[2], $viewport[3]\n";
+    print "\n";
+
+    my @point = gluUnProject_p($x,$y,0,	# Cursor point
+      @model,				# Model Matrix
+      @projection,			# Projection Matrix
+      @viewport);			# Viewport
+    print "Model point: $point[0], $point[1], $point[2]\n";
+
+#    @point = gluProject_p(@point,	# Model point
+#      @model,				# Model Matrix
+#      @projection,			# Projection Matrix
+#      @viewport);			# Viewport
+#    print "Window point: $point[0], $point[1], $point[2]\n";
+    print "\n";
+  }
+
+  $idleTime = time();
+}
+
+sub GetKeyModifier
+{
+  return $key_mods->{glutGetModifiers()};
 }
 
 # ------
@@ -1247,7 +1442,7 @@ sub cbSpecialKeyPressed
 
 sub cbResizeScene
 {
-  my ($Width, $Height) = @_;
+  my($Width, $Height) = @_;
 
   # Let's not core dump, no matter what.
   $Height = 1 if ($Height == 0);
@@ -1262,31 +1457,47 @@ sub cbResizeScene
 
   $Window_Width  = $Width;
   $Window_Height = $Height;
+
+  $idleTime = time();
 }
 
+sub cbWindowStat
+{
+  my($stat) = @_;
+  print "Window status: $stat\n";
+}
 
-
+sub cbClose
+{
+  my($wid) = @_;
+  print "User has closed window: \#$wid\n";
+  ReleaseResources();
+}
 
 # ------
 # The main() function.  Inits OpenGL.  Calls our own init function,
 # then passes control onto OpenGL.
 
-eval {glutInit(); 1} or die qq
-{
-This test requires GLUT:
-If you have X installed, you can try the scripts in ./examples/
-Most of them do not use GLUT.
-
-It is recommended that you install GLUT for improved Makefile.PL
-configuration, installation and debugging.
-};
+# Initialize GLUT/FreeGLUT
+glutInit();
 
 # To see OpenGL drawing, take out the GLUT_DOUBLE request.
 glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH | GLUT_ALPHA);
-glutInitWindowSize($Window_Width, $Window_Height);
 
-# Open a window
-$Window_ID = glutCreateWindow( PROGRAM_TITLE );
+# Open Window
+if (defined($gameMode) && glutGameModeString($gameMode))
+{
+  print "Running in Game Mode $gameMode\n";
+  glutGameModeString($gameMode);
+  $Window_ID = glutEnterGameMode();
+  $Window_Width = glutGameModeGet( GLUT_GAME_MODE_WIDTH );
+  $Window_Height = glutGameModeGet( GLUT_GAME_MODE_HEIGHT );
+}
+else
+{
+  glutInitWindowSize($Window_Width, $Window_Height);
+  $Window_ID = glutCreateWindow( PROGRAM_TITLE );
+}
 
 # Get OpenGL Info
 print "\n";
@@ -1304,14 +1515,16 @@ my $extensions = glGetString(GL_EXTENSIONS);
 my @extensions = split(' ',$extensions);
 foreach my $ext (sort @extensions)
 {
-  my $stat = OpenGL::glpCheckExtension($ext);
+  my $stat = glpCheckExtension($ext);
   printf("%s $ext\n",$stat?' ':'*');
   print("    $stat\n") if ($stat && $stat !~ m|^$ext |);
 }
 
 if (!OpenGL::glpCheckExtension('GL_ARB_vertex_buffer_object'))
 {
-  $hasVBO = 1;
+  #$hasVBO = 1;
+  # Perl 5.10 crashes on VBOs!
+  $hasVBO = ($PERL_VERSION !~ m|^5\.10\.|);
 }
 
 if (!OpenGL::glpCheckExtension('GL_EXT_framebuffer_object'))
@@ -1335,13 +1548,25 @@ glutIdleFunc(\&cbRenderScene);
 
 # It's a good idea to know when our window's resized.
 glutReshapeFunc(\&cbResizeScene);
+#glutWindowStatusFunc(\&cbWindowStat);
 
 # And let's get some keyboard input.
 glutKeyboardFunc(\&cbKeyPressed);
 glutSpecialFunc(\&cbSpecialKeyPressed);
+glutKeyboardUpFunc(\&cbKeyUp);
+glutSpecialUpFunc(\&cbSpecialKeyUp);
+
+# Mouse handlers.
+glutMouseFunc(\&cbMouseClick);
+#glutMotionFunc(\&cbMouseDrag);
+#glutPassiveMotionFunc(\&cbMouseTrack);
+
+# Handle window close events.
+glutCloseFunc(\&cbClose);
 
 # OK, OpenGL's ready to go.  Let's call our own init function.
 ourInit($Window_Width, $Window_Height);
+
 
 # Print out a bit of help dialog.
 print qq
@@ -1349,6 +1574,7 @@ print qq
 Hold down arrow keys to rotate, 'r' to reverse, 's' to stop.
 Page up/down will move cube away from/towards camera.
 Use first letter of shown display mode settings to alter.
+Press 'g' to toggle fullscreen mode (not supported on all platforms).
 Press 'c' to capture/save a RGBA targa file.
 'q' or [Esc] to quit; OpenGL window must have focus for input.
 
@@ -1356,6 +1582,9 @@ Press 'c' to capture/save a RGBA targa file.
 
 # Pass off control to OpenGL.
 # Above functions are called as appropriate.
+glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE,GLUT_ACTION_GLUTMAINLOOP_RETURNS);
 glutMainLoop();
+
+print "FreeGLUT returned from MainLoop\n";
 
 __END__

@@ -1,4 +1,35 @@
+	Add Geometry Shader support.
 
-	Decide whether the unpack_image_ST should produce nested array data.
+	Fix GLU implementation - particularly Tesselation.
 
-	Decide whether to add an object-based interface for optimized use.
+	Move test apps to t/ subdirectory
+		Split into interactive and non-interactive tests
+		Skip interactive tests if OpenGL context not possible
+
+	Implement safe glutInit by checking _done_glutInit before calling glutInit()
+
+	Fix GLUT error handling for perl:
+		Add croak on no glutInit to glut functions to prevent exit(1)
+		Add croak to glutDisplayFunc() with null callback.
+		Add croak to glutSetKeyRepeat() with invalid repeat mode
+		Add croak to glutSetCursor() with unknown cursor type
+		Investigate use of undef return for errors; 1 instead of void's
+
+	Add toggle & display of OpenGL errors a la glutReportErrors()
+
+	Finish perl bindings to remaining FreeGLUT functions:
+		glutGetMenuData, glutSetMenuData, glutGetWindowData, glutSetWindowData,
+		glutGetProcAddress, glutJoystickFunc, glutWireSierpinskiSponge,
+		glutSolidSierpinskiSponge, glutWMCloseFunc
+	
+	Improve support for non-standard OpenGL configurations:
+		Document how to edit Makefile.PL (e.g. lines #120, #132 for lib stuff)
+		Add command line options for perl Makefile.PL to set CFLAGS,...
+		Make single point override for INCLUDE info.
+
+	Recognize OpenGLUT as an allowed flavor of FreeGLUT for POGL config/compile.
+
+	Clean up existing use of configuration information:
+		Clean up compile and config results so they are unambiguous
+		Use the same information to build POGL as to build glversion
+		Refactor Makefile.PL to be more comprehensible.

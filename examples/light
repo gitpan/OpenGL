@@ -100,7 +100,7 @@ sub display {
     icosahedron;
     glPopMatrix();
 
-    glpFlush();
+    glFlush();
     glXSwapBuffers();
 }
 
@@ -113,11 +113,15 @@ sub myReshape {
 }
  
 glpOpenWindow(width=>300,height=>300,
-	      attributes=> [GLX_DOUBLEBUFFER,GLX_RGBA,GLX_RED_SIZE, 1,
-		            GLX_GREEN_SIZE, 1, GLX_BLUE_SIZE,1]);
+	attributes=> [GLX_DOUBLEBUFFER,GLX_RGBA,
+		GLX_DEPTH_SIZE,16,
+		GLX_RED_SIZE,1,
+		GLX_GREEN_SIZE,1,
+		GLX_BLUE_SIZE,1]);
+
 $use_lighting && myinit();
 myReshape();
 glEnable(GL_DEPTH_TEST);
 glRotatef(0.12,1,0,0);
 
-while(1){$spin+=.1;display;}
+while(1){$spin+=1;display;}

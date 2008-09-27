@@ -1,14 +1,29 @@
-
  Copyright (c) 1998,1999 Kenneth Albanowski. All rights reserved.
  Copyright (c) 2000 Ilya Zakharevich. All rights reserved.
  Copyright (c) 2007 Bob Free. All rights reserved.
  This program is free software; you can redistribute it and/or
  modify it under the same terms as Perl itself. 
 
-This module provides access to most of the OpenGL 1.0, 1.1, and 1.2 APIs.
-Some amount of GLU is supported (I'm not quite sure what version it works
-out to), and GLUT should be completely supported up to API version 3. A
-small portion of GLX and X11 is supported, as an alternative to GLUT.
+
+Perl OpenGL: POGL
+
+As of 0.57 POGL now requires FreeGLUT: http://freeglut.sourceforge.net/
+This was due to licensing constraints and lack of window close events in GLUT.
+
+Note: FreeGLUT distributions on Linux are deployed as libglut.so files, making it
+difficult to detect whether GLUT or FreeGLUT is installed - as such, FreeGLUT is
+assumed.  See INSTALL to override this default.
+
+Note also: POGL automatically installs FreeGLUT on Windows.
+
+
+
+POGL provides access to most of the OpenGL 1.0, 1.1, and 1.2 APIs, and many OpenGL
+Extensions, such as Framebuffer Objects (FBOs) and Vertex Array Objects (VBOs).
+
+Some amount of GLU is supported, and GLUT is completely supported up to API 
+version 3, with some support for 4.0 and FreeGlut 2.4.0. A small portion of GLX
+and X11 is supported, as an alternative to GLUT/freeglut.
 
 Compatibility notes with OpenGL 0.4:
 
@@ -34,18 +49,9 @@ library) indirectly.
 
 For build instructions, please see the INSTALL file.
 
-GLUT libs (or compatible) must be installed in order to complete tests and install this OpenGL module.
-You can find GLUT at http://www.opengl.org/resources/libraries/glut
-
-For an incomplete implementation of GLUT in Perl, please see
-Gtk::GLArea::Glut, within the Gtk-Perl module.
-
 For a brief description of what functions are supported, please read
 "SUPPORTS", and better yet read the two sample files, test.pl and
 isosurf.pl.
-
-As of May 1999, I doubt I will be able to provide any significant support
-users of this module.
 
 Thanks for help developing this module goes to Stan Melax, Cass Everitt,
 Alligator Descarte, and probably others that I've forgotten.
@@ -235,3 +241,56 @@ Changes:
 
 	Geoffrey Broadwell
 	Fixed a bug in gl_pixelbuffer_size
+
+0.57:	Bob "grafman" Free <grafman@graphcomp.com>
+	Updated test.pl to fix fullscreen handling
+	Fixed OpenGL.pod to reflect correct module name
+	Added FBO constants to param enums in gl_util.c
+	Implemented GL_ARB_point_parameters
+	Implemented GL_ARB_multisample
+	Implemented GL_ARB_color_buffer_float
+	Added OGA calc and affine functions
+	Added glpHasGPGPU
+	Added an ATI workaround for GL_ARB_shading_language_100 dependencies
+	Added VBO and FBO caching in OGAs - gl_util.h
+	Fixed gluProject and gluUnProject - was converting matrices to ints
+	Added glutSpecialUpFunc and glutWindowStatusFunc
+	Added dist option to Makefile.PL to support binary distributions
+	Switched from GLUT to FreeGLUT
+	Added FreeGLUT folder for Win32 DLLs
+	Implemented glutSetOption
+	Implemented glutGameModeString
+	Implemented glutEnterGameMode
+	Implemented glutLeaveGameMode
+	Implemented glutGameModeGet
+	Added glpFullScreen and glpRestoreScreen
+	Updated test.pl to support Game Mode
+	Implemented glutCloseFunc
+	Implemented glutLeaveMainLoop
+	Major refactoring of Makefile.PL
+	Renamed WGL interface option to W32API
+	Added help message to Makefile.PL
+	Added verbose option to Makefile.PL
+	Added documentation comments to OpenGL.xs
+	Added glpHasGLUT
+	Updated test.pl to run texhack if no GLUT
+	Added a countdown timer to examples/texhack
+	Fixed GL_X_BYTES in assign
+	Fixed vertex.glsl to work on newer nvidia cards
+	Implemented glutIgnoreKeyRepeat
+	Implemented glutSetKeyRepeat
+	Implemented glutForceJoystickFunc
+	Added FreeGLUT support for cygwin builds
+	Fixed builds for Apple's recent Mac OS changes
+	Added README for building on Mac OS
+
+	Chris Marshall
+	Added support for building POGL within cygwin
+	Added Config.pm support
+
+	Sisyphus
+	Added partial support for MinGW/dmake - not yet fully functional
+	Added "clean" target to Makefile.PL
+
+	Alex Dodge
+	Added glutKeyboardUpFunc

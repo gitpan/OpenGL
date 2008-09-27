@@ -9,9 +9,13 @@ our $exts =
   pm => 1,
   pod => 1,
   ppd => 1,
+  ppm => 1,
   mak => 1,
   nff => 1,
-  yml =>1,
+  yml => 1,
+  arb => 1,
+  cg => 1,
+  glsl => 1,
   txt => 1
 };
 

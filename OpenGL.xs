@@ -4,7 +4,7 @@
  *  modify it under the same terms as Perl itself.
  */
 
-
+#include <stdio.h>
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
@@ -22,11 +22,26 @@
 #include "glu_util.h"
 #endif
 
-#ifdef HAVE_GLUT
+#if defined(HAVE_GLUT) || defined(HAVE_FREEGLUT)
+#ifndef GLUT_API_VERSION
+#define GLUT_API_VERSION 4
+#endif
 #include "glut_util.h"
 #endif
 
+static int _done_glutInit = 0;
 
+#ifndef M_PI
+#ifdef PI
+#define M_PI PI
+#else
+#define M_PI 3.1415926535897932384626433832795
+#endif
+#endif
+
+GLint FBO_MAX = -1;
+
+static char *SWIZZLE[4] = {"x","y","z","w"};
 
 static int
 not_here(s)
@@ -104,6 +119,7 @@ RUN_perl_call_sv(void)
     return;
 }
 
+/* Main event handler for callbacks */
 void
 callback_thread_looper(void *dummy)
 {
@@ -178,6 +194,7 @@ callback_thread_looper(void *dummy)
 	if (!worker_started)						\
 	    start_callback_thread()
 
+/* Spin a thread for a callback */
 void
 start_callback_thread()
 {
@@ -224,7 +241,7 @@ neoconstant(char * name, int arg)
 /* Note: this is caching procs once for all contexts */
 /* !!! This should instead cache per context */
 #ifdef HAVE_GL
-#ifdef _WIN32
+#if defined(_WIN32) || (defined(__CYGWIN__) && defined(HAVE_W32API))
 #define loadProc(proc,name) \
 { \
   if (!proc) \
@@ -303,6 +320,7 @@ static int DBUFFER_HACK = 0;
 
 static AV * glut_handlers = 0;
 
+/* Attach a handler to a window */
 static void set_glut_win_handler(int win, int type, SV * data)
 {
 	SV ** h;
@@ -326,6 +344,7 @@ static void set_glut_win_handler(int win, int type, SV * data)
 	SvREFCNT_dec(data);
 }
 
+/* Get a window's handler */
 static SV * get_glut_win_handler(int win, int type)
 {
 	SV ** h;
@@ -346,6 +365,7 @@ static SV * get_glut_win_handler(int win, int type)
 	return SvRV(*h);
 }
 
+/* Release a window's handlers */
 static void destroy_glut_win_handlers(int win)
 {
 	SV ** h;
@@ -361,6 +381,7 @@ static void destroy_glut_win_handlers(int win)
 	av_store(glut_handlers, win, newSVsv(&PL_sv_undef));
 }
 
+/* Release a handler */
 static void destroy_glut_win_handler(int win, int type)
 {
 	SV ** h;
@@ -379,7 +400,7 @@ static void destroy_glut_win_handler(int win, int type)
 	av_store(a, type, newSVsv(&PL_sv_undef));
 }
 
-
+/* Begin window callback definition */
 #define begin_decl_gwh(type, params, nparam)				\
 									\
 static void generic_glut_ ## type ## _handler params			\
@@ -397,11 +418,13 @@ static void generic_glut_ ## type ## _handler params			\
 	for (i=1;i<=av_len(handler_data);i++)				\
 		GLUT_PUSH_NEW_SV(*av_fetch(handler_data, i, 0));
 
+/* End window callback definition */
 #define end_decl_gwh()							\
 	PUTBACK;							\
 	DO_perl_call_sv(handler, G_DISCARD);				\
 }
 
+/* Activate a window callback handler */
 #define decl_gwh_xs(type)						\
 	{								\
 		int win = glutGetWindow();				\
@@ -420,6 +443,7 @@ static void generic_glut_ ## type ## _handler params			\
 		}							\
 	ENSURE_callback_thread;}
 
+/* Activate a window callback handler; die on failure */
 #define decl_gwh_xs_nullfail(type, fail)				\
 	{								\
 		int win = glutGetWindow();				\
@@ -438,6 +462,7 @@ static void generic_glut_ ## type ## _handler params			\
 	ENSURE_callback_thread;}
 
 
+/* Activate a global state callback handler */
 #define decl_ggh_xs(type)						\
 	{								\
 		if (glut_ ## type ## _handler_data)			\
@@ -458,6 +483,7 @@ static void generic_glut_ ## type ## _handler params			\
 	ENSURE_callback_thread;}
 
 
+/* Begin a global state callback definition */
 #define begin_decl_ggh(type, params, nparam)				\
 									\
 static AV * glut_ ## type ## _handler_data = 0;				\
@@ -476,48 +502,69 @@ static void generic_glut_ ## type ## _handler params			\
 	for (i=1;i<=av_len(handler_data);i++)				\
 		GLUT_PUSH_NEW_SV(*av_fetch(handler_data, i, 0));
 
+/* End a global state callback definition */
 #define end_decl_ggh()							\
 	PUTBACK;							\
 	DO_perl_call_sv(handler, G_DISCARD);				\
 }
 
+/* Define callbacks */
 enum {
 	HANDLE_GLUT_Display,
 	HANDLE_GLUT_OverlayDisplay,
 	HANDLE_GLUT_Reshape,
 	HANDLE_GLUT_Keyboard,
+	HANDLE_GLUT_KeyboardUp,
 	HANDLE_GLUT_Mouse,
+        HANDLE_GLUT_MouseWheel,             /* Open/FreeGLUT -chm */
 	HANDLE_GLUT_Motion,
 	HANDLE_GLUT_PassiveMotion,
 	HANDLE_GLUT_Entry,
 	HANDLE_GLUT_Visibility,
+	HANDLE_GLUT_WindowStatus,
 	HANDLE_GLUT_Special,
+	HANDLE_GLUT_SpecialUp,
+        HANDLE_GLUT_Joystick,               /* Open/FreeGLUT -chm */
 	HANDLE_GLUT_SpaceballMotion,
 	HANDLE_GLUT_SpaceballRotate,
 	HANDLE_GLUT_SpaceballButton,
 	HANDLE_GLUT_ButtonBox,
 	HANDLE_GLUT_Dials,
 	HANDLE_GLUT_TabletMotion,
-	HANDLE_GLUT_TabletButton
+	HANDLE_GLUT_TabletButton,
+        HANDLE_GLUT_MenuDestroy,            /* Open/FreeGLUT -chm */
+	HANDLE_GLUT_Close
 };
 
+/* Callback for glutDisplayFunc */
 begin_decl_gwh(Display, (void), 0)
 end_decl_gwh()
 
+/* Callback for glutOverlayDisplayFunc */
 begin_decl_gwh(OverlayDisplay, (void), 0)
 end_decl_gwh()
 
+/* Callback for glutReshapeFunc */
 begin_decl_gwh(Reshape, (int width, int height), 2)
 	GLUT_PUSH_NEW_IV(width);
 	GLUT_PUSH_NEW_IV(height);
 end_decl_gwh()
 
+/* Callback for glutKeyboardFunc */
 begin_decl_gwh(Keyboard, (unsigned char key, int width, int height), 3)
 	GLUT_PUSH_NEW_U8(key);
 	GLUT_PUSH_NEW_IV(width);
 	GLUT_PUSH_NEW_IV(height);
 end_decl_gwh()
 
+/* Callback for glutKeyboardUpFunc */
+begin_decl_gwh(KeyboardUp, (unsigned char key, int width, int height), 3)
+	GLUT_PUSH_NEW_U8(key);
+	GLUT_PUSH_NEW_IV(width);
+	GLUT_PUSH_NEW_IV(height);
+end_decl_gwh()
+
+/* Callback for glutMouseFunc */
 begin_decl_gwh(Mouse, (int button, int state, int x, int y), 4)
 	GLUT_PUSH_NEW_IV(button);
 	GLUT_PUSH_NEW_IV(state);
@@ -525,62 +572,103 @@ begin_decl_gwh(Mouse, (int button, int state, int x, int y), 4)
 	GLUT_PUSH_NEW_IV(y);
 end_decl_gwh()
 
+/* Callback for glutMouseWheelFunc */	/* Open/FreeGLUT -chm */
+begin_decl_gwh(MouseWheel, (int wheel, int direction, int x, int y), 4)
+	GLUT_PUSH_NEW_IV(wheel);
+	GLUT_PUSH_NEW_IV(direction);
+	GLUT_PUSH_NEW_IV(x);
+	GLUT_PUSH_NEW_IV(y);
+end_decl_gwh()
+
+/* Callback for glutPassiveMotionFunc */
 begin_decl_gwh(PassiveMotion, (int x, int y), 2)
 	GLUT_PUSH_NEW_IV(x);
 	GLUT_PUSH_NEW_IV(y);
 end_decl_gwh()
 
+/* Callback for glutMotionFunc */
 begin_decl_gwh(Motion, (int x, int y), 2)
 	GLUT_PUSH_NEW_IV(x);
 	GLUT_PUSH_NEW_IV(y);
 end_decl_gwh()
 
+/* Callback for glutVisibilityFunc */
 begin_decl_gwh(Visibility, (int state), 1)
 	GLUT_PUSH_NEW_IV(state);
 end_decl_gwh()
 
+/* Callback for glutWindowStatusFunc */
+begin_decl_gwh(WindowStatus, (int state), 1)
+	GLUT_PUSH_NEW_IV(state);
+end_decl_gwh()
+
+/* Callback for glutEntryFunc */
 begin_decl_gwh(Entry, (int state), 1)
 	GLUT_PUSH_NEW_IV(state);
 end_decl_gwh()
 
+/* Callback for glutSpecialFunc */
 begin_decl_gwh(Special, (int key, int width, int height), 3)
 	GLUT_PUSH_NEW_IV(key);
 	GLUT_PUSH_NEW_IV(width);
 	GLUT_PUSH_NEW_IV(height);
 end_decl_gwh()
 
+/* Callback for glutSpecialUpFunc */
+begin_decl_gwh(SpecialUp, (int key, int width, int height), 3)
+	GLUT_PUSH_NEW_IV(key);
+	GLUT_PUSH_NEW_IV(width);
+	GLUT_PUSH_NEW_IV(height);
+end_decl_gwh()
+
+/* Callback for glutJoystickFunc */	/* Open/FreeGLUT -chm */
+begin_decl_gwh(Joystick, (unsigned int buttons, int xaxis, int yaxis, int zaxis), 4)
+	GLUT_PUSH_NEW_IV(buttons);
+	GLUT_PUSH_NEW_IV(xaxis);
+	GLUT_PUSH_NEW_IV(yaxis);
+	GLUT_PUSH_NEW_IV(zaxis);
+end_decl_gwh()
+
+
+/* Callback for glutSpaceballMotionFunc */
 begin_decl_gwh(SpaceballMotion, (int x, int y, int z), 3)
 	GLUT_PUSH_NEW_IV(x);
 	GLUT_PUSH_NEW_IV(y);
 	GLUT_PUSH_NEW_IV(z);
 end_decl_gwh()
 
+/* Callback for glutSpaceballRotateFunc */
 begin_decl_gwh(SpaceballRotate, (int x, int y, int z), 3)
 	GLUT_PUSH_NEW_IV(x);
 	GLUT_PUSH_NEW_IV(y);
 	GLUT_PUSH_NEW_IV(z);
 end_decl_gwh()
 
+/* Callback for glutSpaceballButtonFunc */
 begin_decl_gwh(SpaceballButton, (int button, int state), 2)
 	GLUT_PUSH_NEW_IV(button);
 	GLUT_PUSH_NEW_IV(state);
 end_decl_gwh()
 
+/* Callback for glutButtonBoxFunc */
 begin_decl_gwh(ButtonBox, (int button, int state), 2)
 	GLUT_PUSH_NEW_IV(button);
 	GLUT_PUSH_NEW_IV(state);
 end_decl_gwh()
 
+/* Callback for glutDialsFunc */
 begin_decl_gwh(Dials, (int dial, int value), 2)
 	GLUT_PUSH_NEW_IV(dial);
 	GLUT_PUSH_NEW_IV(value);
 end_decl_gwh()
 
+/* Callback for glutTabletMotionFunc */
 begin_decl_gwh(TabletMotion, (int x, int y), 2)
 	GLUT_PUSH_NEW_IV(x);
 	GLUT_PUSH_NEW_IV(y);
 end_decl_gwh()
 
+/* Callback for glutTabletButtonFunc */
 begin_decl_gwh(TabletButton, (int button, int state, int x, int y), 4)
 	GLUT_PUSH_NEW_IV(button);
 	GLUT_PUSH_NEW_IV(state);
@@ -588,20 +676,43 @@ begin_decl_gwh(TabletButton, (int button, int state, int x, int y), 4)
 	GLUT_PUSH_NEW_IV(y);
 end_decl_gwh()
 
+/* Callback for glutIdleFunc */
 begin_decl_ggh(Idle, (void), 0)
 end_decl_ggh()
 
+/* Callback for glutMenuStatusFunc */
 begin_decl_ggh(MenuStatus, (int status, int x, int y), 3)
 	GLUT_PUSH_NEW_IV(status);
 	GLUT_PUSH_NEW_IV(x);
 	GLUT_PUSH_NEW_IV(y);
 end_decl_ggh()
 
+/* Callback for glutMenuStateFunc */
 begin_decl_ggh(MenuState, (int status), 1)
 	GLUT_PUSH_NEW_IV(status);
 end_decl_ggh()
 
+/* Callback for glutMenuDestroyFunc */		/* Open/FreeGLUT -chm */
+begin_decl_gwh(MenuDestroy, (void), 0)
+end_decl_gwh()
 
+/* Callback for glutCloseFunc */
+static void generic_glut_Close_handler(void)
+{
+	int win = glutGetWindow();
+	AV * handler_data = (AV*)get_glut_win_handler(win, HANDLE_GLUT_Close);
+	SV * handler = *av_fetch(handler_data, 0, 0);
+	dSP;
+
+	GLUT_PUSHMARK(sp);
+	GLUT_EXTEND_STACK(sp,1);
+	GLUT_PUSH_NEW_IV(win);
+
+	PUTBACK;
+	DO_perl_call_sv(handler, G_DISCARD);
+}
+
+/* Callback for glutTimerFunc */
 static void generic_glut_timer_handler(int value)
 {
 	AV * handler_data = (AV*)value;
@@ -624,6 +735,7 @@ static void generic_glut_timer_handler(int value)
 
 static AV * glut_menu_handlers = 0;
 
+/* Callback for glutMenuFunc */
 static void generic_glut_menu_handler(int value)
 {
 	AV * handler_data;
@@ -654,6 +766,7 @@ static void generic_glut_menu_handler(int value)
 
 #endif /* def GLUT_API_VERSION */
 
+/* Begin a named callback handler */
 #define begin_void_specific_marshaller(name, assign_handler_av, params) \
 static void _s_marshal_ ## name params					\
 {                                                                       \
@@ -668,6 +781,7 @@ static void _s_marshal_ ## name params					\
     for (i=1; i<=av_len(handler_av); i++)                               \
         XPUSHs(sv_2mortal(newSVsv(*av_fetch(handler_av, i, 0))));
 
+/* End a named callback handler */
 #define end_void_specific_marshaller()                                  \
 	PUTBACK;                                                        \
 	perl_call_sv(handler, G_DISCARD);                               \
@@ -695,6 +809,7 @@ typedef struct PGLUtess PGLUtess;
 #ifdef GLU_VERSION_1_2
 
 
+/* Begin a gluTess callback handler */
 #define begin_tess_marshaller(type, params)				\
 begin_void_specific_marshaller(glu_t_callback_ ## type,                 \
 	PGLUtess * t = (PGLUtess*)polygon_data;                         \
@@ -704,20 +819,25 @@ begin_void_specific_marshaller(glu_t_callback_ ## type,                 \
       for (i=0; i<=av_len(t->polygon_data_av); i++)                     \
         XPUSHs(sv_2mortal(newSVsv(*av_fetch(t->polygon_data_av, i, 0))));
 
+/* End a gluTess callback handler */
 #define end_tess_marshaller()                                           \
 end_void_specific_marshaller()
 
+/* Declare gluTess BEGIN */
 begin_tess_marshaller(begin, (GLenum type, void * polygon_data))
 	XPUSHs(sv_2mortal(newSViv(type)));
 end_tess_marshaller()
 
+/* Declare gluTess END */
 begin_tess_marshaller(end, (void * polygon_data))
 end_tess_marshaller()
 
+/* Declare gluTess EDGEFLAG */
 begin_tess_marshaller(edgeFlag, (GLboolean flag, void * polygon_data))
 	XPUSHs(sv_2mortal(newSViv(flag)));
 end_tess_marshaller()
 
+/* Declare gluTess VERTEX */
 begin_tess_marshaller(vertex, (void * vertex_data, void * polygon_data))
 	if (vertex_data) {
       AV * vd = (AV*)vertex_data;
@@ -726,10 +846,12 @@ begin_tess_marshaller(vertex, (void * vertex_data, void * polygon_data))
     }
 end_tess_marshaller()
 
+/* Declare gluTess ERROR */
 begin_tess_marshaller(error, (GLenum errno_, void * polygon_data))
 	XPUSHs(sv_2mortal(newSViv(errno_)));
 end_tess_marshaller()
 
+/* Declare gluTess COMBINE */
 begin_tess_marshaller(combine, (GLdouble coords[3], void * vertex_data[4], GLfloat weight[4], void ** outd, void * polygon_data))
 	croak("combine tess marshaller needs FIXME (see OpenGL.xs)");
 end_tess_marshaller()
@@ -739,6 +861,7 @@ end_tess_marshaller()
 typedef void * ptr;
 
 
+/* Get a Perl parameter, cast to C type */
 #define SvItems(type,offset,count,dst)					\
 {									\
 	GLuint i;							\
@@ -748,49 +871,49 @@ typedef void * ptr;
 		case GL_BITMAP:						\
 			for (i=0;i<(count);i++)				\
 			{						\
-			  ((GLubyte*)(dst))[i] = SvIV(ST(i+(offset)));	\
+			  ((GLubyte*)(dst))[i] = (GLubyte)SvIV(ST(i+(offset)));	\
 			}						\
 			break;						\
 		case GL_BYTE:						\
 			for (i=0;i<(count);i++)				\
 			{						\
-			  ((GLbyte*)(dst))[i] = SvIV(ST(i+(offset)));	\
+			  ((GLbyte*)(dst))[i] = (GLbyte)SvIV(ST(i+(offset)));	\
 			}						\
 			break;						\
 		case GL_UNSIGNED_SHORT:					\
 			for (i=0;i<(count);i++)				\
 			{						\
-			  ((GLushort*)(dst))[i] = SvIV(ST(i+(offset)));	\
+			  ((GLushort*)(dst))[i] = (GLushort)SvIV(ST(i+(offset)));	\
 			}						\
 			break;						\
 		case GL_SHORT:						\
 			for (i=0;i<(count);i++)				\
 			{						\
-			  ((GLshort*)(dst))[i] = SvIV(ST(i+(offset)));	\
+			  ((GLshort*)(dst))[i] = (GLshort)SvIV(ST(i+(offset)));	\
 			}						\
 			break;						\
 		case GL_UNSIGNED_INT:					\
 			for (i=0;i<(count);i++)				\
 			{						\
-			  ((GLuint*)(dst))[i] = SvIV(ST(i+(offset)));	\
+			  ((GLuint*)(dst))[i] = (GLuint)SvIV(ST(i+(offset)));	\
 			}						\
 			break;						\
 		case GL_INT:						\
 			for (i=0;i<(count);i++)				\
 			{						\
-			  ((GLint*)(dst))[i] = SvIV(ST(i+(offset)));	\
+			  ((GLint*)(dst))[i] = (GLint)SvIV(ST(i+(offset)));	\
 			}						\
 			break;						\
 		case GL_FLOAT:						\
 			for (i=0;i<(count);i++)				\
 			{						\
-			  ((GLfloat*)(dst))[i] = SvNV(ST(i+(offset)));	\
+			  ((GLfloat*)(dst))[i] = (GLfloat)SvNV(ST(i+(offset)));	\
 			}						\
 			break;						\
 		case GL_DOUBLE:						\
 			for (i=0;i<(count);i++)				\
 			{						\
-			  ((GLdouble*)(dst))[i] = SvNV(ST(i+(offset)));	\
+			  ((GLdouble*)(dst))[i] = (GLdouble)SvNV(ST(i+(offset)));	\
 			}						\
 			break;						\
 		default:						\
@@ -799,8 +922,1138 @@ typedef void * ptr;
 }
 
 
+/********************/
+/* RPN Processor    */
+/********************/
+
+/* RPN Ops */
+enum
+{
+  RPN_NOP = 0,
+  RPN_PSH,
+  RPN_POP,
+
+  RPN_CNT,
+  RPN_IDX,
+  RPN_CLS,
+  RPN_COL,
+  RPN_RWS,
+  RPN_ROW,
+
+  RPN_SET,
+  RPN_GET,
+  RPN_STO,
+  RPN_LOD,
+
+  RPN_TST,
+  RPN_NOT,
+  RPN_EQU,
+  RPN_GRE,
+  RPN_LES,
+
+  RPN_END,
+  RPN_EIF,
+  RPN_ERW,
+  RPN_ERI,
+
+  RPN_RET,
+  RPN_RIF,
+  RPN_RRW,
+  RPN_RRI,
+
+  RPN_SUM,
+  RPN_AVG,
+
+  RPN_RND,
+  RPN_DUP,
+  RPN_SWP,
+  RPN_ABS,
+  RPN_NEG,
+
+  RPN_INC,
+  RPN_DEC,
+
+  RPN_ADD,	// Also OR
+  RPN_MUL,	// ALSO AND
+  RPN_DIV,
+  RPN_POW,
+  RPN_MOD,
+  RPN_MIN,
+  RPN_MAX,
+  RPN_SIN,
+  RPN_COS,
+  RPN_TAN,
+  RPN_AT2
+};
+
+/* RPN OP link-list */
+struct tag_rpn_op
+{
+  int			op;
+  GLfloat		value;
+  struct tag_rpn_op *	next;
+};
+typedef struct tag_rpn_op rpn_op;
+
+/* RPN OP stack for a given column */
+struct tag_rpn_stack
+{
+  int		count;
+  GLfloat *	data;
+  rpn_op *	ops;
+};
+typedef struct tag_rpn_stack rpn_stack;
+
+/* RPN Object */
+struct tag_rpn_context
+{
+  int		rows;
+  int		cols;
+  int		oga_count;
+  oga_struct **	oga_list;
+  GLfloat *	store;
+  rpn_stack **	stacks;
+};
+typedef struct tag_rpn_context rpn_context;
+
+/* RPN Parser */
+rpn_stack * rpn_parse(int size,char * string)
+{
+  rpn_stack *	stack = malloc(sizeof(rpn_stack));
+  rpn_op *	op = NULL;
+  rpn_op *	last = NULL;
+  char *	data = NULL;
+
+  /* Will destroy string, so make a copy */
+  memset(stack,0,sizeof(rpn_stack));
+  if (string && *string)
+  {
+    /* Assumes ASCII */
+    data = malloc(strlen(string)+1);
+    strcpy(data,string);
+    string = data;
+  }
+
+  /* OPs are comma-separated */
+  while (string && *string)
+  {
+    rpn_op *	cur = NULL;
+    char *	pos = string;
+    char *	end = strchr(pos,',');
+    int		len;
+
+    /* Grab op */
+    if (end)
+    {
+      *end = 0;
+      string = end+1;
+      len = end - pos;
+    }
+    else
+    {
+      len = strlen(string);
+      string += len;
+    }
+
+    /* Empty op is a NOP */
+    if (!len) continue;
+
+    /* Update linklist */
+    cur = malloc(sizeof(rpn_op));
+    memset(cur,0,sizeof(rpn_op));
+    if (last)
+    {
+      last->next = cur;
+    }
+    else
+    {
+      op = cur;
+    }
+    last = cur;
+
+    /* Check for primitive OPs */
+    if (len == 1)
+    {
+      switch (*pos)
+      {
+        case '!':
+        {
+          cur->op = RPN_NOT;
+          continue;
+        }
+        case '-':
+        {
+          cur->op = RPN_NEG;
+          continue;
+        }
+        case '+':
+        {
+          cur->op = RPN_ADD;
+          continue;
+        }
+        case '*':
+        {
+          cur->op = RPN_MUL;
+          continue;
+        }
+        case '/':
+        {
+          cur->op = RPN_DIV;
+          continue;
+        }
+        case '%':
+        {
+          cur->op = RPN_MOD;
+          continue;
+        }
+        case '=':
+        {
+          cur->op = RPN_EQU;
+          continue;
+        }
+        case '>':
+        {
+          cur->op = RPN_GRE;
+          continue;
+        }
+        case '<':
+        {
+          cur->op = RPN_LES;
+          continue;
+        }
+        case '?':
+        {
+          cur->op = RPN_TST;
+          continue;
+        }
+      }
+    }
+
+    /* Check for textual OPs */
+    if (!strcmp(pos,"pop"))
+    {
+      cur->op = RPN_POP;
+    }
+    else if (!strcmp(pos,"rand"))
+    {
+      cur->op = RPN_RND;
+      size++;
+    }
+    else if (!strcmp(pos,"dup"))
+    {
+      cur->op = RPN_DUP;
+      size++;
+    }
+    else if (!strcmp(pos,"swap"))
+    {
+      cur->op = RPN_SWP;
+    }
+    else if (!strcmp(pos,"set"))
+    {
+      cur->op = RPN_SET;
+    }
+    else if (!strcmp(pos,"get"))
+    {
+      cur->op = RPN_GET;
+      size++;
+    }
+    else if (!strcmp(pos,"store"))
+    {
+      cur->op = RPN_STO;
+    }
+    else if (!strcmp(pos,"load"))
+    {
+      cur->op = RPN_LOD;
+    }
+    else if (!strcmp(pos,"end"))
+    {
+      cur->op = RPN_END;
+    }
+    else if (!strcmp(pos,"endif"))
+    {
+      cur->op = RPN_EIF;
+    }
+    else if (!strcmp(pos,"endrow"))
+    {
+      cur->op = RPN_ERW;
+    }
+    else if (!strcmp(pos,"endrowif"))
+    {
+      cur->op = RPN_ERI;
+    }
+    else if (!strcmp(pos,"return"))
+    {
+      cur->op = RPN_RET;
+    }
+    else if (!strcmp(pos,"returnif"))
+    {
+      cur->op = RPN_RIF;
+    }
+    else if (!strcmp(pos,"returnrow"))
+    {
+      cur->op = RPN_RRW;
+    }
+    else if (!strcmp(pos,"returnrowif"))
+    {
+      cur->op = RPN_RRI;
+    }
+    else if (!strcmp(pos,"if"))
+    {
+      cur->op = RPN_TST;
+    }
+    else if (!strcmp(pos,"or"))
+    {
+      cur->op = RPN_ADD;
+    }
+    else if (!strcmp(pos,"and"))
+    {
+      cur->op = RPN_MUL;
+    }
+    else if (!strcmp(pos,"inc"))
+    {
+      cur->op = RPN_INC;
+    }
+    else if (!strcmp(pos,"dec"))
+    {
+      cur->op = RPN_DEC;
+    }
+    else if (!strcmp(pos,"sum"))
+    {
+      cur->op = RPN_SUM;
+    }
+    else if (!strcmp(pos,"avg"))
+    {
+      cur->op = RPN_AVG;
+    }
+    else if (!strcmp(pos,"abs"))
+    {
+      cur->op = RPN_ABS;
+    }
+    else if (!strcmp(pos,"power"))
+    {
+      cur->op = RPN_POW;
+    }
+    else if (!strcmp(pos,"min"))
+    {
+      cur->op = RPN_MIN;
+    }
+    else if (!strcmp(pos,"max"))
+    {
+      cur->op = RPN_MAX;
+    }
+    else if (!strcmp(pos,"sin"))
+    {
+      cur->op = RPN_SIN;
+    }
+    else if (!strcmp(pos,"cos"))
+    {
+      cur->op = RPN_COS;
+    }
+    else if (!strcmp(pos,"tan"))
+    {
+      cur->op = RPN_TAN;
+    }
+    else if (!strcmp(pos,"atan2"))
+    {
+      cur->op = RPN_AT2;
+    }
+    else if (!strcmp(pos,"count"))
+    {
+      cur->op = RPN_CNT;
+      size++;
+    }
+    else if (!strcmp(pos,"index"))
+    {
+      cur->op = RPN_IDX;
+      size++;
+    }
+    else if (!strcmp(pos,"columns"))
+    {
+      cur->op = RPN_CLS;
+      size++;
+    }
+    else if (!strcmp(pos,"column"))
+    {
+      cur->op = RPN_COL;
+      size++;
+    }
+    else if (!strcmp(pos,"rows"))
+    {
+      cur->op = RPN_RWS;
+      size++;
+    }
+    else if (!strcmp(pos,"row"))
+    {
+      cur->op = RPN_ROW;
+      size++;
+    }
+    else if (!strcmp(pos,"pi"))
+    {
+      cur->op = RPN_PSH;
+      cur->value = (float)M_PI;
+      size++;
+    }
+    /* Default to a numeric push */
+    else
+    {
+      cur->op = RPN_PSH;
+      cur->value = (float)atof(pos);
+      size++;
+    }
+  }
+
+  /* release string copy */
+  if (data) free(data);
+  stack->data = malloc(sizeof(GLfloat)*size);
+  stack->ops = op;
+  return(stack);
+}
+
+/* Instantiate an RPN Object */
+rpn_context * rpn_init(int oga_count,oga_struct ** oga_list,int col_count,char ** col_ops)
+{
+  rpn_context * ctx = NULL;
+  int elements = 0;
+  int i,j;
+
+  if (!oga_count) croak("Missing OGA count");
+  if (!oga_list) croak("Missing OGA list");
+  if (!col_count) croak("Missing column count");
+
+  /* Validate OGAs */
+  for (i=0; i<oga_count; i++)
+  {
+    if (!oga_list[i]) croak("Missing OGA %d",i);
+    if (!oga_list[i]->item_count) croak("Empty OGA %d",i);
+
+    /* Check that all OGAs have the same dimension */
+    if (!i)
+    {
+      elements = oga_list[i]->item_count;
+      if (elements % col_count) croak("Invalid OGA size for %d columns",col_count);
+    }
+    else if (elements != oga_list[i]->item_count)
+    {
+      croak("Invalid length in OGA %d",i);
+    }
+
+    /* Only supporting GLfloat for now */
+    for (j=0; j<oga_list[i]->type_count; j++)
+    {
+      if (oga_list[i]->types[j] != GL_FLOAT)
+        croak("Unsupported type in OGA %d",i);
+    }
+  }
+
+  /* Alloc Object data */
+  ctx = malloc(sizeof(rpn_context));
+  if (!ctx) croak("Unable to alloc rpn context");
+
+  /* Alloc current row store */
+  ctx->store = malloc(sizeof(GLfloat) * col_count);
+  if (!ctx->store) croak("Unable to alloc rpn store");
+
+  /* Alloc column stack array */
+  ctx->stacks = malloc(sizeof(rpn_stack *) * col_count);
+  if (!ctx->stacks) croak("Unable to alloc rpn stacks");
+
+  ctx->cols =col_count;
+  ctx->rows = elements / col_count;
+  ctx->oga_count = oga_count;
+  ctx->oga_list = oga_list;
+
+  /* Parse and populate column stacks */
+  for (i=0; i<col_count; i++)
+    ctx->stacks[i] = rpn_parse(oga_count,col_ops[i]);
+
+  return(ctx);
+}
+
+/* Release OP link-list */
+void rpn_delete_ops(rpn_op * ops)
+{
+  if (!ops) return;
+  rpn_delete_ops(ops->next);
+  free(ops);
+}
+
+/* Release OPS stack */
+void rpn_delete_stack(rpn_stack * stack)
+{
+  if (!stack) return;
+  rpn_delete_ops(stack->ops);
+  free(stack->data);
+  free(stack);
+}
+
+/* Release RPN Object */
+void rpn_term(rpn_context * ctx)
+{
+  if (ctx)
+  {
+    int i;
+    for (i=0; i<ctx->cols; i++)
+      rpn_delete_stack(ctx->stacks[i]);
+
+    free(ctx->stacks);
+    free(ctx->store);
+    free(ctx);
+  }
+}
+
+/* Push an RPN value on the stack */
+void rpn_push(rpn_stack * stack, GLfloat value)
+{
+  if (stack) stack->data[stack->count++] = value;
+}
+
+/* Pop an RPN value from the stack */
+GLfloat rpn_pop(rpn_stack * stack)
+{
+  GLfloat value = 0.0;
+
+  if (stack && stack->count)
+  {
+    value = stack->data[--stack->count];
+    if (!stack->count) rpn_push(stack,0.0);
+  }
+
+  return(value);
+}
+
+/* Execute RPN OPs stack */
+void rpn_exec(rpn_context * ctx)
+{
+  int		elements = ctx->rows * ctx->cols;
+  int		i,j,k,r = 0;
+  GLfloat	v1,v2;
+
+  for (i=0;i<ctx->rows;i++)
+  {
+    for (j=0;j<ctx->cols;j++)
+    {
+      rpn_stack *	stack = ctx->stacks[j];
+      int		end = 0;
+      rpn_op *		ops;
+
+      /* Skip for NOP columns */
+      if (!stack || !stack->ops) continue;
+      stack->count = 0;
+
+      /* Push oga data on stack - reverse order */
+      for (k=ctx->oga_count-1;k>=0;k--)
+        rpn_push(stack,((GLfloat *)ctx->oga_list[k]->data)[r+j]);
+
+      /* Process RPN ops */
+      ops = stack->ops;
+      while (ops)
+      {
+        int pos = stack->count - 1;
+
+        switch(ops->op)
+        {
+          case RPN_PSH:
+          {
+            //printf("RPN_PSH: %f\n",ops->value);
+            rpn_push(stack,ops->value);
+            break;
+          }
+          case RPN_POP:
+          {
+            //printf("RPN_POP\n");
+            rpn_pop(stack);
+            break;
+          }
+          case RPN_CNT:
+          {
+            //printf("RPN_CNT: %f\n",elements);
+            rpn_push(stack,(float)elements);
+            break;
+          }
+          case RPN_IDX:
+          {
+            //printf("RPN_IDX: %f\n",r+j);
+            rpn_push(stack,(float)r+j);
+            break;
+          }
+          case RPN_CLS:
+          {
+            //printf("RPN_CLS: %f\n",ctx->cols);
+            rpn_push(stack,(float)ctx->cols);
+            break;
+          }
+          case RPN_COL:
+          {
+            //printf("RPN_COL: %f\n",j);
+            rpn_push(stack,(float)j);
+            break;
+          }
+          case RPN_RWS:
+          {
+            //printf("RPN_RWS: %f\n",ctx->rows);
+            rpn_push(stack,(float)ctx->rows);
+            break;
+          }
+          case RPN_ROW:
+          {
+            //printf("RPN_ROW: %f\n",i);
+            rpn_push(stack,(float)i);
+            break;
+          }
+          case RPN_SET:
+          {
+            //printf("RPN_SET %d: %f\n",j,stack->data[pos]);
+            ctx->store[j] = stack->data[pos];
+            break;
+          }
+          case RPN_GET:
+          {
+            //printf("RPN_Get %d: %f\n",j,ctx->store[j]);
+            rpn_push(stack,ctx->store[j]);
+            break;
+          }
+          case RPN_STO:
+          {
+            //printf("RPN_STO row %d\n",r);
+            v1 = rpn_pop(stack);
+            k = ((int)v1) % ctx->oga_count;
+            if (k < 0) k += ctx->oga_count;
+            memcpy(ctx->store,&((GLfloat *)ctx->oga_list[k]->data)[r],
+              ctx->cols*sizeof(GLfloat));
+            break;
+          }
+          case RPN_LOD:
+          {
+            //printf("RPN_LOD rwo %d\n",r);
+            v1 = rpn_pop(stack);
+            k = ((int)v1) % ctx->oga_count;
+            if (k < 0) k += ctx->oga_count;
+            memcpy(&((GLfloat *)ctx->oga_list[k]->data)[r],ctx->store,
+              ctx->cols*sizeof(GLfloat));
+            break;
+          }
+          case RPN_TST:
+          {
+            //printf("RPN_TST\n");
+            v1 = rpn_pop(stack);
+            if (v1 != 0.0)
+            {
+              rpn_pop(stack);
+            }
+            else
+            {
+              v1 = rpn_pop(stack);
+              rpn_pop(stack);
+              rpn_push(stack,v1);
+            }
+            break;
+          }
+          case RPN_NOT:
+          {
+            //printf("RPN_NOT\n");
+            if (!stack->count)
+            {
+              rpn_push(stack,1.0);
+            }
+            else if (stack->data[pos] == 0.0)
+            {
+              stack->data[pos] = 1.0;
+            }
+            else
+            {
+              stack->data[pos] = 0.0;
+            }
+            break;
+          }
+          case RPN_EQU:
+          {
+            //printf("RPN_EQU\n");
+            v1 = (stack->count) ? rpn_pop(stack) : (float)0.0;
+            v2 = (stack->count) ? rpn_pop(stack) : (float)0.0;
+            rpn_push(stack,(float)((v1 == v2) ? 1.0 : 0.0));
+            break;
+          }
+          case RPN_GRE:
+          {
+            //printf("RPN_GRE\n");
+            v1 = (stack->count) ? rpn_pop(stack) : (float)0.0;
+            v2 = (stack->count) ? rpn_pop(stack) : (float)0.0;
+            rpn_push(stack,(float)((v1 > v2) ? 1.0 : 0.0));
+            break;
+          }
+          case RPN_LES:
+          {
+            //printf("RPN_LES\n");
+            v1 = (stack->count) ? rpn_pop(stack) : (float)0.0;
+            v2 = (stack->count) ? rpn_pop(stack) : (float)0.0;
+            rpn_push(stack,(float)((v1 < v2) ? 1.0 : 0.0));
+            break;
+          }
+          case RPN_END:
+          {
+            //printf("RPN_END\n");
+            end = 1;
+            ops = 0;
+            continue;
+          }
+          case RPN_EIF:
+          {
+            //printf("RPN_EIF\n");
+            v1 = rpn_pop(stack);
+            if (v1 != 0.0)
+            {
+              end = 1;
+              ops = 0;
+              continue;
+            }
+            break;
+          }
+          case RPN_ERW:
+          {
+            //printf("RPN_ERW\n");
+            j = ctx->rows;
+            end = 1;
+            ops = 0;
+            continue;
+          }
+          case RPN_ERI:
+          {
+            //printf("RPN_ERI\n");
+            v1 = rpn_pop(stack);
+            if (v1 != 0.0)
+            {
+              j = ctx->rows;
+              end = 1;
+              ops = 0;
+              continue;
+            }
+            break;
+          }
+          case RPN_RET:
+          {
+            //printf("RPN_RET\n");
+            ops = 0;
+            continue;
+          }
+          case RPN_RIF:
+          {
+            //printf("RPN_RIF\n");
+            v1 = rpn_pop(stack);
+            if (v1 != 0.0)
+            {
+              ops = 0;
+              continue;
+            }
+            break;
+          }
+          case RPN_RRW:
+          {
+            //printf("RPN_RRW\n");
+            j = ctx->rows;
+            ops = 0;
+            continue;
+          }
+          case RPN_RRI:
+          {
+            //printf("RPN_RRI\n");
+            v1 = rpn_pop(stack);
+            if (v1 != 0.0)
+            {
+              j = ctx->rows;
+              ops = 0;
+              continue;
+            }
+            break;
+          }
+          case RPN_RND:
+          {
+            //printf("RPN_RND\n");
+            rpn_push(stack,(float)(1.0*rand()/RAND_MAX));
+            break;
+          }
+          case RPN_DUP:
+          {
+            //printf("RPN_DUP\n");
+            rpn_push(stack,stack->data[pos]);
+            break;
+          }
+          case RPN_SWP:
+          {
+            //printf("RPN_SWP\n");
+            if (stack->count > 1)
+            {
+              v1 = stack->data[pos];
+              stack->data[pos] = stack->data[--pos];
+              stack->data[pos] = v1;
+            }
+            break;
+          }
+          case RPN_ABS:
+          {
+            //printf("RPN_ABS\n");
+            stack->data[pos] = (float)fabs(stack->data[pos]);
+            break;
+          }
+          case RPN_NEG:
+          {
+            //printf("RPN_NEG\n");
+            stack->data[pos] *= (float)-1.0;
+            break;
+          }
+          case RPN_INC:
+          {
+            //printf("RPN_INC\n");
+            stack->data[pos] += (float)1.0;
+            break;
+          }
+          case RPN_DEC:
+          {
+            //printf("RPN_DEC\n");
+            stack->data[pos] -= (float)1.0;
+            break;
+          }
+          case RPN_AVG:
+          case RPN_SUM:
+          {
+            //printf("RPN_SUM/AVG\n");
+            v1 = 0;
+
+            for(pos=0; pos<stack->count; pos++)
+              v1 += stack->data[pos];
+
+            if (ops->op == RPN_AVG) v1 /= stack->count;
+
+            stack->data[0] = v1;
+            stack->count = 1;
+            break;
+          }
+          case RPN_ADD:
+          {
+            //printf("RPN_ADD\n");
+            if (stack->count > 1)
+            {
+              v1 = rpn_pop(stack);
+              stack->data[--pos] += v1;
+            }
+            break;
+          }
+          case RPN_MUL:
+          {
+            //printf("RPN_MUL\n");
+            if (stack->count > 1)
+            {
+              v1 = rpn_pop(stack);
+              stack->data[--pos] *= v1;
+            }
+            break;
+          }
+          case RPN_DIV:
+          {
+            //printf("RPN_DIV\n");
+            if (stack->count > 1)
+            {
+              v1 = rpn_pop(stack);
+              if (v1 != 0.0) stack->data[--pos] /= v1;
+            }
+            break;
+          }
+          case RPN_POW:
+          {
+            //printf("RPN_POW\n");
+            if (stack->count > 1)
+            {
+              v1 = rpn_pop(stack);
+              stack->data[--pos] = (float)pow(stack->data[pos],v1);
+            }
+            break;
+          }
+          case RPN_MOD:
+          {
+            //printf("RPN_MOD\n");
+            if (stack->count > 1)
+            {
+              v1 = rpn_pop(stack);
+              stack->data[--pos] = (float)fmod(stack->data[pos],v1);
+            }
+            break;
+          }
+          case RPN_MIN:
+          {
+            //printf("RPN_MIN\n");
+            if (stack->count > 1)
+            {
+              v1 = rpn_pop(stack);
+              if (stack->data[--pos] > v1)
+                stack->data[pos] = v1;
+            }
+            break;
+          }
+          case RPN_MAX:
+          {
+            //printf("RPN_MAX\n");
+            if (stack->count > 1)
+            {
+              v1 = rpn_pop(stack);
+              if (stack->data[--pos] < v1)
+                stack->data[pos] = v1;
+            }
+            break;
+          }
+          case RPN_SIN:
+          {
+            //printf("RPN_SIN\n");
+            stack->data[pos] = (float)sin(stack->data[pos]);
+            break;
+          }
+          case RPN_COS:
+          {
+            //printf("RPN_COS\n");
+            stack->data[pos] = (float)cos(stack->data[pos]);
+            break;
+          }
+          case RPN_TAN:
+          {
+            //printf("RPN_TAN\n");
+            stack->data[pos] = (float)tan(stack->data[pos]);
+            break;
+          }
+          case RPN_AT2:
+          {
+            //printf("RPN_AT2\n");
+            v2 = rpn_pop(stack);
+            v1 = rpn_pop(stack);
+            if (v1 != 0.0 || v2 != 0.0)
+              rpn_push(stack,(float)atan2(v1,v2));
+            break;
+          }
+          case RPN_NOP:
+          {
+            //printf("RPN_NOP\n");
+            break;
+          }
+          default:
+          {
+            croak("Unknown RPN op: %d\n",ops->op);
+          }
+        }
+
+        ops = ops->next;
+      }
+      if (!end) ((GLfloat *)ctx->oga_list[0]->data)[r+j] = rpn_pop(stack);
+    }
+    r += ctx->cols;
+  }
+}
+
+
+/********************/
+/* GPGPU Utils      */
+/********************/
+
+/* Get max GPGPU data size */
+int gpgpu_size(void)
+{
+#if defined(GL_ARB_texture_rectangle) && defined(GL_ARB_texture_float) && \
+  defined(GL_ARB_fragment_program) && defined(GL_EXT_framebuffer_object)
+  if (FBO_MAX == -1)
+  {
+    if (testProc(glProgramStringARB,"glProgramStringARB") &&
+      testProc(glGenProgramsARB,"glGenProgramsARB") &&
+      testProc(glBindProgramARB,"glBindProgramARB") &&
+      testProc(glIsProgramARB,"glIsProgramARB") &&
+      testProc(glProgramLocalParameter4fvARB,"glProgramLocalParameter4fvARB") &&
+      testProc(glDeleteProgramsARB,"glDeleteProgramsARB") &&
+      testProc(glGenFramebuffersEXT,"glGenFramebuffersEXT") &&
+      testProc(glGenRenderbuffersEXT,"glGenRenderbuffersEXT") &&
+      testProc(glBindFramebufferEXT,"glBindFramebufferEXT") &&
+      testProc(glFramebufferTexture2DEXT,"glFramebufferTexture2DEXT") &&
+      testProc(glBindRenderbufferEXT,"glBindRenderbufferEXT") &&
+      testProc(glRenderbufferStorageEXT,"glRenderbufferStorageEXT") &&
+      testProc(glFramebufferRenderbufferEXT,"glFramebufferRenderbufferEXT") &&
+      testProc(glCheckFramebufferStatusEXT,"glCheckFramebufferStatusEXT") &&
+      testProc(glDeleteRenderbuffersEXT,"glDeleteRenderbuffersEXT") &&
+      testProc(glDeleteFramebuffersEXT,"glDeleteFramebuffersEXT"))
+    {
+      glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE_EXT,&FBO_MAX);
+    }
+    else
+    {
+      FBO_MAX = 0;
+    }
+  }
+  return(FBO_MAX);
+#else
+  return(0);
+#endif
+}
+
+/* Get max square array width for a given GPGPU data size */
+int gpgpu_width(int len)
+{
+  int max = gpgpu_size();
+  if (max && len && !(len%3))
+  {
+    int count = len / 3;
+    int w = (int)sqrt(count);
+
+    while ((w <= count) && (w <= max))
+    {
+      if (!(count%w)) return(w);
+      w++;
+    }
+  }
+  return(0);
+}
+
+#ifdef GL_ARB_fragment_program
+static char affine_prog[] =
+  "!!ARBfp1.0\n"
+  "PARAM affine[4] = {program.local[0..3]};\n"
+  "TEMP decal;\n"
+  "TEX decal, fragment.texcoord[0], texture[0], RECT;\n"
+  "MOV decal.w, 1.0;\n"
+  "DP4 result.color.x, decal, affine[0];\n"
+  "DP4 result.color.y, decal, affine[1];\n"
+  "DP4 result.color.z, decal, affine[2];\n"
+  "END\n";
+
+/* Enable affine shader program */
+void enable_affine(oga_struct * oga)
+{
+  if (!oga) return;
+  if (!oga->affine_handle)
+  {
+    /* Load shader program */
+    glGenProgramsARB(1,&oga->affine_handle);
+    glBindProgramARB(GL_FRAGMENT_PROGRAM_ARB,oga->affine_handle);
+    glProgramStringARB(GL_FRAGMENT_PROGRAM_ARB,
+      GL_PROGRAM_FORMAT_ASCII_ARB, strlen(affine_prog),affine_prog);
+
+    /* Validate shader program */
+    if (!glIsProgramARB(oga->affine_handle))
+    {
+      GLint errorPos;
+      glGetIntegerv(GL_PROGRAM_ERROR_POSITION_ARB,&errorPos);
+      if (errorPos < 0) errorPos = strlen(affine_prog);
+      croak("Affine fragment program error\n%s",&affine_prog[errorPos]);
+    }
+  }
+  glEnable(GL_FRAGMENT_PROGRAM_ARB);
+}
+
+/* Disable affine shader program */
+void disable_affine(oga_struct * oga)
+{
+  if (!oga) return;
+  if (oga->affine_handle) glDisable(GL_FRAGMENT_PROGRAM_ARB);
+}
+#endif
+
+#ifdef GL_EXT_framebuffer_object
+/* Unbind an FBO to an OGA */
+void release_fbo(oga_struct * oga)
+{
+  if (oga->fbo_handle)
+  {
+    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+    glDeleteFramebuffersEXT(1,&oga->fbo_handle);
+  }
+
+  if (oga->tex_handle)
+  {
+    glBindTexture(oga->target,0);	
+    if (oga->tex_handle[0]) glDeleteTextures(1,&oga->tex_handle[0]);
+    if (oga->tex_handle[1]) glDeleteTextures(1,&oga->tex_handle[1]);
+  }
+}
+
+/* Enable an FBO bound to an OGA */
+void enable_fbo(oga_struct * oga, int w, int h, GLuint target,
+  GLuint pixel_type, GLuint pixel_format, GLuint element_size)
+{
+  if (!oga) return;
+
+  if ((oga->fbo_w != w) || (oga->fbo_h != h) ||
+    (oga->target != target) ||
+    (oga->pixel_type != pixel_type) ||
+    (oga->pixel_format != pixel_format) ||
+    (oga->element_size != element_size)) release_fbo(oga);
+
+  if (!oga->fbo_handle)
+  {
+    GLenum status;
+
+    /* Save params */
+    oga->fbo_w = w;
+    oga->fbo_h = h;
+    oga->target = target;
+    oga->pixel_type = pixel_type;
+    oga->pixel_format = pixel_format;
+    oga->element_size = element_size;
+
+    /* Set up FBO */
+    glGenTextures(2,oga->tex_handle);
+    glGenFramebuffersEXT(1,&oga->fbo_handle);
+    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT,oga->fbo_handle);
+
+    glViewport(0,0,w,h);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluOrtho2D(0,w,0,h);
+    glMatrixMode(GL_MODELVIEW); 
+    glLoadIdentity();
+
+    glBindTexture(target,oga->tex_handle[1]);
+    glTexParameteri(target,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
+    glTexParameteri(target,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+    glTexParameteri(target,GL_TEXTURE_WRAP_S,GL_CLAMP);
+    glTexParameteri(target,GL_TEXTURE_WRAP_T,GL_CLAMP);
+
+    glTexImage2D(target,0,pixel_type,w,h,0,
+      pixel_format,element_size,0);
+
+    glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT,
+      GL_COLOR_ATTACHMENT0_EXT,target,oga->tex_handle[1],0);
+
+    status = glCheckFramebufferStatusEXT(GL_RENDERBUFFER_EXT);
+    if (status) croak("enable_fbo status: %04X\n",status);
+  }
+  else
+  {
+    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT,oga->fbo_handle);
+  }
+
+  /* Load data */
+  glBindTexture(target,oga->tex_handle[0]);
+  glTexImage2D(target,0,pixel_type,w,h,0,
+    pixel_format,element_size,oga->data);
+
+  glEnable(target);
+  //glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+  glBindTexture(target,oga->tex_handle[0]);
+  glTexEnvf(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_DECAL);
+}
+
+/* Disable an FBO bound to an OGA */
+void disable_fbo(oga_struct * oga)
+{
+  if (!oga) return;
+  if (oga->fbo_handle)
+  {
+    glDisable(oga->target);
+    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT,0);
+  }
+}
+#endif
+
+
+
+
+
 MODULE = OpenGL		PACKAGE = OpenGL::Array
 
+#//# $oga = OpenGL::Array->new($count, @types);
+#//- Contructor for multi-type OGA - unpopulated
 OpenGL::Array
 new(Class, count, type, ...)
 	GLsizei	count
@@ -839,6 +2092,8 @@ new(Class, count, type, ...)
 	OUTPUT:
 		RETVAL
 
+#//# $oga = OpenGL::Array->new_list($type, @data);
+#//- Contructor for mono-type OGA - populated
 OpenGL::Array
 new_list(Class, type, ...)
 	GLenum	type
@@ -869,6 +2124,8 @@ new_list(Class, type, ...)
 	OUTPUT:
 		RETVAL
 
+#//# $oga = OpenGL::Array->new_scalar($type, (PACKED)data, $length);
+#//- Contructor for mono-type OGA - populated by string
 OpenGL::Array
 new_scalar(Class, type, data, length)
 	GLenum	type
@@ -903,6 +2160,8 @@ new_scalar(Class, type, data, length)
 	OUTPUT:
 		RETVAL
 
+#//# $oga = OpenGL::Array->new_pointer($type, (CPTR)ptr, $elements);
+#//- Contructor for mono-type OGA wrapper over a C pointer
 OpenGL::Array
 new_pointer(Class, type, ptr, elements)
 	GLenum	type
@@ -935,6 +2194,8 @@ new_pointer(Class, type, ptr, elements)
 	OUTPUT:
 		RETVAL
 
+#//# $oga = OpenGL::Array->new_from_pointer((CPTR)ptr, $length);
+#//- Contructor for GLubyte OGA wrapper over a C pointer
 OpenGL::Array
 new_from_pointer(Class, ptr, length)
 	void *	ptr
@@ -965,6 +2226,8 @@ new_from_pointer(Class, ptr, length)
 	OUTPUT:
 		RETVAL
 
+#//# $oga->update_pointer((CPTR)ptr);
+#//- Replace OGA's C pointer - old one is not released
 GLboolean
 update_pointer(oga, ptr)
 	OpenGL::Array oga
@@ -977,6 +2240,8 @@ update_pointer(oga, ptr)
 	OUTPUT:
 		RETVAL
 
+#//# $oga->bind($vboID);
+#//- Bind a VBO to an OGA
 void
 bind(oga, bind)
 	OpenGL::Array oga
@@ -995,6 +2260,8 @@ bind(oga, bind)
 #endif
 	}
 
+#//# $vboID = $oga->bound();
+#//- Return OGA's bound VBO ID
 GLint
 bound(oga)
 	OpenGL::Array oga
@@ -1003,6 +2270,64 @@ bound(oga)
 	OUTPUT:
 		RETVAL
 
+#//# $oga->calc([@(OGA)moreOGAs,]@rpnOPs);
+#//- Execute RPN instructions on one or more OGAs
+void
+calc(...)
+	CODE:
+	{
+		rpn_context *	ctx;
+		oga_struct **	oga_list;
+		int		oga_count = 0;
+		int		ops_count,i;
+		char **		ops;
+
+		/* Determine number of OGAs passed in */
+		for (i=0; i<items; i++)
+		{
+			SV *	sv = ST(i);
+			if (sv == &PL_sv_undef ||
+				!sv_derived_from(sv,"OpenGL::Array")) break;
+			oga_count++;
+		}
+
+		/* Grab OGA data buffers */
+		if (!oga_count) croak("Missing OGA parameters");
+		ops_count = items - oga_count;
+
+		oga_list = malloc(sizeof(oga_struct *) * oga_count);
+		if (!oga_list) croak("Unable to alloc oga_list");
+
+		for (i=0; i<oga_count; i++)
+		{
+			IV ref = SvIV((SV*)SvRV(ST(i)));
+			oga_list[i] = INT2PTR(OpenGL__Array,ref);
+		}
+
+		ops = malloc(sizeof(char *) * ops_count);
+		if (!ops) croak("Unable to alloc ops");
+
+		/* Parse parameters */
+		for (i=0;i<ops_count;i++)
+		{
+			SV *	sv = ST(i+oga_count);
+			char *	op = (sv != &PL_sv_undef) ?
+				(char *)SvPV(sv,PL_na) : "";
+			ops[i] = op;
+		}
+
+		/* Instantiate RPN context */
+		ctx = rpn_init(oga_count,oga_list,ops_count,ops);
+		rpn_exec(ctx);
+		rpn_term(ctx);
+
+		/* Delete lists */
+		free(ops);
+		free(oga_list);
+	}
+
+#//# $oga->assign($pos,@data);
+#//- Set OGA values starting from offset
 void
 assign(oga, pos, ...)
 	OpenGL::Array oga
@@ -1025,14 +2350,15 @@ assign(oga, pos, ...)
 			oga->type_offset[pos % oga->type_count];
 		
 		j = 2;
-		
+
+		/* Handle multi-type OGAs */		
 		for (;i<end;i++,j++) {
 			t = oga->types[i % oga->type_count];
 			switch (t) {
 #ifdef GL_VERSION_1_2
 			case GL_UNSIGNED_BYTE_3_3_2:
 			case GL_UNSIGNED_BYTE_2_3_3_REV:
-				(*(GLubyte*)offset) = SvIV(ST(j));
+				(*(GLubyte*)offset) = (GLubyte)SvIV(ST(j));
 				offset += sizeof(GLubyte);
 				break;
 			case GL_UNSIGNED_SHORT_5_6_5:
@@ -1041,80 +2367,80 @@ assign(oga, pos, ...)
 			case GL_UNSIGNED_SHORT_4_4_4_4_REV:
 			case GL_UNSIGNED_SHORT_5_5_5_1:
 			case GL_UNSIGNED_SHORT_1_5_5_5_REV:
-				(*(GLushort*)offset) = SvIV(ST(j));
+				(*(GLushort*)offset) = (GLushort)SvIV(ST(j));
 				offset += sizeof(GLushort);
 				break;
 			case GL_UNSIGNED_INT_8_8_8_8:
 			case GL_UNSIGNED_INT_8_8_8_8_REV:
 			case GL_UNSIGNED_INT_10_10_10_2:
 			case GL_UNSIGNED_INT_2_10_10_10_REV:
-				(*(GLuint*)offset) = SvIV(ST(j));
+				(*(GLuint*)offset) = (GLuint)SvIV(ST(j));
 				offset += sizeof(GLuint);
 				break;
 #endif
 			case GL_UNSIGNED_BYTE:
 			case GL_BITMAP:
-				(*(GLubyte*)offset) = SvIV(ST(j));
+				(*(GLubyte*)offset) = (GLubyte)SvIV(ST(j));
 				offset += sizeof(GLubyte);
 				break;
 			case GL_BYTE:
-				(*(GLbyte*)offset) = SvIV(ST(j));
+				(*(GLbyte*)offset) = (GLbyte)SvIV(ST(j));
 				offset += sizeof(GLbyte);
 				break;
 			case GL_UNSIGNED_SHORT:
-				(*(GLushort*)offset) = SvIV(ST(j));
+				(*(GLushort*)offset) = (GLushort)SvIV(ST(j));
 				offset += sizeof(GLushort);
 				break;
 			case GL_SHORT:
-				(*(GLshort*)offset) = SvIV(ST(j));
+				(*(GLshort*)offset) = (GLshort)SvIV(ST(j));
 				offset += sizeof(GLshort);
 				break;
 			case GL_UNSIGNED_INT:
-				(*(GLuint*)offset) = SvIV(ST(j));
+				(*(GLuint*)offset) = (GLuint)SvIV(ST(j));
 				offset += sizeof(GLuint);
 				break;
 			case GL_INT:
-				(*(GLint*)offset) = SvIV(ST(j));
+				(*(GLint*)offset) = (GLint)SvIV(ST(j));
 				offset += sizeof(GLint);
 				break;
 			case GL_FLOAT: 
-				(*(GLfloat*)offset) = SvNV(ST(j));
+				(*(GLfloat*)offset) = (GLfloat)SvNV(ST(j));
 				offset += sizeof(GLfloat);
 				break;
 			case GL_DOUBLE: 
-				(*(GLdouble*)offset) = SvNV(ST(j));
+				(*(GLdouble*)offset) = (GLdouble)SvNV(ST(j));
 				offset += sizeof(GLdouble);
 				break;
 			case GL_2_BYTES:
 			{
-				unsigned long v = SvIV(ST(j));
-				(*(GLubyte*)offset) = v >> 8;
+				unsigned long v = (unsigned long)SvIV(ST(j));
+				(*(GLubyte*)offset) = (GLubyte)(v >> 8);
 				offset++;
-				(*(GLubyte*)offset) = v & 0xff;
+				(*(GLubyte*)offset) = (GLubyte)v & 0xff;
 				offset++;
 				break;
 			}
 			case GL_3_BYTES:
 			{
-				unsigned long v = SvIV(ST(j));
-				(*(GLubyte*)offset) = (v >> 16)& 0xff;
+				unsigned long v = (unsigned long)SvIV(ST(j));
+				(*(GLubyte*)offset) = (GLubyte)(v >> 16)& 0xff;
 				offset++;
-				(*(GLubyte*)offset) = (v >> 8) & 0xff;
+				(*(GLubyte*)offset) = (GLubyte)(v >> 8) & 0xff;
 				offset++;
-				(*(GLubyte*)offset) = (v >> 0) & 0xff;
+				(*(GLubyte*)offset) = (GLubyte)(v >> 0) & 0xff;
 				offset++;
 				break;
 			}
 			case GL_4_BYTES:
 			{
-				unsigned long v = SvIV(ST(j));
-				(*(GLubyte*)offset) = (v >> 24)& 0xff;
+				unsigned long v = (unsigned long)SvIV(ST(j));
+				(*(GLubyte*)offset) = (GLubyte)(v >> 24)& 0xff;
 				offset++;
-				(*(GLubyte*)offset) = (v >> 16)& 0xff;
+				(*(GLubyte*)offset) = (GLubyte)(v >> 16)& 0xff;
 				offset++;
-				(*(GLubyte*)offset) = (v >> 8) & 0xff;
+				(*(GLubyte*)offset) = (GLubyte)(v >> 8) & 0xff;
 				offset++;
-				(*(GLubyte*)offset) = (v >> 0) & 0xff;
+				(*(GLubyte*)offset) = (GLubyte)(v >> 0) & 0xff;
 				offset++;
 				break;
 			}
@@ -1124,6 +2450,8 @@ assign(oga, pos, ...)
 		}
 	}
 
+#//# $oga->assign_data($pos,(PACKED)data);
+#//- Set OGA values by string, starting from offset
 void
 assign_data(oga, pos, data)
 	OpenGL::Array	oga
@@ -1144,6 +2472,8 @@ assign_data(oga, pos, data)
 		memcpy(offset, src, len);
 	}
 
+#//# @data = $oga->retrieve($pos,$len);
+#//- Get OGA data array, by offset and length
 void
 retrieve(oga, ...)	
 	OpenGL::Array	oga
@@ -1234,6 +2564,8 @@ retrieve(oga, ...)
 		}
 	}
 
+#//# $data = $oga->retrieve_data($pos,$len);
+#//- Get OGA data as packed string, by offset and length
 SV *
 retrieve_data(oga, ...)
 	OpenGL::Array	oga
@@ -1252,6 +2584,8 @@ retrieve_data(oga, ...)
 	OUTPUT:
 	RETVAL
 
+#//# $count = $oga->elements();
+#//- Get number of OGA elements
 GLsizei
 elements(oga)
 	OpenGL::Array	oga
@@ -1260,6 +2594,8 @@ elements(oga)
 	OUTPUT:
 		RETVAL
 
+#//# $len = $oga->length();
+#//- Get size of OGA in bytes
 GLsizei
 length(oga)
 	OpenGL::Array	oga
@@ -1268,6 +2604,8 @@ length(oga)
 	OUTPUT:
 		RETVAL
 
+#//# (CPTR)ptr = $oga->ptr();
+#//- Get C pointer to OGA data
 void *
 ptr(oga)
 	OpenGL::Array	oga
@@ -1276,6 +2614,8 @@ ptr(oga)
 	OUTPUT:
 	RETVAL
 
+#//# (CPTR)ptr = $oga->offset($pos);
+#//- Get C pointer to OGA data, by element offset
 void *
 offset(oga, pos)
 	OpenGL::Array	oga
@@ -1287,12 +2627,176 @@ offset(oga, pos)
 	OUTPUT:
 	RETVAL
 
+#//# $oga->affine((OGA)matrix|@matrix|$scalar);
+#//- Perform affine transform on an OGA
+void
+affine(oga, ...)
+	OpenGL::Array oga
+	CODE:
+	{
+		GLfloat *	data = (GLfloat *)oga->data;
+		GLfloat *	mat = NULL;
+		int		len = oga->item_count;
+		int		fbo_width = 0;
+		int		i,j,count,dim,cols;
+		SV *		sv = ST(1);
+		int		free_mat = 0;
+
+		/* Get transform matrix OGA */
+		if (sv != &PL_sv_undef && sv_derived_from(sv,"OpenGL::Array"))
+		{
+			IV ref = SvIV((SV*)SvRV(sv));
+			oga_struct *oga_mat = INT2PTR(OpenGL__Array,ref);
+			count = oga_mat->item_count;
+
+			for (i=0;i<oga_mat->type_count;i++)
+			{
+				if (oga_mat->types[i] != GL_FLOAT)
+					croak("Unsupported datatype in affine matrix");
+			}
+
+			mat = (GLfloat *)oga_mat->data;
+		}
+		else
+		{
+			count = items - 1;
+			free_mat = 1;
+		}
+		if (!count) croak("No matrix values");
+
+		/* Currently only support GLfloat */
+		for (i=0;i<oga->type_count;i++)
+		{
+			if (oga->types[i] != GL_FLOAT)
+				croak("Unsupported datatype");
+		}
+
+		/* Scalar Multiply */
+		if (count == 1)
+		{
+			GLfloat scalar = mat ? mat[0] : (GLfloat)SvNV(ST(1));
+			for (i=0;i<len;i++) data[i] *= scalar;
+			XSRETURN_EMPTY;
+		}
+
+		/* Calc matrix dimension from sqrt of array size */
+		dim = (int)sqrt(count);
+		if (count != dim*dim) croak("Not a square matrix");
+
+		/* Affine matrix dimension is one element larger than vector data */
+		cols = dim - 1;
+		if (len % cols)
+			croak("Matrix does not match array vector size");
+
+		/* Grab affine matrix */
+		if (!mat)
+		{
+			mat = malloc(sizeof(GLfloat) * count);
+			for (i=0; i<count; i++)
+				mat[i] = (GLfloat)SvNV(ST(i+1));
+		}
+#if 0 /* Need to figure out why this is slower than CPU calcs */ 
+		/* Use GPU if FBOs and Fragment Programs are supported */
+		fbo_width = gpgpu_width(len);
+		if (dim == 4 && fbo_width)
+		{
+			GLuint target = GL_TEXTURE_RECTANGLE_ARB;
+			int w = fbo_width;
+			int h = len / (w*3);
+
+			/* Setup and enable FBO */
+			enable_fbo(oga,w,h,target,GL_RGB32F_ARB,GL_RGB,GL_FLOAT);
+
+			/* Pass affine matrix to shader */
+			enable_affine(oga);
+			for (i=0;i<4;i++)
+			{
+				glProgramLocalParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB,
+					i,&mat[i<<2]);
+			}
+
+			/* Render to FBO via fragment shader */
+			glBegin(GL_QUADS);
+			{
+				glTexCoord2i(0,0); glVertex2i(0,0);
+				glTexCoord2i(w,0); glVertex2i(w,0);
+				glTexCoord2i(w,h); glVertex2i(w,h);
+				glTexCoord2i(0,h); glVertex2i(0,h);
+			}
+			glEnd();
+
+			/* Done rendering */
+			disable_affine(oga);
+
+			/* Save back to OGA */
+			//glReadBuffer(GL_COLOR_ATTACHMENT0_EXT);
+			glReadPixels(0,0,w,h,GL_RGB,GL_FLOAT,oga->data);
+
+			disable_fbo(oga);
+		}
+		/* Use CPU to do transform */
+		else
+#endif
+		{
+			int s = sizeof(GLfloat) * cols;
+			GLfloat *vec = malloc(s);
+			int k,r;
+
+			/* Iterate each data row */
+			for (i=0; i < len; i+=cols)
+			{
+				/* Iterate each result column */
+				for (j=0,r=0; j<cols; j++,r+=dim)
+				{
+					vec[j] = 0.0;
+
+					/* Iterate each matrix column */
+					for (k=0; k<cols; k++)
+					{
+						vec[j] += data[i+k] * mat[r+k];
+					}
+					/* Matrix translate column */
+					vec[j] += mat[r+cols];
+				}
+
+				memcpy(data+i,vec,s);
+			}
+
+			free(vec);
+		}
+
+		if (free_mat) free(mat);
+	}
+
+#// OGA Destructor
 void
 DESTROY(oga)
 	OpenGL::Array	oga
 	CODE:
 	{
-		if (oga->free_data) {
+#if 0  /* Cleanup for GPU-based affine calcs */
+#ifdef GL_ARB_fragment_program
+		if (oga->affine_handle)
+		{
+			glBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, 0);
+			glDeleteProgramsARB(1,&oga->affine_handle);
+		}
+#endif
+#ifdef GL_EXT_framebuffer_object
+		release_fbo(oga);
+#endif
+#endif
+#if 0
+#ifdef GL_ARB_vertex_buffer_object
+		if (oga->bind)
+		{
+			glBindBufferARB(GL_ARRAY_BUFFER_ARB,0);
+			glDeleteBuffersARB(1,&oga->bind);
+		}
+#endif
+#endif
+		if (oga->free_data)
+		{
 			/* To make sure dangling pointers will be obvious */
 			memset(oga->data, '\0', oga->data_length);
 			free(oga->data);
@@ -1305,6 +2809,7 @@ DESTROY(oga)
 
 MODULE = OpenGL		PACKAGE = OpenGL
 
+#// Define a POGL Constant
 SV *
 constant(name,arg)
 	char *	name
@@ -1318,6 +2823,7 @@ constant(name,arg)
 	OUTPUT:
 	RETVAL
 
+#// Test for GL
 int
 _have_gl()
 	CODE:
@@ -1329,6 +2835,7 @@ _have_gl()
 	OUTPUT:
 	RETVAL
 
+#// Test for GLU
 int
 _have_glu()
 	CODE:
@@ -1340,10 +2847,11 @@ _have_glu()
 	OUTPUT:
 	RETVAL
 
+#// Test for GLUT/FreeGLUT
 int
 _have_glut()
 	CODE:
-#ifdef HAVE_GLUT
+#if defined(HAVE_GLUT) || defined(HAVE_FREEGLUT)
 	RETVAL = 1;
 #else
 	RETVAL = 0;
@@ -1351,6 +2859,7 @@ _have_glut()
 	OUTPUT:
 	RETVAL
 
+#// Test for GLX
 int
 _have_glx()
 	CODE:
@@ -1362,6 +2871,7 @@ _have_glx()
 	OUTPUT:
 	RETVAL
 
+#// Test for GLpc
 int
 _have_glp()
 	CODE:
@@ -1373,17 +2883,26 @@ _have_glp()
 	OUTPUT:
 	RETVAL
 
+#// Test for done with glutInit
+int
+done_glutInit()
+	CODE:
+	RETVAL = _done_glutInit;
+	OUTPUT:
+	RETVAL
 
 
 #ifdef HAVE_GL
 
-# 1.0
+#// 1.0
+#//# glAccum($op, $value);
 void
 glAccum(op, value)
 	GLenum	op
 	GLfloat	value
 
-# 1.0
+#// 1.0
+#//# glAlphaFunc($func, $ref);
 void
 glAlphaFunc(func, ref)
 	GLenum	func
@@ -1391,6 +2910,7 @@ glAlphaFunc(func, ref)
 
 #ifdef GL_VERSION_1_1
 
+#//# glAreTexturesResident_c($n, (CPTR)textures, (CPTR)residences);
 void
 glAreTexturesResident_c(n, textures, residences)
 	GLsizei	n
@@ -1399,6 +2919,7 @@ glAreTexturesResident_c(n, textures, residences)
 	CODE:
 	glAreTexturesResident(n, textures, residences);
 
+#//# glAreTexturesResident_s($n, (PACKED)textures, (PACKED)residences);
 void
 glAreTexturesResident_s(n, textures, residences)
 	GLsizei	n
@@ -1411,7 +2932,8 @@ glAreTexturesResident_s(n, textures, residences)
 	glAreTexturesResident(n, textures_s, residences_s);
 	}
 
-# 1.1
+#// 1.1
+#//# (result,@residences) = glAreTexturesResident_p(@textureIDs);
 void
 glAreTexturesResident_p(...)
 	PPCODE:
@@ -1440,24 +2962,28 @@ glAreTexturesResident_p(...)
 		free(residences);
 	}
 
-# 1.1
+#// 1.1
+#//# glArrayElement($i);
 void
 glArrayElement(i)
 	GLint	i
 
 #endif
 
-# 1.0
+#// 1.0
+#//# glBegin($mode);
 void
 glBegin(mode)
 	GLenum	mode
 
-# 1.0
+#// 1.0
+#//# glEnd()
 void
 glEnd()
 
 #ifdef GL_VERSION_1_1
 
+#//# glBindTexture($target, $texture);
 void
 glBindTexture(target, texture)
 	GLenum	target
@@ -1466,7 +2992,8 @@ glBindTexture(target, texture)
 #endif
 
 
-# 1.0
+#// 1.0
+#//# glBitmap_c($width, $height, $xorig, $yorig, $xmove, $ymove, (CPTR)bitmap);
 void
 glBitmap_c(width, height, xorig, yorig, xmove, ymove, bitmap)
 	GLsizei	width
@@ -1479,6 +3006,7 @@ glBitmap_c(width, height, xorig, yorig, xmove, ymove, bitmap)
 	CODE:
 	glBitmap(width, height, xorig, yorig, xmove, ymove, bitmap);
 
+#//# glBitmap_s($width, $height, $xorig, $yorig, $xmove, $ymove, (PACKED)bitmap);
 void
 glBitmap_s(width, height, xorig, yorig, xmove, ymove, bitmap)
 	GLsizei	width
@@ -1495,6 +3023,7 @@ glBitmap_s(width, height, xorig, yorig, xmove, ymove, bitmap)
 	glBitmap(width, height, xorig, yorig, xmove, ymove, bitmap_s);
 	}
 
+#//# glBitmap_p($width, $height, $xorig, $yorig, $xmove, $ymove, @bitmap);
 void
 glBitmap_p(width, height, xorig, yorig, xmove, ymove, ...)
 	GLsizei	width
@@ -1516,18 +3045,21 @@ glBitmap_p(width, height, xorig, yorig, xmove, ymove, ...)
 	free(ptr);
 	}
 
-# 1.0
+#// 1.0
+#//# glBlendFunc($sfactor, $dfactor);
 void
 glBlendFunc(sfactor, dfactor)
 	GLenum	sfactor
 	GLenum	dfactor
 
-# 1.0
+#// 1.0
+#//# glCallList($list);
 void
 glCallList(list)
 	GLuint	list
 
-# 1.0
+#// 1.0
+#//# glCallLists_c($n, $type, (CPTR)lists);
 void
 glCallLists_c(n, type, lists)
 	GLsizei	n
@@ -1536,7 +3068,8 @@ glCallLists_c(n, type, lists)
 	CODE:
 	glCallLists(n, type, lists);
 
-# 1.0
+#// 1.0
+#//# glCallLists_s($n, $type, (PACKED)lists);
 void
 glCallLists_s(n, type, lists)
 	GLsizei	n
@@ -1548,7 +3081,9 @@ glCallLists_s(n, type, lists)
 	glCallLists(n, type, lists_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glCallLists_p(@lists);
+#//- Assumes GLint type
 void
 glCallLists_p(...)
 	CODE:
@@ -1561,12 +3096,14 @@ glCallLists_p(...)
 		free(list);
 	}
 
-# 1.0
+#// 1.0
+#//# glClear($mask);
 void
 glClear(mask)
 	GLbitfield	mask
 
-# 1.0
+#// 1.0
+#//# glClearAccum($red, $green, $blue, $alpha);
 void
 glClearAccum(red, green, blue, alpha)
 	GLfloat	red
@@ -1574,7 +3111,8 @@ glClearAccum(red, green, blue, alpha)
 	GLfloat	blue
 	GLfloat	alpha
 
-# 1.0
+#// 1.0
+#//# glClearColor($red, $green, $blue, $alpha);
 void
 glClearColor(red, green, blue, alpha)
 	GLclampf	red
@@ -1582,22 +3120,26 @@ glClearColor(red, green, blue, alpha)
 	GLclampf	blue
 	GLclampf	alpha
 
-# 1.0
+#// 1.0
+#//# glClearDepth($depth);
 void
 glClearDepth(depth)
 	GLclampd	depth
 
-# 1.0
+#// 1.0
+#//# glClearIndex($c);
 void
 glClearIndex(c)
 	GLfloat	c
 
-# 1.0
+#// 1.0
+#//# glClearStencil($s);
 void
 glClearStencil(s)
 	GLint	s
 
-# 1.0
+#// 1.0
+#//# glClipPlane_c($plane, (CPTR)eqn);
 void
 glClipPlane_c(plane, eqn)
 	GLenum	plane
@@ -1605,7 +3147,8 @@ glClipPlane_c(plane, eqn)
 	CODE:
 	glClipPlane(plane, eqn);
 
-# 1.0
+#// 1.0
+#//# glClipPlane_s($plane, (PACKED)eqn);
 void
 glClipPlane_s(plane, eqn)
 	GLenum	plane
@@ -1616,7 +3159,8 @@ glClipPlane_s(plane, eqn)
 		glClipPlane(plane, eqn_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glClipPlane_p($plane, $eqn0, $eqn1, $eqn2, $eqn3);
 void
 glClipPlane_p(plane, eqn0, eqn1, eqn2, eqn3)
 	GLenum	plane
@@ -1634,7 +3178,8 @@ glClipPlane_p(plane, eqn0, eqn1, eqn2, eqn3)
 		glClipPlane(plane, &eqn[0]);
 	}
 
-# 1.0
+#// 1.0
+#//# glColorMask($red, $green, $blue, $alpha);
 void
 glColorMask(red, green, blue, alpha)
 	GLboolean	red
@@ -1642,7 +3187,8 @@ glColorMask(red, green, blue, alpha)
 	GLboolean	blue
 	GLboolean	alpha
 
-# 1.0
+#// 1.0
+#//# glColorMaterial($face, $mode);
 void
 glColorMaterial(face, mode)
 	GLenum	face
@@ -1650,7 +3196,8 @@ glColorMaterial(face, mode)
 
 #ifdef GL_VERSION_1_1
 
-# 1.1
+#// 1.1
+#//# glColorPointer_c($size, $type, $stride, (CPTR)pointer);
 void
 glColorPointer_c(size, type, stride, pointer)
 	GLint	size
@@ -1661,6 +3208,7 @@ glColorPointer_c(size, type, stride, pointer)
 	glColorPointer(size, type, stride, pointer);
 
 
+#//# glColorPointer_s($size, $type, $stride, (PACKED)pointer);
 void
 glColorPointer_s(size, type, stride, pointer)
 	GLint	size
@@ -1674,6 +3222,7 @@ glColorPointer_s(size, type, stride, pointer)
 		glColorPointer(size, type, stride, pointer_s);
 	}
 
+#//# glColorPointer_p($size, $type, $stride, (OGA)pointer);
 void
 glColorPointer_p(size, oga)
 	GLint	size
@@ -1693,7 +3242,8 @@ glColorPointer_p(size, oga)
 
 #endif
 
-# 1.0
+#// 1.0
+#//# glCopyPixels($x, $y, $width, $height, $type);
 void
 glCopyPixels(x, y, width, height, type)
 	GLint	x
@@ -1704,7 +3254,8 @@ glCopyPixels(x, y, width, height, type)
 
 #ifdef GL_VERSION_1_1
 
-# 1.1
+#// 1.1
+#//# glCopyTexImage1D($target, $level, $internalFormat, $x, $y, $width, $border);
 void
 glCopyTexImage1D(target, level, internalFormat, x, y, width, border)
 	GLenum	target
@@ -1715,7 +3266,8 @@ glCopyTexImage1D(target, level, internalFormat, x, y, width, border)
 	GLsizei	width
 	GLint	border
 
-# 1.1
+#// 1.1
+#//# glCopyTexImage2D($target, $level, $internalFormat, $x, $y, $width, $height, $border);
 void
 glCopyTexImage2D(target, level, internalFormat, x, y, width, height, border)
 	GLenum	target
@@ -1727,7 +3279,8 @@ glCopyTexImage2D(target, level, internalFormat, x, y, width, height, border)
 	GLsizei	height
 	GLint	border
 
-# 1.1
+#// 1.1
+#//# glCopyTexSubImage1D($target, $level, $xoffset, $x, $y, $width);
 void
 glCopyTexSubImage1D(target, level, xoffset, x, y, width)
 	GLenum	target
@@ -1737,7 +3290,8 @@ glCopyTexSubImage1D(target, level, xoffset, x, y, width)
 	GLint	y
 	GLsizei	width
 
-# 1.1
+#// 1.1
+#//# glCopyTexSubImage2D($target, $level, $xoffset, $yoffset, $x, $y, $width, $height);
 void
 glCopyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height)
 	GLenum	target
@@ -1751,7 +3305,8 @@ glCopyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height)
 
 #ifdef GL_VERSION_1_2
 
-# 1.2
+#// 1.2
+#//# glCopyTexSubImage3D($target, $level, $xoffset, $yoffset, $zoffset, $x, $y, $width, $height);
 void
 glCopyTexSubImage3D(target, level, xoffset, yoffset, zoffset, x, y, width, height)
 	GLenum	target
@@ -1775,12 +3330,14 @@ glCopyTexSubImage3D(target, level, xoffset, yoffset, zoffset, x, y, width, heigh
 
 #endif
 
-# 1.0
+#// 1.0
+#//# glCullFace($mode);
 void
 glCullFace(mode)
 	GLenum	mode
 
-# 1.0
+#// 1.0
+#//# glDeleteLists($list, $range);
 void
 glDeleteLists(list, range)
 	GLenum	list
@@ -1788,7 +3345,8 @@ glDeleteLists(list, range)
 
 #ifdef GL_VERSION_1_1
 
-# 1.1
+#// 1.1
+#//# glDeleteTextures_c($items, (CPTR)list);
 void
 glDeleteTextures_c(items, list)
 	GLint	items
@@ -1796,7 +3354,8 @@ glDeleteTextures_c(items, list)
 	CODE:
 	glDeleteTextures(items,list);
 
-# 1.1
+#// 1.1
+#//# glDeleteTextures_s($items, (PACKED)list);
 void
 glDeleteTextures_s(items, list)
 	GLint	items
@@ -1807,7 +3366,8 @@ glDeleteTextures_s(items, list)
 	glDeleteTextures(items,list_s);
 	}
 
-# 1.1
+#// 1.1
+#//# glDeleteTextures_p(@textureIDs);
 void
 glDeleteTextures_p(...)
 	CODE:
@@ -1824,17 +3384,20 @@ glDeleteTextures_p(...)
 
 #endif
 
-# 1.0
+#// 1.0
+#//# glDepthFunc($func);
 void
 glDepthFunc(func)
 	GLenum	func
 
-# 1.0
+#// 1.0
+#//# glDepthMask($flag);
 void
 glDepthMask(flag)
 	GLboolean	flag
 
-# 1.0
+#// 1.0
+#//# glDepthRange($zNear, $zFar);
 void
 glDepthRange(zNear, zFar)
 	GLclampd	zNear
@@ -1842,7 +3405,8 @@ glDepthRange(zNear, zFar)
 
 #ifdef GL_VERSION_1_1
 
-# 1.1
+#// 1.1
+#//# glDrawArrays($mode, $first, $count);
 void
 glDrawArrays(mode, first, count)
 	GLenum	mode
@@ -1851,14 +3415,16 @@ glDrawArrays(mode, first, count)
 
 #endif
 
-# 1.0
+#// 1.0
+#//# glDrawBuffer($mode);
 void
 glDrawBuffer(mode)
 	GLenum	mode
 
 #ifdef GL_VERSION_1_1
 
-# 1.1
+#// 1.1
+#//# glDrawElements_c($mode, $count, $type, (CPTR)indices);
 void
 glDrawElements_c(mode, count, type, indices)
 	GLenum	mode
@@ -1868,7 +3434,8 @@ glDrawElements_c(mode, count, type, indices)
 	CODE:
 		glDrawElements(mode, count, type, indices);
 
-# 1.1
+#// 1.1
+#//# glDrawElements_s($mode, $count, $type, (PACKED)indices);
 void
 glDrawElements_s(mode, count, type, indices)
 	GLenum	mode
@@ -1881,6 +3448,8 @@ glDrawElements_s(mode, count, type, indices)
 		glDrawElements(mode, count, type, indices_s);
 	}
 
+#//# glDrawElements_p($mode, @indices);
+#//- Assumes GLuint for indices
 void
 glDrawElements_p(mode, ...)
 	GLenum	mode
@@ -1899,7 +3468,8 @@ glDrawElements_p(mode, ...)
 
 #endif
 
-# 1.0
+#// 1.0
+#//# glDrawPixels_c($width, $height, $format, $type, (CPTR)pixels);
 void
 glDrawPixels_c(width, height, format, type, pixels)
 	GLsizei	width
@@ -1910,7 +3480,8 @@ glDrawPixels_c(width, height, format, type, pixels)
 	CODE:
 	glDrawPixels(width, height, format, type, pixels);
 
-# 1.0
+#// 1.0
+#//# glDrawPixels_s($width, $height, $format, $type, (PACKED)pixels);
 void
 glDrawPixels_s(width, height, format, type, pixels)
 	GLsizei	width
@@ -1925,7 +3496,8 @@ glDrawPixels_s(width, height, format, type, pixels)
 	glDrawPixels(width, height, format, type, ptr);
 	}
 
-# 1.0
+#// 1.0
+#//# glDrawPixels_p($width, $height, $format, $type, @pixels);
 void
 glDrawPixels_p(width, height, format, type, ...)
 	GLsizei	width
@@ -1946,7 +3518,8 @@ glDrawPixels_p(width, height, format, type, ...)
 
 #ifdef GL_VERSION_1_2
 
-# 1.2
+#// 1.2
+#//# glDrawRangeElements_c($mode, $start, $end, $count, $type, (CPTR)indices);
 void
 glDrawRangeElements_c(mode, start, end, count, type, indices)
 	GLenum	mode
@@ -1960,6 +3533,7 @@ glDrawRangeElements_c(mode, start, end, count, type, indices)
 	CODE:
 		glDrawRangeElements(mode, start, end, count, type, indices);
 
+#//# glDrawRangeElements_s($mode, $start, $end, $count, $type, (PACKED)indices);
 void
 glDrawRangeElements_s(mode, start, end, count, type, indices)
 	GLenum	mode
@@ -1976,6 +3550,8 @@ glDrawRangeElements_s(mode, start, end, count, type, indices)
 		glDrawRangeElements(mode, start, end, count, type, indices_s);
 	}
 
+#//# glDrawRangeElements_p($mode, $start, $end, $count, $type, @indices);
+#//- Assumes GLuint indices
 void
 glDrawRangeElements_p(mode, start, count, ...)
 	GLenum	mode
@@ -2015,14 +3591,16 @@ glDrawRangeElements_p(mode, start, count, ...)
 
 #endif
 
-# 1.0
+#// 1.0
+#//# glEdgeFlag($flag);
 void
 glEdgeFlag(flag)
 	GLboolean	flag
 
 #ifdef GL_VERSION_1_1
 
-# 1.1
+#// 1.1
+#//# glEdgeFlagPointer_c($stride, (CPTR)pointer);
 void
 glEdgeFlagPointer_c(stride, pointer)
 	GLint	stride
@@ -2030,6 +3608,7 @@ glEdgeFlagPointer_c(stride, pointer)
 	CODE:
 	glEdgeFlagPointer(stride, pointer);
 
+#//# glEdgeFlagPointer_s($stride, (PACKED)pointer);
 void
 glEdgeFlagPointer_s(stride, pointer)
 	GLsizei	stride
@@ -2041,6 +3620,7 @@ glEdgeFlagPointer_s(stride, pointer)
 		glEdgeFlagPointer(stride, pointer_s);
 	}
 
+#//# glEdgeFlagPointer_p($stride, (OGA)pointer);
 void
 glEdgeFlagPointer_p(oga)
 	OpenGL::Array oga
@@ -2059,60 +3639,70 @@ glEdgeFlagPointer_p(oga)
 
 #endif
 
-# 1.0
+#// 1.0
+#//# glEnable($cap);
 void
 glEnable(cap)
 	GLenum	cap
 
-# 1.0
+#// 1.0
+#//# glDisable($cap);
 void
 glDisable(cap)
 	GLenum	cap
 
 #ifdef GL_VERSION_1_1
 
-# 1.1
+#// 1.1
+#//# glEnableClientState($cap);
 void
 glEnableClientState(cap)
 	GLenum	cap
 
-# 1.1
+#// 1.1
+#//# glDisableClientState($cap);
 void
 glDisableClientState(cap)
 	GLenum	cap
 
 #endif
 
-# 1.0
+#// 1.0
+#//# glEvalCoord1d($u); 
 void
 glEvalCoord1d(u)
 	GLdouble	u
 
-# 1.0
+#// 1.0
+#//# glEvalCoord1f($u);
 void
 glEvalCoord1f(u)
 	GLfloat	u
 
-# 1.0
+#// 1.0
+#//# glEvalCoord2d($u, $v);
 void
 glEvalCoord2d(u, v)
 	GLdouble	u
 	GLdouble	v
 
-# 1.0
+#// 1.0
+#//# glEvalCoord2f($u, $v);
 void
 glEvalCoord2f(u, v)
 	GLfloat	u
 	GLfloat	v
 
-# 1.0
+#// 1.0
+#//# glEvalMesh1($mode, $i1, $i2);
 void
 glEvalMesh1(mode, i1, i2)
 	GLenum	mode
 	GLint	i1
 	GLint	i2
 	
-# 1.0
+#// 1.0
+#//# glEvalMesh2($mode, $i1, $i2, $j1, $j2);
 void
 glEvalMesh2(mode, i1, i2, j1, j2)
 	GLenum	mode
@@ -2121,18 +3711,21 @@ glEvalMesh2(mode, i1, i2, j1, j2)
 	GLint	j1
 	GLint	j2
 
-# 1.0
+#// 1.0
+#//# glEvalPoint1($i);
 void
 glEvalPoint1(i)
 	GLint	i
 	
-# 1.0
+#// 1.0
+#//# glEvalPoint2($i, $j);
 void
 glEvalPoint2(i, j)
 	GLint	i
 	GLint	j
 
-# 1.0
+#// 1.0
+#//# glFeedbackBuffer_c($size, $type, (CPTR)buffer);
 void
 glFeedbackBuffer_c(size, type, buffer)
 	GLsizei	size
@@ -2141,27 +3734,32 @@ glFeedbackBuffer_c(size, type, buffer)
 	CODE:
 	glFeedbackBuffer(size, type, (GLfloat*)(buffer));
 
-# 1.0
+#// 1.0
+#//# glFinish();
 void
 glFinish()
 
-# 1.0
+#// 1.0
+#//# glFlush();
 void
 glFlush()
 
-# 1.0
+#// 1.0
+#//# glFogf($pname, $param);
 void
 glFogf(pname, param)
 	GLenum	pname
 	GLfloat	param
 
-# 1.0
+#// 1.0
+#//# glFogi($pname, $param);
 void
 glFogi(pname, param)
 	GLenum	pname
 	GLint	param
 
-# 1.0
+#// 1.0
+#//# glFogfv_c($pname, (CPTR)params);
 void
 glFogfv_c(pname, params)
 	GLenum	pname
@@ -2169,7 +3767,8 @@ glFogfv_c(pname, params)
 	CODE:
 	glFogfv(pname, params);
 
-# 1.0
+#// 1.0
+#//# glFogiv_c($pname, (CPTR)params);
 void
 glFogiv_c(pname, params)
 	GLenum	pname
@@ -2177,7 +3776,8 @@ glFogiv_c(pname, params)
 	CODE:
 	glFogiv(pname, params);
 
-# 1.0
+#// 1.0
+#//# glFogfv_s($pname, (PACKED)params);
 void
 glFogfv_s(pname, params)
 	GLenum	pname
@@ -2188,7 +3788,8 @@ glFogfv_s(pname, params)
 	glFogfv(pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glFogiv_s($pname, (PACKED)params);
 void
 glFogiv_s(pname, params)
 	GLenum	pname
@@ -2199,7 +3800,8 @@ glFogiv_s(pname, params)
 	glFogiv(pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glFogfv_p($pname, $param1, $param2=0, $param3=0, $param4=0);
 void
 glFogfv_p(pname, param1, param2=0, param3=0, param4=0)
 	GLenum	pname
@@ -2217,7 +3819,8 @@ glFogfv_p(pname, param1, param2=0, param3=0, param4=0)
 		glFogfv(pname, &p[0]);
 	}
 
-# 1.0
+#// 1.0
+#//# glFogiv_p($pname, $param1, $param2=0, $param3=0, $param4=0);
 void
 glFogiv_p(pname, param1, param2=0, param3=0, param4=0)
 	GLenum	pname
@@ -2235,12 +3838,14 @@ glFogiv_p(pname, param1, param2=0, param3=0, param4=0)
 		glFogiv(pname, &p[0]);
 	}
 
-# 1.0
+#// 1.0
+#//# glFrontFace($mode);
 void
 glFrontFace(mode)
 	GLenum	mode
 
-# 1.0
+#// 1.0
+#//# glFrustum($left, $right, $bottom, $top, $zNear, $zFar);
 void
 glFrustum(left, right, bottom, top, zNear, zFar)
 	GLdouble	left
@@ -2250,14 +3855,16 @@ glFrustum(left, right, bottom, top, zNear, zFar)
 	GLdouble	zNear
 	GLdouble	zFar
 
-# 1.0
+#// 1.0
+#//# glGenLists($range);
 GLuint
 glGenLists(range)
 	GLsizei	range
 
 #ifdef GL_VERSION_1_1
 
-# 1.1
+#// 1.1
+#//# glGenTextures_c($n, (CPTR)textures);
 void
 glGenTextures_c(n, textures)
 	GLint	n
@@ -2265,7 +3872,8 @@ glGenTextures_c(n, textures)
 	CODE:
 	glGenTextures(n, textures);
 
-# 1.1
+#// 1.1
+#//# glGenTextures_s($n, (PACKED)textures);
 void
 glGenTextures_s(n, textures)
 	GLint	n
@@ -2276,7 +3884,8 @@ glGenTextures_s(n, textures)
 	glGenTextures(n, textures_s);
 	}
 
-# 1.1
+#// 1.1
+#//# @textureIDs = glGenTextures_p($n);
 void
 glGenTextures_p(n)
 	GLint	n
@@ -2296,7 +3905,8 @@ glGenTextures_p(n)
 
 #endif
 
-# 1.0
+#// 1.0
+#//# glGetDoublev_c($pname, (CPTR)params);
 void
 glGetDoublev_c(pname, params)
 	GLenum	pname
@@ -2304,7 +3914,8 @@ glGetDoublev_c(pname, params)
 	CODE:
 	glGetDoublev(pname, params);
 
-# 1.0
+#// 1.0
+#//# glGetDoublev_c($pname, (PACKED)params);
 void
 glGetDoublev_s(pname, params)
 	GLenum	pname
@@ -2315,7 +3926,8 @@ glGetDoublev_s(pname, params)
 	glGetDoublev(pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glGetBooleanv_c($pname, (CPTR)params);
 void
 glGetBooleanv_c(pname, params)
 	GLenum	pname
@@ -2323,7 +3935,8 @@ glGetBooleanv_c(pname, params)
 	CODE:
 	glGetBooleanv(pname, params);
 
-# 1.0
+#// 1.0
+#//# glGetBooleanv_s($pname, (PACKED)params);
 void
 glGetBooleanv_s(pname, params)
 	GLenum	pname
@@ -2334,7 +3947,8 @@ glGetBooleanv_s(pname, params)
 	glGetBooleanv(pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glGetIntegerv_c($pname, (CPTR)params);
 void
 glGetIntegerv_c(pname, params)
 	GLenum	pname
@@ -2342,7 +3956,8 @@ glGetIntegerv_c(pname, params)
 	CODE:
 	glGetIntegerv(pname, params);
 
-# 1.0
+#// 1.0
+#//# glGetIntegerv_s($pname, (PACKED)params);
 void
 glGetIntegerv_s(pname, params)
 	GLenum	pname
@@ -2353,7 +3968,8 @@ glGetIntegerv_s(pname, params)
 	glGetIntegerv(pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glGetFloatv_c($pname, (CPTR)params);
 void
 glGetFloatv_c(pname, params)
 	GLenum	pname
@@ -2361,7 +3977,8 @@ glGetFloatv_c(pname, params)
 	CODE:
 	glGetFloatv(pname, params);
 
-# 1.0
+#// 1.0
+#//# glGetFloatv_s($pname, (PACKED)params);
 void
 glGetFloatv_s(pname, params)
 	GLenum	pname
@@ -2372,7 +3989,8 @@ glGetFloatv_s(pname, params)
 	glGetFloatv(pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# @data = glGetDoublev_p($param);
 void
 glGetDoublev_p(param)
 	GLenum	param
@@ -2387,7 +4005,8 @@ glGetDoublev_p(param)
 			PUSHs(sv_2mortal(newSVnv(ret[i])));
 	}
 
-# 1.0
+#// 1.0
+#//# @data = glGetBooleanv_p($param);
 void
 glGetBooleanv_p(param)
 	GLenum	param
@@ -2402,7 +4021,8 @@ glGetBooleanv_p(param)
 			PUSHs(sv_2mortal(newSViv(ret[i])));
 	}
 
-# 1.0
+#// 1.0
+#//# @data = glGetIntegerv_p($param);
 void
 glGetIntegerv_p(param)
 	GLenum	param
@@ -2417,7 +4037,8 @@ glGetIntegerv_p(param)
 			PUSHs(sv_2mortal(newSViv(ret[i])));
 	}
 
-# 1.0
+#// 1.0
+#//# @data = glGetFloatv_p($param);
 void
 glGetFloatv_p(param)
 	GLenum	param
@@ -2432,7 +4053,8 @@ glGetFloatv_p(param)
 			PUSHs(sv_2mortal(newSVnv(ret[i])));
 	}
 
-# 1.0
+#// 1.0
+#//# glGetClipPlane_c($plane, (CPTR)eqn);
 void
 glGetClipPlane_c(plane, eqn)
 	GLenum	plane
@@ -2440,7 +4062,8 @@ glGetClipPlane_c(plane, eqn)
 	CODE:
 	glGetClipPlane(plane, eqn);
 
-# 1.0
+#// 1.0
+#//# glGetClipPlane_s($plane, (PACKED)eqn);
 void
 glGetClipPlane_s(plane, eqn)
 	GLenum	plane
@@ -2451,7 +4074,8 @@ glGetClipPlane_s(plane, eqn)
 	glGetClipPlane(plane, eqn_s);
 	}
 
-# 1.0
+#// 1.0
+#//# @data = glGetClipPlane_p($plane);
 void
 glGetClipPlane_p(plane)
 	GLenum	plane
@@ -2466,11 +4090,13 @@ glGetClipPlane_p(plane)
 			PUSHs(sv_2mortal(newSVnv(eqn[i])));
 	}
 
-# 1.0
+#// 1.0
+#//# glGetError();
 GLenum
 glGetError()
 
-# 1.0
+#// 1.0
+#//# glGetLightfv_c($light, $pname, (CPTR)p);
 void
 glGetLightfv_c(light, pname, p)
 	GLenum	light
@@ -2479,7 +4105,8 @@ glGetLightfv_c(light, pname, p)
 	CODE:
 	glGetLightfv(light, pname, p);
 
-# 1.0
+#// 1.0
+#//# glGetLightiv_c($light, $pname, (CPTR)p);
 void
 glGetLightiv_c(light, pname, p)
 	GLenum	light
@@ -2488,7 +4115,8 @@ glGetLightiv_c(light, pname, p)
 	CODE:
 	glGetLightiv(light, pname, p);
 
-# 1.0
+#// 1.0
+#//# glGetLightfv_s($light, $pname, (PACKED)p);
 void
 glGetLightfv_s(light, pname, p)
 	GLenum	light
@@ -2500,7 +4128,8 @@ glGetLightfv_s(light, pname, p)
 	glGetLightfv(light, pname, p_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glGetLightiv_s($light, $pname, (PACKED)p);
 void
 glGetLightiv_s(light, pname, p)
 	GLenum	light
@@ -2512,7 +4141,8 @@ glGetLightiv_s(light, pname, p)
 	glGetLightiv(light, pname, p_s);
 	}
 
-# 1.0
+#// 1.0
+#//# @data = glGetLightfv_p($light, $pname);
 void
 glGetLightfv_p(light, pname)
 	GLenum	light
@@ -2528,7 +4158,8 @@ glGetLightfv_p(light, pname)
 			PUSHs(sv_2mortal(newSVnv(ret[i])));
 	}
 
-# 1.0
+#// 1.0
+#//# @data = glGetLightiv_p($light, $pname);
 void
 glGetLightiv_p(light, pname)
 	GLenum	light
@@ -2544,7 +4175,8 @@ glGetLightiv_p(light, pname)
 			PUSHs(sv_2mortal(newSViv(ret[i])));
 	}
 
-# 1.0
+#// 1.0
+#//# glGetMapiv_c($target, $query, (CPTR)v);
 void
 glGetMapiv_c(target, query, v)
 	GLenum	target
@@ -2553,7 +4185,8 @@ glGetMapiv_c(target, query, v)
 	CODE:
 	glGetMapiv(target, query, (GLint*)v);
 
-# 1.0
+#// 1.0
+#//# glGetMapfv_c($target, $query, (CPTR)v);
 void
 glGetMapfv_c(target, query, v)
 	GLenum	target
@@ -2562,7 +4195,8 @@ glGetMapfv_c(target, query, v)
 	CODE:
 	glGetMapfv(target, query, (GLfloat*)v);
 
-# 1.0
+#// 1.0
+#//# glGetMapdv_c($target, $query, (CPTR)v);
 void
 glGetMapdv_c(target, query, v)
 	GLenum	target
@@ -2571,7 +4205,8 @@ glGetMapdv_c(target, query, v)
 	CODE:
 	glGetMapdv(target, query, (GLdouble*)v);
 
-# 1.0
+#// 1.0
+#//# glGetMapdv_s($target, $query, (PACKED)v);
 void
 glGetMapdv_s(target, query, v)
 	GLenum	target
@@ -2584,7 +4219,8 @@ glGetMapdv_s(target, query, v)
 		glGetMapdv(target, query, v_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glGetMapfv_s($target, $query, (PACKED)v);
 void
 glGetMapfv_s(target, query, v)
 	GLenum	target
@@ -2596,7 +4232,8 @@ glGetMapfv_s(target, query, v)
 		glGetMapfv(target, query, v_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glGetMapiv_s($target, $query, (PACKED)v);
 void
 glGetMapiv_s(target, query, v)
 	GLenum	target
@@ -2608,7 +4245,8 @@ glGetMapiv_s(target, query, v)
 		glGetMapiv(target, query, v_s);
 	}
 
-# 1.0
+#// 1.0
+#//# @data = glGetMapfv_p($target, $query);
 void
 glGetMapfv_p(target, query)
 	GLenum	target
@@ -2624,7 +4262,8 @@ glGetMapfv_p(target, query)
 			PUSHs(sv_2mortal(newSVnv(ret[i])));
 	}
 
-# 1.0
+#// 1.0
+#//# @data = glGetMapdv_p($target, $query);
 void
 glGetMapdv_p(target, query)
 	GLenum	target
@@ -2640,7 +4279,8 @@ glGetMapdv_p(target, query)
 			PUSHs(sv_2mortal(newSVnv(ret[i])));
 	}
 
-# 1.0
+#// 1.0
+#//# @data = glGetMapiv_p($target, $query);
 void
 glGetMapiv_p(target, query)
 	GLenum	target
@@ -2656,7 +4296,8 @@ glGetMapiv_p(target, query)
 			PUSHs(sv_2mortal(newSViv(ret[i])));
 	}
 
-# 1.0
+#// 1.0
+#//# glGetMaterialfv_c($face, $query, (CPTR)params);
 void
 glGetMaterialfv_c(face, query, params)
 	GLenum	face
@@ -2665,7 +4306,8 @@ glGetMaterialfv_c(face, query, params)
 	CODE:
 	glGetMaterialfv(face, query, params);
 
-# 1.0
+#// 1.0
+#//# glGetMaterialiv_c($face, $query, (CPTR)params);
 void
 glGetMaterialiv_c(face, query, params)
 	GLenum	face
@@ -2674,7 +4316,8 @@ glGetMaterialiv_c(face, query, params)
 	CODE:
 	glGetMaterialiv(face, query, params);
 
-# 1.0
+#// 1.0
+#//# glGetMaterialfv_s($face, $query, (PACKED)params);
 void
 glGetMaterialfv_s(face, query, params)
 	GLenum	face
@@ -2687,7 +4330,8 @@ glGetMaterialfv_s(face, query, params)
 		glGetMaterialfv(face, query, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glGetMaterialiv_s($face, $query, (PACKED)params);
 void
 glGetMaterialiv_s(face, query, params)
 	GLenum	face
@@ -2700,7 +4344,8 @@ glGetMaterialiv_s(face, query, params)
 		glGetMaterialiv(face, query, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# @params = glGetMaterialfv_p($face, $query);
 void
 glGetMaterialfv_p(face, query)
 	GLenum	face
@@ -2716,7 +4361,8 @@ glGetMaterialfv_p(face, query)
 			PUSHs(sv_2mortal(newSVnv(ret[i])));
 	}
 
-# 1.0
+#// 1.0
+#//# @params = glGetMaterialiv_p($face, $query);
 void
 glGetMaterialiv_p(face, query)
 	GLenum	face
@@ -2732,7 +4378,8 @@ glGetMaterialiv_p(face, query)
 			PUSHs(sv_2mortal(newSViv(ret[i])));
 	}
 
-# 1.0
+#// 1.0
+#//# glGetPixelMapfv_c($map, (CPTR)values);
 void
 glGetPixelMapfv_c(map, values)
 	GLenum	map
@@ -2740,7 +4387,8 @@ glGetPixelMapfv_c(map, values)
 	CODE:
 	glGetPixelMapfv(map, values);
 
-# 1.0
+#// 1.0
+#//# glGetPixelMapuiv_c($map, (CPTR)values);
 void
 glGetPixelMapuiv_c(map, values)
 	GLenum	map
@@ -2748,7 +4396,8 @@ glGetPixelMapuiv_c(map, values)
 	CODE:
 	glGetPixelMapuiv(map, values);
 
-# 1.0
+#// 1.0
+#//# glGetPixelMapusv_c($map, (CPTR)values);
 void
 glGetPixelMapusv_c(map, values)
 	GLenum	map
@@ -2756,7 +4405,8 @@ glGetPixelMapusv_c(map, values)
 	CODE:
 	glGetPixelMapusv(map, values);
 
-# 1.0
+#// 1.0
+#//# glGetPixelMapfv_s($map, (PACKED)values);
 void
 glGetPixelMapfv_s(map, values)
 	GLenum	map
@@ -2767,7 +4417,8 @@ glGetPixelMapfv_s(map, values)
 	glGetPixelMapfv(map, values_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glGetPixelMapuiv_s($map, (PACKED)values);
 void
 glGetPixelMapuiv_s(map, values)
 	GLenum	map
@@ -2778,7 +4429,8 @@ glGetPixelMapuiv_s(map, values)
 	glGetPixelMapuiv(map, values_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glGetPixelMapusv_s($map, (PACKED)values);
 void
 glGetPixelMapusv_s(map, values)
 	GLenum	map
@@ -2789,7 +4441,8 @@ glGetPixelMapusv_s(map, values)
 	glGetPixelMapusv(map, values_s);
 	}
 
-# 1.0
+#// 1.0
+#//# @data = glGetPixelMapfv_p($map);
 void
 glGetPixelMapfv_p(map)
 	GLenum	map
@@ -2811,7 +4464,8 @@ glGetPixelMapfv_p(map)
 		free(values);
 	}
 
-# 1.0
+#// 1.0
+#//# @data = glGetPixelMapuiv_p($map);
 void
 glGetPixelMapuiv_p(map)
 	GLenum	map
@@ -2828,7 +4482,8 @@ glGetPixelMapuiv_p(map)
 		free(values);
 	}
 	
-# 1.0
+#// 1.0
+#//# @data = glGetPixelMapusv_p($map);
 void
 glGetPixelMapusv_p(map)
 	GLenum	map
@@ -2845,14 +4500,16 @@ glGetPixelMapusv_p(map)
 		free(values);
 	}
 
-# 1.0
+#// 1.0
+#//# glGetPolygonStipple_c((CPTR)mask);
 void
 glGetPolygonStipple_c(mask)
 	void *	mask
 	CODE:
 	glGetPolygonStipple(mask);
 
-# 1.0
+#// 1.0
+#//# glGetPolygonStipple_s((PACKED)mask);
 void
 glGetPolygonStipple_s(mask)
 	SV *	mask
@@ -2862,7 +4519,8 @@ glGetPolygonStipple_s(mask)
 	glGetPolygonStipple(ptr);
 	}
 
-# 1.0
+#// 1.0
+#//# @mask = glGetPolygonStipple_p();
 void
 glGetPolygonStipple_p()
 	PPCODE:
@@ -2881,7 +4539,8 @@ glGetPolygonStipple_p()
 
 #ifdef GL_VERSION_1_1
 
-# 1.1
+#// 1.1
+#//# glGetPointerv_c($pname, (CPTR)params);
 void
 glGetPointerv_c(pname, params)
 	GLenum	pname
@@ -2889,7 +4548,8 @@ glGetPointerv_c(pname, params)
 	CODE:
 	glGetPointerv(pname,&params);
 
-# 1.1
+#// 1.1
+#//# glGetPointerv_s($pname, (PACKED)params);
 void
 glGetPointerv_s(pname, params)
 	GLenum	pname
@@ -2900,7 +4560,8 @@ glGetPointerv_s(pname, params)
 		glGetPointerv(pname, params_s);
 	}
 
-# 1.1
+#// 1.1
+#//# @params = glGetPointerv_p($pname);
 void *
 glGetPointerv_p(pname)
 	GLenum	pname
@@ -2911,7 +4572,8 @@ glGetPointerv_p(pname)
 
 #endif
 
-# 1.0
+#// 1.0
+#//# $string = glGetString($name);
 SV *
 glGetString(name)
 	GLenum	name
@@ -2926,7 +4588,8 @@ glGetString(name)
 	OUTPUT:
 	RETVAL
 
-# 1.0
+#// 1.0
+#//# glGetTexEnvfv_c($target, $pname, (CPTR)params);
 void
 glGetTexEnvfv_c(target, pname, params)
 	GLenum	target
@@ -2935,7 +4598,8 @@ glGetTexEnvfv_c(target, pname, params)
 	CODE:
 	glGetTexEnvfv(target, pname, params);
 
-# 1.0
+#// 1.0
+#//# glGetTexEnviv_c($target, $pname, (CPTR)params);
 void
 glGetTexEnviv_c(target, pname, params)
 	GLenum	target
@@ -2944,7 +4608,8 @@ glGetTexEnviv_c(target, pname, params)
 	CODE:
 	glGetTexEnviv(target, pname, params);
 
-# 1.0
+#// 1.0
+#//# glGetTexEnvfv_s($target, $pname, (PACKED)params);
 void
 glGetTexEnvfv_s(target, pname, params)
 	GLenum	target
@@ -2956,7 +4621,8 @@ glGetTexEnvfv_s(target, pname, params)
 	glGetTexEnvfv(target, pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glGetTexEnviv_s($target, $pname, (PACKED)params);
 void
 glGetTexEnviv_s(target, pname, params)
 	GLenum	target
@@ -2968,7 +4634,8 @@ glGetTexEnviv_s(target, pname, params)
 	glGetTexEnviv(target, pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# @parames = glGetTexEnvfv_p($target, $pname);
 void
 glGetTexEnvfv_p(target, pname)
 	GLenum	target
@@ -2984,7 +4651,8 @@ glGetTexEnvfv_p(target, pname)
 			PUSHs(sv_2mortal(newSVnv(ret[i])));
 	}
 
-# 1.0
+#// 1.0
+#//# @parames = glGetTexEnviv_p($target, $pname);
 void
 glGetTexEnviv_p(target, pname)
 	GLenum	target
@@ -3000,7 +4668,8 @@ glGetTexEnviv_p(target, pname)
 			PUSHs(sv_2mortal(newSViv(ret[i])));
 	}
 
-# 1.0
+#// 1.0
+#//# glGetTexGenfv_c($coord, $pname, (CPTR)params);
 void
 glGetTexGenfv_c(coord, pname, params)
 	GLenum	coord
@@ -3009,7 +4678,8 @@ glGetTexGenfv_c(coord, pname, params)
 	CODE:
 	glGetTexGenfv(coord, pname, params);
 
-# 1.0
+#// 1.0
+#//# glGetTexGendv_c($coord, $pname, (CPTR)params);
 void
 glGetTexGendv_c(coord, pname, params)
 	GLenum	coord
@@ -3018,7 +4688,8 @@ glGetTexGendv_c(coord, pname, params)
 	CODE:
 	glGetTexGendv(coord, pname, params);
 
-# 1.0
+#// 1.0
+#//# glGetTexGeniv_c($coord, $pname, (CPTR)params);
 void
 glGetTexGeniv_c(coord, pname, params)
 	GLenum	coord
@@ -3027,7 +4698,8 @@ glGetTexGeniv_c(coord, pname, params)
 	CODE:
 	glGetTexGeniv(coord, pname, params);
 
-# 1.0
+#// 1.0
+#//# glGetTexGendv_c($coord, $pname, (CPTR)params);
 void
 glGetTexGendv_s(coord, pname, params)
 	GLenum	coord
@@ -3039,7 +4711,8 @@ glGetTexGendv_s(coord, pname, params)
 	glGetTexGendv(coord, pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glGetTexGenfv_s($coord, $pname, (PACKED)params);
 void
 glGetTexGenfv_s(coord, pname, params)
 	GLenum	coord
@@ -3051,7 +4724,8 @@ glGetTexGenfv_s(coord, pname, params)
 	glGetTexGenfv(coord, pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glGetTexGeniv_s($coord, $pname, (PACKED)params);
 void
 glGetTexGeniv_s(coord, pname, params)
 	GLenum	coord
@@ -3063,7 +4737,8 @@ glGetTexGeniv_s(coord, pname, params)
 	glGetTexGeniv(coord, pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# @params = glGetTexGenfv_p($coord, $pname);
 void
 glGetTexGenfv_p(coord, pname)
 	GLenum	coord
@@ -3079,7 +4754,8 @@ glGetTexGenfv_p(coord, pname)
 			PUSHs(sv_2mortal(newSVnv(ret[i])));
 	}
 
-# 1.0
+#// 1.0
+#//# @params = glGetTexGendv_p($coord, $pname);
 void
 glGetTexGendv_p(coord, pname)
 	GLenum	coord
@@ -3095,7 +4771,8 @@ glGetTexGendv_p(coord, pname)
 			PUSHs(sv_2mortal(newSVnv(ret[i])));
 	}
 
-# 1.0
+#// 1.0
+#//# @params = glGetTexGeniv_p($coord, $pname);
 void
 glGetTexGeniv_p(coord, pname)
 	GLenum	coord
@@ -3111,7 +4788,8 @@ glGetTexGeniv_p(coord, pname)
 			PUSHs(sv_2mortal(newSViv(ret[i])));
 	}
 
-# 1.0
+#// 1.0
+#//# glGetTexImage_c($target, $level, $format, $type, (CPTR)pixels);
 void
 glGetTexImage_c(target, level, format, type, pixels)
 	GLenum	target
@@ -3122,7 +4800,8 @@ glGetTexImage_c(target, level, format, type, pixels)
 	CODE:
 	glGetTexImage(target, level, format, type, pixels);
 
-# 1.0
+#// 1.0
+#//# glGetTexImage_s($target, $level, $format, $type, (PACKED)pixels);
 void
 glGetTexImage_s(target, level, format, type, pixels)
 	GLenum	target
@@ -3145,7 +4824,8 @@ glGetTexImage_s(target, level, format, type, pixels)
 		glGetTexImage(target, level, format, type, pixels);
 	}
 
-# 1.0
+#// 1.0
+#//# @pixels = glGetTexImage_c($target, $level, $format, $type);
 void
 glGetTexImage_p(target, level, format, type)
 	GLenum	target
@@ -3174,7 +4854,8 @@ glGetTexImage_p(target, level, format, type)
 		glPopClientAttrib();
 	}
 
-# 1.0
+#// 1.0
+#//# glGetTexLevelParameterfv_c($target, $level, $pname, (CPTR)params);
 void
 glGetTexLevelParameterfv_c(target, level, pname, params)
 	GLenum	target
@@ -3184,7 +4865,8 @@ glGetTexLevelParameterfv_c(target, level, pname, params)
 	CODE:
 	glGetTexLevelParameterfv(target, level, pname, params);
 
-# 1.0
+#// 1.0
+#//# glGetTexLevelParameteriv_c($target, $level, $pname, (CPTR)params);
 void
 glGetTexLevelParameteriv_c(target, level, pname, params)
 	GLenum	target
@@ -3194,7 +4876,8 @@ glGetTexLevelParameteriv_c(target, level, pname, params)
 	CODE:
 	glGetTexLevelParameteriv(target, level, pname, params);
 
-# 1.0
+#// 1.0
+#//# glGetTexLevelParameterfv_s($target, $level, $pname, (PACKED)params);
 void
 glGetTexLevelParameterfv_s(target, level, pname, params)
 	GLenum	target
@@ -3207,7 +4890,8 @@ glGetTexLevelParameterfv_s(target, level, pname, params)
 	glGetTexLevelParameterfv(target, level, pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glGetTexLevelParameteriv_s($target, $level, $pname, (PACKED)params);
 void
 glGetTexLevelParameteriv_s(target, level, pname, params)
 	GLenum	target
@@ -3220,7 +4904,8 @@ glGetTexLevelParameteriv_s(target, level, pname, params)
 	glGetTexLevelParameteriv(target, level, pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# @params = glGetTexLevelParameterfv_p($target, $level, $pname);
 void
 glGetTexLevelParameterfv_p(target, level, pname)
 	GLenum	target
@@ -3233,7 +4918,8 @@ glGetTexLevelParameterfv_p(target, level, pname)
 		PUSHs(sv_2mortal(newSVnv(ret)));
 	}
 
-# 1.0
+#// 1.0
+#//# @params = glGetTexLevelParameteriv_p($target, $level, $pname);
 void
 glGetTexLevelParameteriv_p(target, level, pname)
 	GLenum	target
@@ -3246,7 +4932,8 @@ glGetTexLevelParameteriv_p(target, level, pname)
 		PUSHs(sv_2mortal(newSViv(ret)));
 	}
 
-# 1.0
+#// 1.0
+#//# glGetTexParameterfv_c($target, $pname, (CPTR)params);
 void
 glGetTexParameterfv_c(target, pname, params)
 	GLenum	target
@@ -3255,7 +4942,8 @@ glGetTexParameterfv_c(target, pname, params)
 	CODE:
 	glGetTexParameterfv(target, pname, params);
 
-# 1.0
+#// 1.0
+#//# glGetTexParameteriv_c($target, $pname, (CPTR)params);
 void
 glGetTexParameteriv_c(target, pname, params)
 	GLenum	target
@@ -3264,7 +4952,8 @@ glGetTexParameteriv_c(target, pname, params)
 	CODE:
 	glGetTexParameteriv(target, pname, params);
 
-# 1.0
+#// 1.0
+#//# glGetTexParameterfv_s($target, $pname, (PACKED)params);
 void
 glGetTexParameterfv_s(target, pname, params)
 	GLenum	target
@@ -3277,7 +4966,8 @@ glGetTexParameterfv_s(target, pname, params)
 	glGetTexParameterfv(target, pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glGetTexParameteriv_s($target, $pname, (PACKED)params);
 void
 glGetTexParameteriv_s(target, pname, params)
 	GLenum	target
@@ -3290,7 +4980,8 @@ glGetTexParameteriv_s(target, pname, params)
 	glGetTexParameteriv(target, pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# @params = glGetTexParameterfv_p($target, $pname);
 void
 glGetTexParameterfv_p(target, pname)
 	GLenum	target
@@ -3306,7 +4997,8 @@ glGetTexParameterfv_p(target, pname)
 			PUSHs(sv_2mortal(newSVnv(ret[i])));
 	}
 
-# 1.0
+#// 1.0
+#//# @params = glGetTexParameteriv_p($target, $pname);
 void
 glGetTexParameteriv_p(target, pname)
 	GLenum	target
@@ -3322,30 +5014,35 @@ glGetTexParameteriv_p(target, pname)
 			PUSHs(sv_2mortal(newSViv(ret[i])));
 	}
 
-# 1.0
+#// 1.0
+#//# glHint($target, $mode);
 void
 glHint(target, mode)
 	GLenum	target
 	GLenum	mode
 
-# 1.0
+#// 1.0
+#//# glIndexd($c);
 void
 glIndexd(c)
 	GLdouble	c
 
-# 1.0
+#// 1.0
+#//# glIndexi($c);
 void
 glIndexi(c)
 	GLint	c
 
-# 1.0
+#// 1.0
+#//# glIndexMask($mask)
 void
 glIndexMask(mask)
 	GLuint	mask
 
 #ifdef GL_VERSION_1_1
 
-# 1.1
+#// 1.1
+#//# glIndexPointer_c($type, $stride, (CPTR)pointer);
 void
 glIndexPointer_c(type, stride, pointer)
 	GLenum	type
@@ -3354,6 +5051,7 @@ glIndexPointer_c(type, stride, pointer)
 	CODE:
 	glIndexPointer(type, stride, pointer);
 
+#//# glIndexPointer_s($type, $stride, (PACKED)pointer);
 void
 glIndexPointer_s(type, stride, pointer)
 	GLenum	type
@@ -3366,6 +5064,7 @@ glIndexPointer_s(type, stride, pointer)
 		glIndexPointer(type, stride, pointer_s);
 	}
 
+#//# glIndexPointer_p($type, $stride, (OGA)pointer);
 void
 glIndexPointer_p(oga)
 	OpenGL::Array oga
@@ -3384,13 +5083,15 @@ glIndexPointer_p(oga)
 
 #endif
 
-# 1.0
+#// 1.0
+#//# glInitNames();
 void
 glInitNames()
 
 #ifdef GL_VERSION_1_1
 
-# 1.1
+#// 1.1
+#//# glInterleavedArrays_c($format, $stride, (CPTR)pointer);
 void
 glInterleavedArrays_c(format, stride, pointer)
 	GLenum	format
@@ -3401,19 +5102,22 @@ glInterleavedArrays_c(format, stride, pointer)
 
 #endif
 
-# 1.0
+#// 1.0
+#//# glIsEnabled($cap);
 GLboolean
 glIsEnabled(cap)
 	GLenum	cap
 
-# 1.0
+#// 1.0
+#//# glIsList(list);
 GLboolean
 glIsList(list)
 	GLuint	list
 
 #ifdef GL_VERSION_1_1
 
-# 1.1
+#// 1.1
+#//# glIsTexture($list);
 GLboolean
 glIsTexture(list)
 	GLuint	list
@@ -3421,21 +5125,24 @@ glIsTexture(list)
 #endif
 
 
-# 1.0
+#// 1.0
+#//# glLightf($light, $pname, $param);
 void
 glLightf(light, pname, param)
 	GLenum	light
 	GLenum	pname
 	GLfloat	param
 
-# 1.0
+#// 1.0
+#//# glLighti($light, $pname, $param);
 void
 glLighti(light, pname, param)
 	GLenum	light
 	GLenum	pname
 	GLint	param
 
-# 1.0
+#// 1.0
+#//# glLightfv_c($light, $pname, (CPTR)params);
 void
 glLightfv_c(light, pname, params)
 	GLenum	light
@@ -3444,7 +5151,8 @@ glLightfv_c(light, pname, params)
 	CODE:
 	glLightfv(light, pname, params);
 
-# 1.0
+#// 1.0
+#//# glLightiv_c($light, $pname, (CPTR)params);
 void
 glLightiv_c(light, pname, params)
 	GLenum	light
@@ -3453,7 +5161,8 @@ glLightiv_c(light, pname, params)
 	CODE:
 	glLightiv(light, pname, params);
 
-# 1.0
+#// 1.0
+#//# glLightfv_s($light, $pname, (PACKED)params);
 void
 glLightfv_s(light, pname, params)
 	GLenum	light
@@ -3465,7 +5174,8 @@ glLightfv_s(light, pname, params)
 	glLightfv(light, pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glLightiv_s($light, $pname, (PACKED)params);
 void
 glLightiv_s(light, pname, params)
 	GLenum	light
@@ -3477,7 +5187,8 @@ glLightiv_s(light, pname, params)
 	glLightiv(light, pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glLightfv_p($light, $pname, @params);
 void
 glLightfv_p(light, pname, ...)
 	GLenum	light
@@ -3489,11 +5200,12 @@ glLightfv_p(light, pname, ...)
 		if ((items-2) != gl_light_count(pname))
 			croak("Incorrect number of arguments");
 		for(i=2;i<items;i++)
-			p[i-2] = SvNV(ST(i));
+			p[i-2] = (GLfloat)SvNV(ST(i));
 		glLightfv(light, pname, &p[0]);
 	}
 
-# 1.0
+#// 1.0
+#//# glLightiv_p($light, $pname, @params);
 void
 glLightiv_p(light, pname, ...)
 	GLenum	light
@@ -3509,19 +5221,22 @@ glLightiv_p(light, pname, ...)
 		glLightiv(light, pname, &p[0]);
 	}
 
-# 1.0
+#// 1.0
+#//# glLightModelf($pname, $param);
 void
 glLightModelf(pname, param)
 	GLenum	pname
 	GLfloat	param
 
-# 1.0
+#// 1.0
+#//# glLightModeli($pname, $param);
 void
 glLightModeli(pname, param)
 	GLenum	pname
 	GLint	param
 
-# 1.0
+#// 1.0
+#//# glLightModeliv_c($pname, (CPTR)params);
 void
 glLightModeliv_c(pname, params)
 	GLenum	pname
@@ -3529,7 +5244,8 @@ glLightModeliv_c(pname, params)
 	CODE:
 	glLightModeliv(pname, params);
 
-# 1.0
+#// 1.0
+#//# glLightModelfv_c($pname, (CPTR)params);
 void
 glLightModelfv_c(pname, params)
 	GLenum	pname
@@ -3537,7 +5253,8 @@ glLightModelfv_c(pname, params)
 	CODE:
 	glLightModelfv(pname, params);
 
-# 1.0
+#// 1.0
+#//# glLightModeliv_s($pname, (PACKED)params);
 void
 glLightModeliv_s(pname, params)
 	GLenum	pname
@@ -3548,7 +5265,8 @@ glLightModeliv_s(pname, params)
 	glLightModeliv(pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glLightModelfv_s($pname, (PACKED)params);
 void
 glLightModelfv_s(pname, params)
 	GLenum	pname
@@ -3560,7 +5278,8 @@ glLightModelfv_s(pname, params)
 	glLightModelfv(pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glLightModelfv_p($pname, @params);
 void
 glLightModelfv_p(pname, ...)
 	GLenum	pname
@@ -3571,11 +5290,12 @@ glLightModelfv_p(pname, ...)
 		if ((items-1) != gl_lightmodel_count(pname))
 			croak("Incorrect number of arguments");
 		for(i=1;i<items;i++)
-			p[i-1] = SvNV(ST(i));
+			p[i-1] = (GLfloat)SvNV(ST(i));
 		glLightModelfv(pname, &p[0]);
 	}
 
-# 1.0
+#// 1.0
+#//# glLightModeliv_p($pname, @params);
 void
 glLightModeliv_p(pname, ...)
 	GLenum	pname
@@ -3590,41 +5310,48 @@ glLightModeliv_p(pname, ...)
 		glLightModeliv(pname, &p[0]);
 	}
 
-# 1.0
+#// 1.0
+#//# glLineStipple($factor, $pattern);
 void
 glLineStipple(factor, pattern)
 	GLint	factor
 	GLushort	pattern
 
-# 1.0
+#// 1.0
+#//# glLineWidth($width);
 void
 glLineWidth(width)
 	GLfloat	width
 
-# 1.0
+#// 1.0
+#//# glListBase($base);
 void
 glListBase(base)
 	GLuint	base
 
-# 1.0
+#// 1.0
+#//# glLoadIdentity();
 void
 glLoadIdentity()
 
-# 1.0
+#// 1.0
+#//# glLoadMatrixf_c((CPTR)m);
 void
 glLoadMatrixf_c(m)
 	void *	m
 	CODE:
 	glLoadMatrixf(m);
 
-# 1.0
+#// 1.0
+#//# glLoadMatrixd_c((CPTR)m);
 void
 glLoadMatrixd_c(m)
 	void *	m
 	CODE:
 	glLoadMatrixd(m);
 
-# 1.0
+#// 1.0
+#//# glLoadMatrixf_s((PACKED)m);
 void
 glLoadMatrixf_s(m)
 	SV *	m
@@ -3634,7 +5361,8 @@ glLoadMatrixf_s(m)
 	glLoadMatrixf(m_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glLoadMatrixd_s((PACKED)m);
 void
 glLoadMatrixd_s(m)
 	SV *	m
@@ -3644,7 +5372,8 @@ glLoadMatrixd_s(m)
 	glLoadMatrixd(m_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glLoadMatrixd_p(@m);
 void
 glLoadMatrixd_p(...)
 	CODE:
@@ -3658,7 +5387,8 @@ glLoadMatrixd_p(...)
 		glLoadMatrixd(&m[0]);
 	}
 
-# 1.0
+#// 1.0
+#//# glLoadMatrixf_p(@m);
 void
 glLoadMatrixf_p(...)
 	CODE:
@@ -3668,21 +5398,24 @@ glLoadMatrixf_p(...)
 		if (items != 16)
 			croak("Incorrect number of arguments");
 		for (i=0;i<16;i++)
-			m[i] = SvNV(ST(i));
+			m[i] = (GLfloat)SvNV(ST(i));
 		glLoadMatrixf(&m[0]);
 	}
 
-# 1.0
+#// 1.0
+#//# glLoadName($name);
 void
 glLoadName(name)
 	GLuint	name
 
-# 1.0
+#// 1.0
+#//# glLogicOp($opcode);
 void
 glLogicOp(opcode)
 	GLenum	opcode
 
-# 1.0
+#// 1.0
+#//# glMap1d_c($target, $u1, $u2, $stride, $order, (CPTR)points);
 void
 glMap1d_c(target, u1, u2, stride, order, points)
 	GLenum	target
@@ -3694,19 +5427,21 @@ glMap1d_c(target, u1, u2, stride, order, points)
 	CODE:
 	glMap1d(target, u1, u2, stride, order, points);
 
-# 1.0
+#// 1.0
+#//# glMap1f_c($target, $u1, $u2, $stride, $order, (CPTR)points);
 void
 glMap1f_c(target, u1, u2, stride, order, points)
 	GLenum	target
-	GLdouble	u1
-	GLdouble	u2
+	GLfloat	u1
+	GLfloat	u2
 	GLint	stride
 	GLint	order
 	void *	points
 	CODE:
 	glMap1f(target, u1, u2, stride, order, points);
 
-# 1.0
+#// 1.0
+#//# glMap1d_s($target, $u1, $u2, $stride, $order, (PACKED)points);
 void
 glMap1d_s(target, u1, u2, stride, order, points)
 	GLenum	target
@@ -3721,12 +5456,13 @@ glMap1d_s(target, u1, u2, stride, order, points)
 	glMap1d(target, u1, u2, stride, order, points_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glMap1f_s($target, $u1, $u2, $stride, $order, (PACKED)points);
 void
 glMap1f_s(target, u1, u2, stride, order, points)
 	GLenum	target
-	GLdouble	u1
-	GLdouble	u2
+	GLfloat	u1
+	GLfloat	u2
 	GLint	stride
 	GLint	order
 	SV *	points
@@ -3736,7 +5472,9 @@ glMap1f_s(target, u1, u2, stride, order, points)
 	glMap1f(target, u1, u2, stride, order, points_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glMap1d_p($target, $u1, $u2, @points);
+#//- Assumes 0 stride
 void
 glMap1d_p(target, u1, u2, ...)
 	GLenum	target
@@ -3754,12 +5492,14 @@ glMap1d_p(target, u1, u2, ...)
 		free(points);
 	}
 
-# 1.0
+#// 1.0
+#//# glMap1f_p($target, $u1, $u2, @points);
+#//- Assumes 0 stride
 void
 glMap1f_p(target, u1, u2, ...)
 	GLenum	target
-	GLdouble	u1
-	GLdouble	u2
+	GLfloat	u1
+	GLfloat	u2
 	CODE:
 	{
 		int count = items-3;
@@ -3767,12 +5507,13 @@ glMap1f_p(target, u1, u2, ...)
 		GLfloat * points = malloc(sizeof(GLfloat) * (count+1));
 		int i;
 		for (i=0;i<count;i++)
-			points[i] = SvNV(ST(i+3));
+			points[i] = (GLfloat)SvNV(ST(i+3));
 		glMap1f(target, u1, u2, 0, order, points);
 		free(points);
 	}
 
-# 1.0
+#// 1.0
+#//# glMap2d_c($target, $u1, $u2, $ustride, $uorder, $v1, $v2, $vstride, $vorder, (CPTR)points);
 void
 glMap2d_c(target, u1, u2, ustride, uorder, v1, v2, vstride, vorder, points)
 	GLenum	target
@@ -3789,16 +5530,17 @@ glMap2d_c(target, u1, u2, ustride, uorder, v1, v2, vstride, vorder, points)
 	glMap2d(target, u1, u2, ustride, uorder, v1, v2,
 		vstride, vorder, points);
 
-# 1.0
+#// 1.0
+#//# glMap2f_c($target, $u1, $u2, $ustride, $uorder, $v1, $v2, $vstride, $vorder, (CPTR)points);
 void
 glMap2f_c(target, u1, u2, ustride, uorder, v1, v2, vstride, vorder, points)
 	GLenum	target
-	GLdouble	u1
-	GLdouble	u2
+	GLfloat	u1
+	GLfloat	u2
 	GLint	ustride
 	GLint	uorder
-	GLdouble	v1
-	GLdouble	v2
+	GLfloat	v1
+	GLfloat	v2
 	GLint	vstride
 	GLint	vorder
 	void *	points
@@ -3806,7 +5548,8 @@ glMap2f_c(target, u1, u2, ustride, uorder, v1, v2, vstride, vorder, points)
 	glMap2f(target, u1, u2, ustride, uorder, v1, v2,
 		vstride, vorder, points);
 
-# 1.0
+#// 1.0
+#//# glMap2d_s($target, $u1, $u2, $ustride, $uorder, $v1, $v2, $vstride, $vorder, (PACKED)points);
 void
 glMap2d_s(target, u1, u2, ustride, uorder, v1, v2, vstride, vorder, points)
 	GLenum	target
@@ -3826,16 +5569,17 @@ glMap2d_s(target, u1, u2, ustride, uorder, v1, v2, vstride, vorder, points)
 		vstride, vorder, points_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glMap2f_s($target, $u1, $u2, $ustride, $uorder, $v1, $v2, $vstride, $vorder, (PACKED)points);
 void
 glMap2f_s(target, u1, u2, ustride, uorder, v1, v2, vstride, vorder, points)
 	GLenum	target
-	GLdouble	u1
-	GLdouble	u2
+	GLfloat	u1
+	GLfloat	u2
 	GLint	ustride
 	GLint	uorder
-	GLdouble	v1
-	GLdouble	v2
+	GLfloat	v1
+	GLfloat	v2
 	GLint	vstride
 	GLint	vorder
 	SV *	points
@@ -3846,7 +5590,9 @@ glMap2f_s(target, u1, u2, ustride, uorder, v1, v2, vstride, vorder, points)
 		vstride, vorder, points_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glMap2d_p($target, $u1, $u2, $uorder, $v1, $v2, @points);
+#//- Assumes 0 ustride and vstride
 void
 glMap2d_p(target, u1, u2, uorder, v1, v2, ...)
 	GLenum	target
@@ -3867,15 +5613,17 @@ glMap2d_p(target, u1, u2, uorder, v1, v2, ...)
 		free(points);
 	}
 
-# 1.0
+#// 1.0
+#//# glMap2f_p($target, $u1, $u2, $uorder, $v1, $v2, @points);
+#//- Assumes 0 ustride and vstride
 void
 glMap2f_p(target, u1, u2, uorder, v1, v2, ...)
 	GLenum	target
-	GLdouble	u1
-	GLdouble	u2
+	GLfloat	u1
+	GLfloat	u2
 	GLint	uorder
-	GLdouble	v1
-	GLdouble	v2
+	GLfloat	v1
+	GLfloat	v2
 	CODE:
 	{
 		int count = items-6;
@@ -3883,26 +5631,29 @@ glMap2f_p(target, u1, u2, uorder, v1, v2, ...)
 		GLfloat * points = malloc(sizeof(GLfloat) * (count+1));
 		int i;
 		for (i=0;i<count;i++)
-			points[i] = SvNV(ST(i+6));
+			points[i] = (GLfloat)SvNV(ST(i+6));
 		glMap2f(target, u1, u2, 0, uorder, v1, v2, 0, vorder, points);
 		free(points);
 	}
 
-# 1.0
+#// 1.0
+#//# glMapGrid1d($un, $u1, $u2);
 void
 glMapGrid1d(un, u1, u2)
 	GLint	un
 	GLdouble	u1
 	GLdouble	u2
 
-# 1.0
+#// 1.0
+#//# glMapGrid1f($un, $u1, $u2);
 void
 glMapGrid1f(un, u1, u2)
 	GLint	un
 	GLfloat	u1
 	GLfloat	u2
 
-# 1.0
+#// 1.0
+#//# glMapGrid2d($un, $u1, $u2, $vn, $v1, $v2);
 void
 glMapGrid2d(un, u1, u2, vn, v1, v2)
 	GLint	un
@@ -3912,7 +5663,8 @@ glMapGrid2d(un, u1, u2, vn, v1, v2)
 	GLdouble	v1
 	GLdouble	v2
 
-# 1.0
+#// 1.0
+#//# glMapGrid2f($un, $u1, $u2, $vn, $v1, $v2);
 void
 glMapGrid2f(un, u1, u2, vn, v1, v2)
 	GLint	un
@@ -3922,21 +5674,24 @@ glMapGrid2f(un, u1, u2, vn, v1, v2)
 	GLfloat	v1
 	GLfloat	v2
 
-# 1.0
+#// 1.0
+#//# glMaterialf($face, $pname, $param);
 void
 glMaterialf(face, pname, param)
 	GLenum	face
 	GLenum	pname
 	GLfloat	param
 
-# 1.0
+#// 1.0
+#//# glMateriali($face, $pname, $param);
 void
 glMateriali(face, pname, param)
 	GLenum	face
 	GLenum	pname
 	GLint	param
 
-# 1.0
+#// 1.0
+#//# glMaterialfv_c($face, $pname, (CPTR)param);
 void
 glMaterialfv_c(face, pname, param)
 	GLenum	face
@@ -3945,7 +5700,8 @@ glMaterialfv_c(face, pname, param)
 	CODE:
 	glMaterialfv(face, pname, param);
 
-# 1.0
+#// 1.0
+#//# glMaterialiv_c($face, $pname, (CPTR)param);
 void
 glMaterialiv_c(face, pname, param)
 	GLenum	face
@@ -3954,7 +5710,8 @@ glMaterialiv_c(face, pname, param)
 	CODE:
 	glMaterialiv(face, pname, param);
 
-# 1.0
+#// 1.0
+#//# glMaterialfv_s($face, $pname, (PACKED)param);
 void
 glMaterialfv_s(face, pname, param)
 	GLenum	face
@@ -3966,7 +5723,8 @@ glMaterialfv_s(face, pname, param)
 	glMaterialfv(face, pname, param_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glMaterialiv_s($face, $pname, (PACKED)param);
 void
 glMaterialiv_s(face, pname, param)
 	GLenum	face
@@ -3978,7 +5736,8 @@ glMaterialiv_s(face, pname, param)
 	glMaterialiv(face, pname, param_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glMaterialfv_s($face, $pname, @param);
 void
 glMaterialfv_p(face, pname, ...)
 	GLenum	face
@@ -3990,11 +5749,12 @@ glMaterialfv_p(face, pname, ...)
 		if ((items-2) != gl_material_count(pname))
 			croak("Incorrect number of arguments");
 		for(i=2;i<items;i++)
-			p[i-2] = SvNV(ST(i));
+			p[i-2] = (GLfloat)SvNV(ST(i));
 		glMaterialfv(face, pname, &p[0]);
 	}
 
-# 1.0
+#// 1.0
+#//# glMaterialiv_s($face, $pname, @param);
 void
 glMaterialiv_p(face, pname, ...)
 	GLenum	face
@@ -4010,12 +5770,14 @@ glMaterialiv_p(face, pname, ...)
 		glMaterialiv(face, pname, &p[0]);
 	}
 
-# 1.0
+#// 1.0
+#//# glMatrixMode($mode);
 void
 glMatrixMode(mode)
 	GLenum	mode
 
-# 1.0
+#// 1.0
+#//# glMultMatrixd_p(@m);
 void
 glMultMatrixd_p(...)
 	CODE:
@@ -4029,7 +5791,8 @@ glMultMatrixd_p(...)
 		glMultMatrixd(&m[0]);
 	}
 
-# 1.0
+#// 1.0
+#//# glMultMatrixf_p(@m);
 void
 glMultMatrixf_p(...)
 	CODE:
@@ -4039,23 +5802,26 @@ glMultMatrixf_p(...)
 		if (items != 16)
 			croak("Incorrect number of arguments");
 		for (i=0;i<16;i++)
-			m[i] = SvNV(ST(i));
+			m[i] = (GLfloat)SvNV(ST(i));
 		glMultMatrixf(&m[0]);
 	}
 
-# 1.0
+#// 1.0
+#//# glNewList($list, $mode);
 void
 glNewList(list, mode)
 	GLuint	list
 	GLenum	mode
 
-# 1.0
+#// 1.0
+#//# glEndList();
 void
 glEndList()
 
 #ifdef GL_VERSION_1_1
 
-# 1.1
+#// 1.1
+#//# glNormalPointer_c($type, $stride, (CPTR)pointer);
 void
 glNormalPointer_c(type, stride, pointer)
 	GLenum	type
@@ -4065,6 +5831,7 @@ glNormalPointer_c(type, stride, pointer)
 	glNormalPointer(type, stride, pointer);
 
 
+#//# glNormalPointer_s($type, $stride, (PACKED)pointer);
 void
 glNormalPointer_s(type, stride, pointer)
 	GLenum	type
@@ -4077,6 +5844,7 @@ glNormalPointer_s(type, stride, pointer)
 		glNormalPointer(type, stride, pointer_s);
 	}
 
+#//# glNormalPointer_s($type, $stride, (OGA)pointer);
 void
 glNormalPointer_p(oga)
 	OpenGL::Array oga
@@ -4095,7 +5863,8 @@ glNormalPointer_p(oga)
 
 #endif
 
-# 1.0
+#// 1.0
+#//# glOrtho($left, $right, $bottom, $top, $zNear, $zFar);
 void
 glOrtho(left, right, bottom, top, zNear, zFar)
 	GLdouble	left
@@ -4105,12 +5874,14 @@ glOrtho(left, right, bottom, top, zNear, zFar)
 	GLdouble	zNear
 	GLdouble	zFar
 
-# 1.0
+#// 1.0
+#//# glPassThrough($token);
 void
 glPassThrough(token)
 	GLfloat	token
 
-# 1.0
+#// 1.0
+#//# glPixelMapfv_c($map, $mapsize, (CPTR)values);
 void
 glPixelMapfv_c(map, mapsize, values)
 	GLenum	map
@@ -4119,7 +5890,8 @@ glPixelMapfv_c(map, mapsize, values)
 	CODE:
 	glPixelMapfv(map, mapsize, values);
 
-# 1.0
+#// 1.0
+#//# glPixelMapuiv_c($map, $mapsize, (CPTR)values);
 void
 glPixelMapuiv_c(map, mapsize, values)
 	GLenum	map
@@ -4128,7 +5900,8 @@ glPixelMapuiv_c(map, mapsize, values)
 	CODE:
 	glPixelMapuiv(map, mapsize, values);
 
-# 1.0
+#// 1.0
+#//# glPixelMapusv_c($map, $mapsize, (CPTR)values);
 void
 glPixelMapusv_c(map, mapsize, values)
 	GLenum	map
@@ -4137,7 +5910,8 @@ glPixelMapusv_c(map, mapsize, values)
 	CODE:
 	glPixelMapusv(map, mapsize, values);
 
-# 1.0
+#// 1.0
+#//# glPixelMapfv_s($map, $mapsize, (PACKED)values);
 void
 glPixelMapfv_s(map, mapsize, values)
 	GLenum	map
@@ -4149,7 +5923,8 @@ glPixelMapfv_s(map, mapsize, values)
 	glPixelMapfv(map, mapsize, values_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glPixelMapuiv_s($map, $mapsize, (PACKED)values);
 void
 glPixelMapuiv_s(map, mapsize, values)
 	GLenum	map
@@ -4161,7 +5936,8 @@ glPixelMapuiv_s(map, mapsize, values)
 	glPixelMapuiv(map, mapsize, values_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glPixelMapusv_s($map, $mapsize, (PACKED)values);
 void
 glPixelMapusv_s(map, mapsize, values)
 	GLenum	map
@@ -4173,7 +5949,8 @@ glPixelMapusv_s(map, mapsize, values)
 	glPixelMapusv(map, mapsize, values_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glPixelMapfv_p($map, @values);
 void
 glPixelMapfv_p(map, ...)
 	GLenum	map
@@ -4184,12 +5961,13 @@ glPixelMapfv_p(map, ...)
 		int i;
 		values = malloc(sizeof(GLfloat) * (mapsize+1));
 		for (i=0;i<mapsize;i++)
-			values[i] = SvNV(ST(i+1));
+			values[i] = (GLfloat)SvNV(ST(i+1));
 		glPixelMapfv(map, mapsize, values);
 		free(values);
 	}
 
-# 1.0
+#// 1.0
+#//# glPixelMapuiv_p($map, @values);
 void
 glPixelMapuiv_p(map, ...)
 	GLenum	map
@@ -4205,7 +5983,8 @@ glPixelMapuiv_p(map, ...)
 		free(values);
 	}
 
-# 1.0
+#// 1.0
+#//# glPixelMapusv_p($map, @values);
 void
 glPixelMapusv_p(map, ...)
 	GLenum	map
@@ -4216,47 +5995,54 @@ glPixelMapusv_p(map, ...)
 		int i;
 		values = malloc(sizeof(GLushort) * (mapsize+1));
 		for (i=0;i<mapsize;i++)
-			values[i] = SvIV(ST(i+1));
+			values[i] = (GLushort)SvIV(ST(i+1));
 		glPixelMapusv(map, mapsize, values);
 		free(values);
 	}
 
-# 1.0
+#// 1.0
+#//# glPixelStoref($pname, $param);
 void
 glPixelStoref(pname, param)
 	GLenum	pname
 	GLfloat	param
 
-# 1.0
+#// 1.0
+#//# glPixelStorei($pname, $param);
 void
 glPixelStorei(pname, param)
 	GLenum	pname
 	GLint	param
 
-# 1.0
+#// 1.0
+#//# glPixelTransferf($pname, $param);
 void
 glPixelTransferf(pname, param)
 	GLenum	pname
 	GLfloat	param
 
-# 1.0
+#// 1.0
+#//# glPixelTransferi($pname, $param);
 void
 glPixelTransferi(pname, param)
 	GLenum	pname
 	GLint	param
 
-# 1.0
+#// 1.0
+#//# glPixelZoom($xfactor, $yfactor);
 void
 glPixelZoom(xfactor, yfactor)
 	GLfloat	xfactor
 	GLfloat	yfactor
 
-# 1.0
+#// 1.0
+#//# glPointSize($size);
 void
 glPointSize(size)
 	GLfloat	size
 
-# 1.0
+#// 1.0
+#//# glPolygonMode($face, $mode);
 void
 glPolygonMode(face, mode)
 	GLenum	face
@@ -4264,7 +6050,8 @@ glPolygonMode(face, mode)
 
 #ifdef GL_VERSION_1_1
 
-# 1.1
+#// 1.1
+#//# glPolygonOffset($factor, $units);
 void
 glPolygonOffset(factor, units)
 	GLfloat	factor
@@ -4272,14 +6059,16 @@ glPolygonOffset(factor, units)
 
 #endif
 
-# 1.0
+#// 1.0
+#//# glPolygonStipple_c((CPTR)mask);
 void
 glPolygonStipple_c(mask)
 	void *	mask
 	CODE:
 	glPolygonStipple(mask);
 
-# 1.0
+#// 1.0
+#//# glPolygonStipple_s((PACKED)mask);
 void
 glPolygonStipple_s(mask)
 	SV *	mask
@@ -4289,6 +6078,7 @@ glPolygonStipple_s(mask)
 	glPolygonStipple(ptr);
 	}
 
+#//# glPolygonStipple_p(@mask);
 void
 glPolygonStipple_p(...)
 	CODE:
@@ -4306,7 +6096,8 @@ glPolygonStipple_p(...)
 
 #ifdef GL_VERSION_1_1
 
-# 1.1
+#// 1.1
+#//# glPrioritizeTextures_c($n, (CPTR)textures, (CPTR)priorities);
 void
 glPrioritizeTextures_c(n, textures, priorities)
 	GLsizei	n
@@ -4315,7 +6106,8 @@ glPrioritizeTextures_c(n, textures, priorities)
 	CODE:
 	glPrioritizeTextures(n, textures, priorities);
 
-# 1.1
+#// 1.1
+#//# glPrioritizeTextures_s($n, (PACKED)textures, (PACKED)priorities);
 void
 glPrioritizeTextures_s(n, textures, priorities)
 	GLsizei	n
@@ -4328,7 +6120,8 @@ glPrioritizeTextures_s(n, textures, priorities)
 	glPrioritizeTextures(n, textures_s, priorities_s);
 	}
 
-# 1.1
+#// 1.1
+#//# glPrioritizeTextures_p(@textureIDs, @priorities);
 void
 glPrioritizeTextures_p(...)
 	CODE:
@@ -4340,7 +6133,7 @@ glPrioritizeTextures_p(...)
 		
 		for (i=0;i<n;i++) {
 			textures[i] = SvIV(ST(i * 2 + 0));
-			prior[i] = SvNV(ST(i * 2 + 1));
+			prior[i] = (GLclampf)SvNV(ST(i * 2 + 1));
 		}
 		
 		glPrioritizeTextures(n, textures, prior);
@@ -4353,48 +6146,58 @@ glPrioritizeTextures_p(...)
 
 
 
-# 1.0
+#// 1.0
+#//# glPushAttrib($mask);
 void
 glPushAttrib(mask)
 	GLbitfield	mask
 
-# 1.0
+#// 1.0
+#//# glPopAttrib();
 void
 glPopAttrib()
 
-# 1.0
+#// 1.0
+#//# glPushClientAttrib($mask);
 void
 glPushClientAttrib(mask)
 	GLbitfield	mask
 
-# 1.0
+#// 1.0
+#//# glPopClientAttrib();
 void
 glPopClientAttrib()
 
-# 1.0
+#// 1.0
+#//# glPushMatrix();
 void
 glPushMatrix()
 
-# 1.0
+#// 1.0
+#//# glPopMatrix();
 void
 glPopMatrix()
 
-# 1.0
+#// 1.0
+#//# glPushName($name);
 void
 glPushName(name)
 	GLuint	name
 
-# 1.0
+#// 1.0
+#//# glPopName();
 void
 glPopName()
 
 
-# 1.0
+#// 1.0
+#//# glReadBuffer($mode);
 void
 glReadBuffer(mode)
 	GLenum	mode
 
-# 1.0
+#// 1.0
+#//# glReadPixels_c($x, $y, $width, $height, $format, $type, (CPTR)pixels);
 void
 glReadPixels_c(x, y, width, height, format, type, pixels)
 	GLint	x
@@ -4407,7 +6210,8 @@ glReadPixels_c(x, y, width, height, format, type, pixels)
 	CODE:
 	glReadPixels(x, y, width, height, format, type, pixels);
 
-# 1.0
+#// 1.0
+#//# glReadPixels_s($x, $y, $width, $height, $format, $type, (PACKED)pixels);
 void
 glReadPixels_s(x, y, width, height, format, type, pixels)
 	GLint	x
@@ -4424,7 +6228,8 @@ glReadPixels_s(x, y, width, height, format, type, pixels)
 		glReadPixels(x, y, width, height, format, type, ptr);
 	}
 
-# 1.0
+#// 1.0
+#//# @pixels = glReadPixels_p($x, $y, $width, $height, $format, $type);
 void
 glReadPixels_p(x, y, width, height, format, type)
 	GLint	x
@@ -4446,7 +6251,8 @@ glReadPixels_p(x, y, width, height, format, type)
 		glPopClientAttrib();
 	}
 
-# 1.0
+#// 1.0
+#//# glRecti($x1, $y1, $x2, $y2);
 void
 glRecti(x1, y1, x2, y2)
 	GLint	x1
@@ -4457,7 +6263,8 @@ glRecti(x1, y1, x2, y2)
 		glRectiv_p = 1
 
 
-# 1.0
+#// 1.0
+#//# glRects($x1, $y1, $x2, $y2);
 void
 glRects(x1, y1, x2, y2)
 	GLshort	x1
@@ -4467,7 +6274,8 @@ glRects(x1, y1, x2, y2)
 	ALIAS:
 		glRectsv_p = 1
 
-# 1.0
+#// 1.0
+#//# glRectd($x1, $y1, $x2, $y2);
 void
 glRectd(x1, y1, x2, y2)
 	GLdouble	x1
@@ -4477,7 +6285,8 @@ glRectd(x1, y1, x2, y2)
 	ALIAS:
 		glRectdv_p = 1
 
-# 1.0
+#// 1.0
+#//# glRectf($x1, $y1, $x2, $y2);
 void
 glRectf(x1, y1, x2, y2)
 	GLfloat	x1
@@ -4488,7 +6297,8 @@ glRectf(x1, y1, x2, y2)
 		glRectfv_p = 1
 
 
-# 1.0
+#// 1.0
+#//# glRectsv_c((CPTR)v1, (CPTR)v2);
 void
 glRectsv_c(v1, v2)
 	void *	v1
@@ -4496,7 +6306,8 @@ glRectsv_c(v1, v2)
 	CODE:
 	glRectsv(v1, v2);
 
-# 1.0
+#// 1.0
+#//# glRectiv_c((CPTR)v1, (CPTR)v2);
 void
 glRectiv_c(v1, v2)
 	void *	v1
@@ -4504,7 +6315,8 @@ glRectiv_c(v1, v2)
 	CODE:
 	glRectiv(v1, v2);
 
-# 1.0
+#// 1.0
+#//# glRectfv_c((CPTR)v1, (CPTR)v2);
 void
 glRectfv_c(v1, v2)
 	void *	v1
@@ -4512,7 +6324,8 @@ glRectfv_c(v1, v2)
 	CODE:
 	glRectfv(v1, v2);
 
-# 1.0
+#// 1.0
+#//# glRectdv_c((CPTR)v1, (CPTR)v2);
 void
 glRectdv_c(v1, v2)
 	void *	v1
@@ -4520,7 +6333,8 @@ glRectdv_c(v1, v2)
 	CODE:
 	glRectdv(v1, v2);
 
-# 1.0
+#// 1.0
+#//# glRectdv_s((PACKED)v1, (PACKED)v2);
 void
 glRectdv_s(v1, v2)
 	SV *	v1
@@ -4532,7 +6346,8 @@ glRectdv_s(v1, v2)
 	glRectdv(v1_s, v2_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glRectfv_s((PACKED)v1, (PACKED)v2);
 void
 glRectfv_s(v1, v2)
 	SV *	v1
@@ -4544,7 +6359,8 @@ glRectfv_s(v1, v2)
 	glRectfv(v1_s, v2_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glRectiv_s((PACKED)v1, (PACKED)v2);
 void
 glRectiv_s(v1, v2)
 	SV *	v1
@@ -4556,7 +6372,8 @@ glRectiv_s(v1, v2)
 	glRectiv(v1_s, v2_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glRectsv_s((PACKED)v1, (PACKED)v2);
 void
 glRectsv_s(v1, v2)
 	SV *	v1
@@ -4568,12 +6385,14 @@ glRectsv_s(v1, v2)
 	glRectsv(v1_s, v2_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glRenderMode($mode);
 GLint
 glRenderMode(mode)
 	GLenum	mode
 
-# 1.0
+#// 1.0
+#//# glRotated($angle, $x, $y, $z);
 void
 glRotated(angle, x, y, z)
 	GLdouble	angle
@@ -4581,7 +6400,8 @@ glRotated(angle, x, y, z)
 	GLdouble	y
 	GLdouble	z
 
-# 1.0
+#// 1.0
+#//# glRotatef($angle, $x, $y, $z);
 void
 glRotatef(angle, x, y, z)
 	GLfloat	angle
@@ -4589,21 +6409,24 @@ glRotatef(angle, x, y, z)
 	GLfloat	y
 	GLfloat	z
 
-# 1.0
+#// 1.0
+#//# glScaled($x, $y, $z);
 void
 glScaled(x, y, z)
 	GLdouble	x
 	GLdouble	y
 	GLdouble	z
 
-# 1.0
+#// 1.0
+#//# glScalef($x, $y, $z);
 void
 glScalef(x, y, z)
 	GLfloat	x
 	GLfloat	y
 	GLfloat	z
 
-# 1.0
+#// 1.0
+#//# glScissor($x, $y, $width, $height);
 void
 glScissor(x, y, width, height)
 	GLint	x
@@ -4611,7 +6434,8 @@ glScissor(x, y, width, height)
 	GLsizei	width
 	GLsizei	height
 
-# 1.0
+#// 1.0
+#//# glSelectBuffer_c($size, (CPTR)list);
 void
 glSelectBuffer_c(size, list)
 	GLsizei	size
@@ -4619,24 +6443,28 @@ glSelectBuffer_c(size, list)
 	CODE:
 	glSelectBuffer(size, list);
 
-# 1.0
+#// 1.0
+#//# glShadeModel($mode);
 void
 glShadeModel(mode)
 	GLenum	mode
 
-# 1.0
+#// 1.0
+#//# glStencilFunc($func, $ref, $mask);
 void
 glStencilFunc(func, ref, mask)
 	GLenum	func
 	GLint	ref
 	GLuint	mask
 
-# 1.0
+#// 1.0
+#//# glStencilMask($mask);
 void
 glStencilMask(mask)
 	GLuint	mask
 
-# 1.0
+#// 1.0
+#//# glStencilOp($fail, $zfail, $zpass);
 void
 glStencilOp(fail, zfail, zpass)
 	GLenum	fail
@@ -4646,7 +6474,8 @@ glStencilOp(fail, zfail, zpass)
 
 #ifdef GL_VERSION_1_1
 
-# 1.1
+#// 1.1
+#//# glTexCoordPointer_c($size, $type, $stride, (CPTR)pointer);
 void
 glTexCoordPointer_c(size, type, stride, pointer)
 	GLint	size
@@ -4656,6 +6485,7 @@ glTexCoordPointer_c(size, type, stride, pointer)
 	CODE:
 	glTexCoordPointer(size, type, stride, pointer);
 
+#//# glTexCoordPointer_s($size, $type, $stride, (PACKED)pointer);
 void
 glTexCoordPointer_s(size, type, stride, pointer)
 	GLint	size
@@ -4669,6 +6499,7 @@ glTexCoordPointer_s(size, type, stride, pointer)
 		glTexCoordPointer(size, type, stride, pointer_s);
 	}
 
+#//# glTexCoordPointer_p($size, (OGA)pointer);
 void
 glTexCoordPointer_p(size, oga)
 	GLint	size
@@ -4688,21 +6519,24 @@ glTexCoordPointer_p(size, oga)
 
 #endif
 
-# 1.0
+#// 1.0
+#//# glTexEnvf($target, $pname, $param);
 void
 glTexEnvf(target, pname, param)
 	GLenum	target
 	GLenum	pname
 	GLfloat	param
 
-# 1.0
+#// 1.0
+#//# glTexEnvi($target, $pname, $param);
 void
 glTexEnvi(target, pname, param)
 	GLenum	target
 	GLenum	pname
 	GLint	param
 
-# 1.0
+#// 1.0
+#//# glTexEnvfv_s(target, pname, (PACKED)params);
 void
 glTexEnvfv_s(target, pname, params)
 	GLenum	target
@@ -4714,7 +6548,8 @@ glTexEnvfv_s(target, pname, params)
 	glTexEnvfv(target, pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glTexEnviv_s(target, pname, (PACKED)params);
 void
 glTexEnviv_s(target, pname, params)
 	GLenum	target
@@ -4726,7 +6561,8 @@ glTexEnviv_s(target, pname, params)
 	glTexEnviv(target, pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glTexEnvfv_p(target, pname, @params);
 void
 glTexEnvfv_p(target, pname, ...)
 	GLenum	target
@@ -4739,11 +6575,12 @@ glTexEnvfv_p(target, pname, ...)
 		if (n != gl_texenv_count(pname))
 			croak("Incorrect number of arguments");
 		for (i=2;i<items;i++)
-			p[i-2] = SvNV(ST(i));
+			p[i-2] = (GLfloat)SvNV(ST(i));
 		glTexEnvfv(target, pname, &p[0]);
 	}
 
-# 1.0
+#// 1.0
+#//# glTexEnviv_p(target, pname, @params);
 void
 glTexEnviv_p(target, pname, ...)
 	GLenum	target
@@ -4756,32 +6593,36 @@ glTexEnviv_p(target, pname, ...)
 		if (n != gl_texenv_count(pname))
 			croak("Incorrect number of arguments");
 		for (i=2;i<items;i++)
-			p[i-2] = SvNV(ST(i));
+			p[i-2] = SvIV(ST(i));
 		glTexEnviv(target, pname, &p[0]);
 	}
 
-# 1.0
+#// 1.0
+#//# glTexGend($Coord, $pname, $param);
 void
 glTexGend(Coord, pname, param)
 	GLenum	Coord
 	GLenum	pname
 	GLdouble	param
 
-# 1.0
+#// 1.0
+#//# glTexGenf($Coord, $pname, $param);
 void
 glTexGenf(Coord, pname, param)
 	GLenum	Coord
 	GLenum	pname
-	GLint	param
+	GLfloat	param
 
-# 1.0
+#// 1.0
+#//# glTexGeni($Coord, $pname, $param);
 void
 glTexGeni(Coord, pname, param)
 	GLenum	Coord
 	GLenum	pname
 	GLint	param
 
-# 1.0
+#// 1.0
+#//# glTexGendv_c($Coord, $pname, (CPTR)params);
 void
 glTexGendv_c(Coord, pname, params)
 	GLenum	Coord
@@ -4790,7 +6631,8 @@ glTexGendv_c(Coord, pname, params)
 	CODE:
 	glTexGendv(Coord, pname, params);
 
-# 1.0
+#// 1.0
+#//# glTexGenfv_c($Coord, $pname, (CPTR)params);
 void
 glTexGenfv_c(Coord, pname, params)
 	GLenum	Coord
@@ -4799,7 +6641,8 @@ glTexGenfv_c(Coord, pname, params)
 	CODE:
 	glTexGenfv(Coord, pname, params);
 
-# 1.0
+#// 1.0
+#//# glTexGeniv_c($Coord, $pname, (CPTR)params);
 void
 glTexGeniv_c(Coord, pname, params)
 	GLenum	Coord
@@ -4808,7 +6651,8 @@ glTexGeniv_c(Coord, pname, params)
 	CODE:
 	glTexGeniv(Coord, pname, params);
 
-# 1.0
+#// 1.0
+#//# glTexGendv_s($Coord, $pname, (PACKED)params);
 void
 glTexGendv_s(Coord, pname, params)
 	GLenum	Coord
@@ -4821,7 +6665,8 @@ glTexGendv_s(Coord, pname, params)
 	glTexGendv(Coord, pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glTexGenfv_s($Coord, $pname, (PACKED)params);
 void
 glTexGenfv_s(Coord, pname, params)
 	GLenum	Coord
@@ -4834,7 +6679,8 @@ glTexGenfv_s(Coord, pname, params)
 	glTexGenfv(Coord, pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glTexGeniv_s($Coord, $pname, (PACKED)params);
 void
 glTexGeniv_s(Coord, pname, params)
 	GLenum	Coord
@@ -4847,7 +6693,8 @@ glTexGeniv_s(Coord, pname, params)
 	glTexGeniv(Coord, pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glTexGendv_p($Coord, $pname, @params);
 void
 glTexGendv_p(Coord, pname, ...)
 	GLenum	Coord
@@ -4864,7 +6711,8 @@ glTexGendv_p(Coord, pname, ...)
 		glTexGendv(Coord, pname, &p[0]);
 	}
 
-# 1.0
+#// 1.0
+#//# glTexGenfv_p($Coord, $pname, @params);
 void
 glTexGenfv_p(Coord, pname, ...)
 	GLenum	Coord
@@ -4877,11 +6725,12 @@ glTexGenfv_p(Coord, pname, ...)
 		if (n != gl_texgen_count(pname))
 			croak("Incorrect number of arguments");
 		for (i=2;i<items;i++)
-			p[i-2] = SvNV(ST(i));
+			p[i-2] = (GLfloat)SvNV(ST(i));
 		glTexGenfv(Coord, pname, &p[0]);
 	}
 
-# 1.0
+#// 1.0
+#//# glTexGeniv_p($Coord, $pname, @params);
 void
 glTexGeniv_p(Coord, pname, ...)
 	GLenum	Coord
@@ -4898,7 +6747,8 @@ glTexGeniv_p(Coord, pname, ...)
 		glTexGeniv(Coord, pname, &p[0]);
 	}
 
-# 1.0
+#// 1.0
+#//# glTexImage1D_c($target, $level, $internalformat, $width, $border, $format, $type, (CPTR)pixels);
 void
 glTexImage1D_c(target, level, internalformat, width, border, format, type, pixels)
 	GLenum	target
@@ -4913,7 +6763,8 @@ glTexImage1D_c(target, level, internalformat, width, border, format, type, pixel
 	glTexImage1D(target, level, internalformat,
 		width, border, format, type, pixels);
 
-# 1.0
+#// 1.0
+#//# glTexImage1D_s($target, $level, $internalformat, $width, $border, $format, $type, (PACKED)pixels);
 void
 glTexImage1D_s(target, level, internalformat, width, border, format, type, pixels)
 	GLenum	target
@@ -4932,7 +6783,8 @@ glTexImage1D_s(target, level, internalformat, width, border, format, type, pixel
 		width, border, format, type, ptr);
 	}
 
-# 1.2
+#// 1.2
+#//# glTexImage1D_p($target, $level, $internalformat, $width, $border, $format, $type, @pixels);
 void
 glTexImage1D_p(target, level, internalformat, width, border, format, type, ...)
 	GLenum	target
@@ -4955,7 +6807,8 @@ glTexImage1D_p(target, level, internalformat, width, border, format, type, ...)
 	free(ptr);
 	}
 
-# 1.0
+#// 1.0
+#//# glTexImage2D_c($target, $level, $internalformat, $width, $height, $border, $format, $type, (CPTR)pixels);
 void
 glTexImage2D_c(target, level, internalformat, width, height, border, format, type, pixels)
 	GLenum	target
@@ -4971,7 +6824,8 @@ glTexImage2D_c(target, level, internalformat, width, height, border, format, typ
 	glTexImage2D(target, level, internalformat,
 		width, height, border, format, type, pixels);
 
-# 1.0
+#// 1.0
+#//# glTexImage2D_s($target, $level, $internalformat, $width, $height, $border, $format, $type, (PACKED)pixels);
 void
 glTexImage2D_s(target, level, internalformat, width, height, border, format, type, pixels)
 	GLenum	target
@@ -4995,7 +6849,8 @@ glTexImage2D_s(target, level, internalformat, width, height, border, format, typ
 			width, height, border, format, type, ptr);
 	}
 
-# 1.2
+#// 1.2
+#//# glTexImage2D_p($target, $level, $internalformat, $width, $height, $border, $format, $type, @pixels);
 void
 glTexImage2D_p(target, level, internalformat, width, height, border, format, type, ...)
 	GLenum	target
@@ -5022,7 +6877,8 @@ glTexImage2D_p(target, level, internalformat, width, height, border, format, typ
 
 #ifdef GL_VERSION_1_2
 
-# 1.2
+#// 1.2
+#//# glTexImage3D_c($target, $level, $internalformat, $width, $height, $depth, $border, $format, $type, (CPTR)pixels);
 void
 glTexImage3D_c(target, level, internalformat, width, height, depth, border, format, type, pixels)
 	GLenum	target
@@ -5041,7 +6897,8 @@ glTexImage3D_c(target, level, internalformat, width, height, depth, border, form
 		glTexImage3D(target, level, internalformat,
 			width, height, depth, border, format, type, pixels);
 
-# 1.2
+#// 1.2
+#//# glTexImage3D_s($target, $level, $internalformat, $width, $height, $depth, $border, $format, $type, (PACKED)pixels);
 void
 glTexImage3D_s(target, level, internalformat, width, height, depth, border, format, type, pixels)
 	GLenum	target
@@ -5064,7 +6921,8 @@ glTexImage3D_s(target, level, internalformat, width, height, depth, border, form
 			width, height, depth, border, format, type, ptr);
 	}
 
-# 1.2
+#// 1.2
+#//# glTexImage3D_p($target, $level, $internalformat, $width, $height, $depth, $border, $format, $type, @pixels);
 void
 glTexImage3D_p(target, level, internalformat, width, height, depth, border, format, type, ...)
 	GLenum	target
@@ -5094,21 +6952,24 @@ glTexImage3D_p(target, level, internalformat, width, height, depth, border, form
 
 #endif
 
-# 1.0
+#// 1.0
+#//# glTexParameterf($target, $pname, $param);
 void
 glTexParameterf(target, pname, param)
 	GLenum	target
 	GLenum	pname
 	GLfloat	param
 
-# 1.0
+#// 1.0
+#//# glTexParameteri($target, $pname, $param);
 void
 glTexParameteri(target, pname, param)
 	GLenum	target
 	GLenum	pname
 	GLint	param
 
-# 1.0
+#// 1.0
+#//# glTexParameterfv_c($target, $pname, (CPTR)params);
 void
 glTexParameterfv_c(target, pname, params)
 	GLenum	target
@@ -5117,7 +6978,8 @@ glTexParameterfv_c(target, pname, params)
 	CODE:
 	glTexParameterfv(target, pname, params);
 
-# 1.0
+#// 1.0
+#//# glTexParameteriv_c($target, $pname, (CPTR)params);
 void
 glTexParameteriv_c(target, pname, params)
 	GLenum	target
@@ -5126,7 +6988,8 @@ glTexParameteriv_c(target, pname, params)
 	CODE:
 	glTexParameteriv(target, pname, params);
 
-# 1.0
+#// 1.0
+#//# glTexParameterfv_s($target, $pname, (PACKED)params);
 void
 glTexParameterfv_s(target, pname, params)
 	GLenum	target
@@ -5139,7 +7002,8 @@ glTexParameterfv_s(target, pname, params)
 	glTexParameterfv(target, pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glTexParameteriv_s($target, $pname, (PACKED)params);
 void
 glTexParameteriv_s(target, pname, params)
 	GLenum	target
@@ -5152,7 +7016,8 @@ glTexParameteriv_s(target, pname, params)
 	glTexParameteriv(target, pname, params_s);
 	}
 
-# 1.0
+#// 1.0
+#//# glTexParameterfv_p($target, $pname, @params);
 void
 glTexParameterfv_p(target, pname, ...)
 	GLenum	target
@@ -5165,11 +7030,12 @@ glTexParameterfv_p(target, pname, ...)
 		if (n != gl_texparameter_count(pname))
 			croak("Incorrect number of arguments");
 		for(i=0;i<n;i++)
-			p[i] = SvNV(ST(i+2));
+			p[i] = (GLfloat)SvNV(ST(i+2));
 		glTexParameterfv(target, pname, &p[0]);
 	}
 
-# 1.0
+#// 1.0
+#//# glTexParameteriv_p($target, $pname, @params);
 void
 glTexParameteriv_p(target, pname, ...)
 	GLenum	target
@@ -5188,7 +7054,8 @@ glTexParameteriv_p(target, pname, ...)
 
 #ifdef GL_VERSION_1_1
 
-# 1.1
+#// 1.1
+#//# glTexSubImage1D_c($target, $level, $xoffset, $width, $border, $format, $type, (CPTR)pixels);
 void
 glTexSubImage1D_c(target, level, xoffset, width, border, format, type, pixels)
 	GLenum	target
@@ -5201,7 +7068,8 @@ glTexSubImage1D_c(target, level, xoffset, width, border, format, type, pixels)
 	CODE:
 	glTexSubImage1D(target, level, xoffset, width, format, type, pixels);
 
-# 1.1
+#// 1.1
+#//# glTexSubImage1D_s($target, $level, $xoffset, $width, $border, $format, $type, (PACKED)pixels);
 void
 glTexSubImage1D_s(target, level, xoffset, width, format, type, pixels)
 	GLenum	target
@@ -5217,7 +7085,8 @@ glTexSubImage1D_s(target, level, xoffset, width, format, type, pixels)
 	glTexSubImage1D(target, level, xoffset, width, format, type, ptr);
 	}
 
-# 1.1
+#// 1.1
+#//# glTexSubImage1D_p($target, $level, $xoffset, $width, $border, $format, $type, @pixels);
 void
 glTexSubImage1D_p(target, level, xoffset, width, format, type, ...)
 	GLenum	target
@@ -5238,7 +7107,8 @@ glTexSubImage1D_p(target, level, xoffset, width, format, type, ...)
 	free(ptr);
 	}
 
-# 1.1
+#// 1.1
+#//# glTexSubImage2D_c($target, $level, $xoffset, $yoffset, $width, $height, $border, $format, $type, (CPTR)pixels);
 void
 glTexSubImage2D_c(target, level, xoffset, yoffset, width, height, format, type, pixels)
 	GLenum	target
@@ -5254,7 +7124,8 @@ glTexSubImage2D_c(target, level, xoffset, yoffset, width, height, format, type, 
 	glTexSubImage2D(target, level, xoffset, yoffset,
 		width, height, format, type, pixels);
 
-# 1.1
+#// 1.1
+#//# glTexSubImage2D_s($target, $level, $xoffset, $yoffset, $width, $height, $border, $format, $type, (PACKED)pixels);
 void
 glTexSubImage2D_s(target, level, xoffset, yoffset, width, height, format, type, pixels)
 	GLenum	target
@@ -5274,7 +7145,8 @@ glTexSubImage2D_s(target, level, xoffset, yoffset, width, height, format, type, 
 		width, height, format, type, ptr);
 	}
 
-# 1.1
+#// 1.1
+#//# glTexSubImage2D_c($target, $level, $xoffset, $yoffset, $width, $height, $border, $format, $type, @pixels);
 void
 glTexSubImage2D_p(target, level, xoffset, yoffset, width, height, format, type, ...)
 	GLenum	target
@@ -5301,7 +7173,8 @@ glTexSubImage2D_p(target, level, xoffset, yoffset, width, height, format, type, 
 
 #ifdef GL_VERSION_1_2
 
-# 1.2
+#// 1.2
+#//# glTexSubImage3D_c($target, $level, $xoffset, $yoffset, $zoffset, $width, $height, $depth, $border, $format, $type, (CPTR)pixels);
 void
 glTexSubImage3D_c(target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, pixels)
 	GLenum	target
@@ -5321,7 +7194,8 @@ glTexSubImage3D_c(target, level, xoffset, yoffset, zoffset, width, height, depth
 		glTexSubImage3D(target, level, xoffset, yoffset, zoffset,
 			width, height, depth, format, type, pixels);
 
-# 1.2
+#// 1.2
+#//# glTexSubImage3D_s($target, $level, $xoffset, $yoffset, $zoffset, $width, $height, $depth, $border, $format, $type, (PACKED)pixels);
 void
 glTexSubImage3D_s(target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, pixels)
 	GLenum	target
@@ -5345,7 +7219,8 @@ glTexSubImage3D_s(target, level, xoffset, yoffset, zoffset, width, height, depth
 			width, height, depth, format, type, ptr);
 	}
 
-# 1.1
+#// 1.1
+#//# glTexSubImage3D_p($target, $level, $xoffset, $yoffset, $zoffset, $width, $height, $depth, $border, $format, $type, @pixels);
 void
 glTexSubImage3D_p(target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, ...)
 	GLenum	target
@@ -5378,14 +7253,16 @@ glTexSubImage3D_p(target, level, xoffset, yoffset, zoffset, width, height, depth
 
 #endif
 
-# 1.0
+#// 1.0
+#//# glTranslated($x, $y, $z);
 void
 glTranslated(x, y, z)
 	GLdouble	x
 	GLdouble	y
 	GLdouble	z
 
-# 1.0
+#// 1.0
+#//# glTranslatef($x, $y, $z);
 void
 glTranslatef(x, y, z)
 	GLfloat	x
@@ -5395,7 +7272,8 @@ glTranslatef(x, y, z)
 
 #ifdef GL_VERSION_1_1
 
-# 1.1
+#// 1.1
+#//# glVertexPointer_c($size, $type, $stride, (CPTR)pointer);
 void
 glVertexPointer_c(size, type, stride, pointer)
 	GLint	size
@@ -5405,6 +7283,7 @@ glVertexPointer_c(size, type, stride, pointer)
 	CODE:
 		glVertexPointer(size, type, stride, pointer);
 
+#//# glVertexPointer_s($size, $type, $stride, (PACKED)pointer);
 void
 glVertexPointer_s(size, type, stride, pointer)
 	GLint	size
@@ -5418,6 +7297,7 @@ glVertexPointer_s(size, type, stride, pointer)
 		glVertexPointer(size, type, stride, pointer_s);
 	}
 
+#//# glVertexPointer_p($size, $type, $stride, (OGA)pointer);
 void
 glVertexPointer_p(size, oga)
 	GLint	size
@@ -5437,7 +7317,8 @@ glVertexPointer_p(size, oga)
 
 #endif
 
-# 1.0
+#// 1.0
+#//# glViewport($x, $y, $width, $height);
 void
 glViewport(x, y, width, height)
 	GLint	x
@@ -5447,17 +7328,20 @@ glViewport(x, y, width, height)
 
 # Generated declarations
 
+#//# glVertex2d($x, $y);
 void
 glVertex2d(x, y)
 	GLdouble	x
 	GLdouble	y
 
+#//# glVertex2dv_c((CPTR)v);
 void
 glVertex2dv_c(v)
 	void *	v
 	CODE:
 	glVertex2dv(v);
 
+#//# glVertex2dv_s((PACKED)v);
 void
 glVertex2dv_s(v)
 	SV *	v
@@ -5467,6 +7351,8 @@ glVertex2dv_s(v)
 		glVertex2dv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertex2d
+#//# glVertex2dv_p($x, $y);
 void
 glVertex2dv_p(x, y)
 	GLdouble	x
@@ -5479,11 +7365,13 @@ glVertex2dv_p(x, y)
 		glVertex2dv(param);
 	}
 
+#//# glVertex2f($x, $y);
 void
 glVertex2f(x, y)
 	GLfloat	x
 	GLfloat	y
 
+#//# glVertex2f_s((PACKED)v);
 void
 glVertex2fv_s(v)
 	SV *	v
@@ -5493,12 +7381,15 @@ glVertex2fv_s(v)
 		glVertex2fv(v_s);
 	}
 
+#//# glVertex2f_s((CPTR)v);
 void
 glVertex2fv_c(v)
 	void *	v
 	CODE:
 	glVertex2fv(v);
 
+#//!!! Do we really need this?  It duplicates glVertex2f
+#//# glVertex2fv_p($x, $y);
 void
 glVertex2fv_p(x, y)
 	GLfloat	x
@@ -5511,17 +7402,20 @@ glVertex2fv_p(x, y)
 		glVertex2fv(param);
 	}
 
+#//# glVertex2i($x, $y);
 void
 glVertex2i(x, y)
 	GLint	x
 	GLint	y
 
+#//# glVertex2iv_c((CPTR)v);
 void
 glVertex2iv_c(v)
 	void *	v
 	CODE:
 	glVertex2iv(v);
 
+#//# glVertex2iv_s((PACKED)v);
 void
 glVertex2iv_s(v)
 	SV *	v
@@ -5531,6 +7425,8 @@ glVertex2iv_s(v)
 		glVertex2iv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertex2i
+#//# glVertex2iv_p($x, $y);
 void
 glVertex2iv_p(x, y)
 	GLint	x
@@ -5543,17 +7439,20 @@ glVertex2iv_p(x, y)
 		glVertex2iv(param);
 	}
 
+#//# glVertex2s($x, $y);
 void
 glVertex2s(x, y)
 	GLshort	x
 	GLshort	y
 
+#//# glVertex2sv_c((CPTR)v);
 void
 glVertex2sv_c(v)
 	void *	v
 	CODE:
 	glVertex2sv(v);
 
+#//# glVertex2sv_c((PACKED)v);
 void
 glVertex2sv_s(v)
 	SV *	v
@@ -5563,6 +7462,8 @@ glVertex2sv_s(v)
 		glVertex2sv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertex2s
+#//# glVertex2sv_p($x, $y);
 void
 glVertex2sv_p(x, y)
 	GLshort	x
@@ -5575,18 +7476,21 @@ glVertex2sv_p(x, y)
 		glVertex2sv(param);
 	}
 
+#//# glVertex3d($x, $y, $z);
 void
 glVertex3d(x, y, z)
 	GLdouble	x
 	GLdouble	y
 	GLdouble	z
 
+#//# glVertex3dv_c((CPTR)v);
 void
 glVertex3dv_c(v)
 	void *	v
 	CODE:
 	glVertex3dv(v);
 
+#//# glVertex3dv_s((PACKED)v);
 void
 glVertex3dv_s(v)
 	SV *	v
@@ -5596,6 +7500,8 @@ glVertex3dv_s(v)
 		glVertex3dv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertex3d
+#//# glVertex3dv_p($x, $y, $z);
 void
 glVertex3dv_p(x, y, z)
 	GLdouble	x
@@ -5610,18 +7516,21 @@ glVertex3dv_p(x, y, z)
 		glVertex3dv(param);
 	}
 
+#//# glVertex3f($x, $y, $z);
 void
 glVertex3f(x, y, z)
 	GLfloat	x
 	GLfloat	y
 	GLfloat	z
 
+#//# glVertex3fv_c((CPTR)v);
 void
 glVertex3fv_c(v)
 	void *	v
 	CODE:
 	glVertex3fv(v);
 
+#//# glVertex3fv_s((PACKED)v);
 void
 glVertex3fv_s(v)
 	SV *	v
@@ -5631,6 +7540,8 @@ glVertex3fv_s(v)
 		glVertex3fv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertex3f
+#//# glVertex3fv_p($x, $y, $z);
 void
 glVertex3fv_p(x, y, z)
 	GLfloat	x
@@ -5645,18 +7556,21 @@ glVertex3fv_p(x, y, z)
 		glVertex3fv(param);
 	}
 
+#//# glVertex3i(x, y, z);
 void
 glVertex3i(x, y, z)
 	GLint	x
 	GLint	y
 	GLint	z
 
+#//# glVertex3iv_c((CPTR)v);
 void
 glVertex3iv_c(v)
 	void *	v
 	CODE:
 	glVertex3iv(v);
 
+#//# glVertex3iv_s((PACKED)v);
 void
 glVertex3iv_s(v)
 	SV *	v
@@ -5666,6 +7580,8 @@ glVertex3iv_s(v)
 		glVertex3iv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertex3i
+#//# glVertex3iv_p($x, $y, $z);
 void
 glVertex3iv_p(x, y, z)
 	GLint	x
@@ -5680,18 +7596,21 @@ glVertex3iv_p(x, y, z)
 		glVertex3iv(param);
 	}
 
+#//# glVertex3s($x, $y, $z);
 void
 glVertex3s(x, y, z)
 	GLshort	x
 	GLshort	y
 	GLshort	z
 
+#//# glVertex3sv_c((CPTR)v);
 void
 glVertex3sv_c(v)
 	void *	v
 	CODE:
 	glVertex3sv(v);
 
+#//# glVertex3sv_s((PACKED)v);
 void
 glVertex3sv_s(v)
 	SV *	v
@@ -5701,6 +7620,8 @@ glVertex3sv_s(v)
 		glVertex3sv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertex3s
+#//# glVertex3sv_p($x, $y, $z);
 void
 glVertex3sv_p(x, y, z)
 	GLshort	x
@@ -5715,6 +7636,7 @@ glVertex3sv_p(x, y, z)
 		glVertex3sv(param);
 	}
 
+#//# glVertex4d($x, $y, $z, $w);
 void
 glVertex4d(x, y, z, w)
 	GLdouble	x
@@ -5722,12 +7644,14 @@ glVertex4d(x, y, z, w)
 	GLdouble	z
 	GLdouble	w
 
+#//# glVertex4dv_c((CPTR)v);
 void
 glVertex4dv_c(v)
 	void *	v
 	CODE:
 	glVertex4dv(v);
 
+#//# glVertex4dv_s((PACKED)v);
 void
 glVertex4dv_s(v)
 	SV *	v
@@ -5737,6 +7661,8 @@ glVertex4dv_s(v)
 		glVertex4dv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertex4d
+#//# glVertex4dv_p($x, $y, $z, $w);
 void
 glVertex4dv_p(x, y, z, w)
 	GLdouble	x
@@ -5753,6 +7679,7 @@ glVertex4dv_p(x, y, z, w)
 		glVertex4dv(param);
 	}
 
+#//# glVertex4f($x, $y, $z, $w);
 void
 glVertex4f(x, y, z, w)
 	GLfloat	x
@@ -5760,12 +7687,14 @@ glVertex4f(x, y, z, w)
 	GLfloat	z
 	GLfloat	w
 
+#//# glVertex4fv_c((CPTR)v);
 void
 glVertex4fv_c(v)
 	void *	v
 	CODE:
 	glVertex4fv(v);
 
+#//# glVertex4fv_s((PACKED)v);
 void
 glVertex4fv_s(v)
 	SV *	v
@@ -5775,6 +7704,8 @@ glVertex4fv_s(v)
 		glVertex4fv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertex4f
+#//# glVertex4fv_p($x, $y, $z, $w);
 void
 glVertex4fv_p(x, y, z, w)
 	GLfloat	x
@@ -5791,6 +7722,7 @@ glVertex4fv_p(x, y, z, w)
 		glVertex4fv(param);
 	}
 
+#//# glVertex4i($x, $y, $z, $w);
 void
 glVertex4i(x, y, z, w)
 	GLint	x
@@ -5798,12 +7730,14 @@ glVertex4i(x, y, z, w)
 	GLint	z
 	GLint	w
 
+#//# glVertex4iv_c((CPTR)v);
 void
 glVertex4iv_c(v)
 	void *	v
 	CODE:
 	glVertex4iv(v);
 
+#//# glVertex4iv_s((PACKED)v);
 void
 glVertex4iv_s(v)
 	SV *	v
@@ -5813,6 +7747,8 @@ glVertex4iv_s(v)
 		glVertex4iv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertex4i
+#//# glVertex4iv_p($x, $y, $z, $w);
 void
 glVertex4iv_p(x, y, z, w)
 	GLint	x
@@ -5829,6 +7765,7 @@ glVertex4iv_p(x, y, z, w)
 		glVertex4iv(param);
 	}
 
+#//# glVertex4s($x, $y, $z, $w);
 void
 glVertex4s(x, y, z, w)
 	GLshort	x
@@ -5836,6 +7773,7 @@ glVertex4s(x, y, z, w)
 	GLshort	z
 	GLshort	w
 
+#//# glVertex4sv_s((PACKED)v);
 void
 glVertex4sv_s(v)
 	SV *	v
@@ -5845,12 +7783,15 @@ glVertex4sv_s(v)
 		glVertex4sv(v_s);
 	}
 
+#//# glVertex4sv_c((CPTR)v);
 void
 glVertex4sv_c(v)
 	void *	v
 	CODE:
 	glVertex4sv(v);
 
+#//!!! Do we really need this?  It duplicates glVertex4s
+#//# glVertex4sv_p($x, $y, $z, $w);
 void
 glVertex4sv_p(x, y, z, w)
 	GLshort	x
@@ -5867,18 +7808,21 @@ glVertex4sv_p(x, y, z, w)
 		glVertex4sv(param);
 	}
 
+#//# glNormal3b($nx, $ny, $nz);
 void
 glNormal3b(nx, ny, nz)
 	GLbyte	nx
 	GLbyte	ny
 	GLbyte	nz
 
+#//# glNormal3bv_c((CPTR)v);
 void
 glNormal3bv_c(v)
 	void *	v
 	CODE:
 	glNormal3bv(v);
 
+#//# glNormal3bv_s((PACKED)v);
 void
 glNormal3bv_s(v)
 	SV *	v
@@ -5888,6 +7832,8 @@ glNormal3bv_s(v)
 		glNormal3bv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glNormal3b
+#//# glNormal3bv_p($nx, $ny, $nz);
 void
 glNormal3bv_p(nx, ny, nz)
 	GLbyte	nx
@@ -5902,18 +7848,21 @@ glNormal3bv_p(nx, ny, nz)
 		glNormal3bv(param);
 	}
 
+#//# glNormal3d($nx, $ny, $nz);
 void
 glNormal3d(nx, ny, nz)
 	GLdouble	nx
 	GLdouble	ny
 	GLdouble	nz
 
+#//# glNormal3dv_c((CPTR)v);
 void
 glNormal3dv_c(v)
 	void *	v
 	CODE:
 	glNormal3dv(v);
 
+#//# glNormal3dv_s((PACKED)v);
 void
 glNormal3dv_s(v)
 	SV *	v
@@ -5923,6 +7872,8 @@ glNormal3dv_s(v)
 		glNormal3dv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glNormal3d
+#//# glNormal3dv_p($nx, $ny, $nz);
 void
 glNormal3dv_p(nx, ny, nz)
 	GLdouble	nx
@@ -5937,18 +7888,21 @@ glNormal3dv_p(nx, ny, nz)
 		glNormal3dv(param);
 	}
 
+#//# glNormal3f($nx, $ny, $nz);
 void
 glNormal3f(nx, ny, nz)
 	GLfloat	nx
 	GLfloat	ny
 	GLfloat	nz
 
+#//# glNormal3fv_c((CPTR)v);
 void
 glNormal3fv_c(v)
 	void *	v
 	CODE:
 	glNormal3fv(v);
 
+#//# glNormal3fv_s((PACKED)v);
 void
 glNormal3fv_s(v)
 	SV *	v
@@ -5958,6 +7912,8 @@ glNormal3fv_s(v)
 		glNormal3fv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glNormal3f
+#//# glNormal3fv_p($nx, $ny, $nz);
 void
 glNormal3fv_p(nx, ny, nz)
 	GLfloat	nx
@@ -5972,18 +7928,21 @@ glNormal3fv_p(nx, ny, nz)
 		glNormal3fv(param);
 	}
 
+#//# glNormal3i($nx, $ny, $nz);
 void
 glNormal3i(nx, ny, nz)
 	GLint	nx
 	GLint	ny
 	GLint	nz
 
+#//# glNormal3iv_c((CPTR)v);
 void
 glNormal3iv_c(v)
 	void *	v
 	CODE:
 	glNormal3iv(v);
 
+#//# glNormal3iv_s((PACKED)v);
 void
 glNormal3iv_s(v)
 	SV *	v
@@ -5993,6 +7952,8 @@ glNormal3iv_s(v)
 		glNormal3iv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glNormal3i
+#//# glNormal3iv_p($nx, $ny, $nz);
 void
 glNormal3iv_p(nx, ny, nz)
 	GLint	nx
@@ -6007,18 +7968,21 @@ glNormal3iv_p(nx, ny, nz)
 		glNormal3iv(param);
 	}
 
+#//# glNormal3s($nx, $ny, $nz);
 void
 glNormal3s(nx, ny, nz)
 	GLshort	nx
 	GLshort	ny
 	GLshort	nz
 
+#//# glNormal3sv_c((CPTR)v);
 void
 glNormal3sv_c(v)
 	void *	v
 	CODE:
 	glNormal3sv(v);
 
+#//# glNormal3sv_s((PACKED)v);
 void
 glNormal3sv_s(v)
 	SV *	v
@@ -6028,6 +7992,8 @@ glNormal3sv_s(v)
 		glNormal3sv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glNormal3s
+#//# glNormal3sv_p($nx, $ny, $nz);
 void
 glNormal3sv_p(nx, ny, nz)
 	GLshort	nx
@@ -6042,18 +8008,21 @@ glNormal3sv_p(nx, ny, nz)
 		glNormal3sv(param);
 	}
 
+#//# glColor3b($red, $green, $blue);
 void
 glColor3b(red, green, blue)
 	GLbyte	red
 	GLbyte	green
 	GLbyte	blue
 
+#//# glColor3bv_c((CPTR)v);
 void
 glColor3bv_c(v)
 	void *	v
 	CODE:
 	glColor3bv(v);
 
+#//# glColor3bv_s((PACKED)v);
 void
 glColor3bv_s(v)
 	SV *	v
@@ -6063,6 +8032,8 @@ glColor3bv_s(v)
 		glColor3bv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glColor3b
+#//# glColor3bv_p($red, $green, $blue);
 void
 glColor3bv_p(red, green, blue)
 	GLbyte	red
@@ -6077,18 +8048,21 @@ glColor3bv_p(red, green, blue)
 		glColor3bv(param);
 	}
 
+#//# glColor3d($red, $green, $blue);
 void
 glColor3d(red, green, blue)
 	GLdouble	red
 	GLdouble	green
 	GLdouble	blue
 
+#//# glColor3dv_c((CPTR)v);
 void
 glColor3dv_c(v)
 	void *	v
 	CODE:
 	glColor3dv(v);
 
+#//# glColor3dv_s((PACKED)v);
 void
 glColor3dv_s(v)
 	SV *	v
@@ -6098,6 +8072,8 @@ glColor3dv_s(v)
 		glColor3dv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glColor3d
+#//# glColor3dv_p($red, $green, $blue);
 void
 glColor3dv_p(red, green, blue)
 	GLdouble	red
@@ -6112,18 +8088,21 @@ glColor3dv_p(red, green, blue)
 		glColor3dv(param);
 	}
 
+#//# glColor3f($red, $green, $blue);
 void
 glColor3f(red, green, blue)
 	GLfloat	red
 	GLfloat	green
 	GLfloat	blue
 
+#//# glColor3fv_c((CPTR)v);
 void
 glColor3fv_c(v)
 	void *	v
 	CODE:
 	glColor3fv(v);
 
+#//# glColor3fv_s((PACKED)v);
 void
 glColor3fv_s(v)
 	SV *	v
@@ -6133,6 +8112,8 @@ glColor3fv_s(v)
 		glColor3fv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glColor3s
+#//# glColor3sv_p($red, $green, $blue);
 void
 glColor3fv_p(red, green, blue)
 	GLfloat	red
@@ -6147,18 +8128,21 @@ glColor3fv_p(red, green, blue)
 		glColor3fv(param);
 	}
 
+#//# glColor3i($red, $green, $blue);
 void
 glColor3i(red, green, blue)
 	GLint	red
 	GLint	green
 	GLint	blue
 
+#//# glColor3iv_c((CPTR)v);
 void
 glColor3iv_c(v)
 	void *	v
 	CODE:
 	glColor3iv(v);
 
+#//# glColor3iv_s((PACKED)v);
 void
 glColor3iv_s(v)
 	SV *	v
@@ -6168,6 +8152,8 @@ glColor3iv_s(v)
 		glColor3iv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glColor3i
+#//# glColor3iv_p($red, $green, $blue);
 void
 glColor3iv_p(red, green, blue)
 	GLint	red
@@ -6182,18 +8168,21 @@ glColor3iv_p(red, green, blue)
 		glColor3iv(param);
 	}
 
+#//# glColor3s($red, $green, $blue);
 void
 glColor3s(red, green, blue)
 	GLshort	red
 	GLshort	green
 	GLshort	blue
 
+#//# glColor3sv_c((CPTR)v);
 void
 glColor3sv_c(v)
 	void *	v
 	CODE:
 	glColor3sv(v);
 
+#//# glColor3sv_s((PACKED)v);
 void
 glColor3sv_s(v)
 	SV *	v
@@ -6203,6 +8192,8 @@ glColor3sv_s(v)
 		glColor3sv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glColor3s
+#//# glColor3sv_p($red, $green, $blue);
 void
 glColor3sv_p(red, green, blue)
 	GLshort	red
@@ -6217,18 +8208,21 @@ glColor3sv_p(red, green, blue)
 		glColor3sv(param);
 	}
 
+#//# glColor3ub($red, $green, $blue);
 void
 glColor3ub(red, green, blue)
 	GLubyte	red
 	GLubyte	green
 	GLubyte	blue
 
+#//# glColor3ubv_c((CPTR)v);
 void
 glColor3ubv_c(v)
 	void *	v
 	CODE:
 	glColor3ubv(v);
 
+#//# glColor3ubv_s((PACKED)v);
 void
 glColor3ubv_s(v)
 	SV *	v
@@ -6238,6 +8232,8 @@ glColor3ubv_s(v)
 		glColor3ubv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glColor3ub
+#//# glColor3ubv_p($red, $green, $blue);
 void
 glColor3ubv_p(red, green, blue)
 	GLubyte	red
@@ -6252,18 +8248,21 @@ glColor3ubv_p(red, green, blue)
 		glColor3ubv(param);
 	}
 
+#//# glColor3ui($red, $green, $blue);
 void
 glColor3ui(red, green, blue)
 	GLuint	red
 	GLuint	green
 	GLuint	blue
 
+#//# glColor3uiv_c((CPTR)v);
 void
 glColor3uiv_c(v)
 	void *	v
 	CODE:
 	glColor3uiv(v);
 
+#//# glColor3uiv_s((PACKED)v);
 void
 glColor3uiv_s(v)
 	SV *	v
@@ -6273,6 +8272,8 @@ glColor3uiv_s(v)
 		glColor3uiv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glColor3ui
+#//# glColor3uiv_p($red, $green, $blue);
 void
 glColor3uiv_p(red, green, blue)
 	GLuint	red
@@ -6287,18 +8288,21 @@ glColor3uiv_p(red, green, blue)
 		glColor3uiv(param);
 	}
 
+#//# glColor3us($red, $green, $blue);
 void
 glColor3us(red, green, blue)
 	GLushort	red
 	GLushort	green
 	GLushort	blue
 
+#//# glColor3usv_c((CPTR)v);
 void
 glColor3usv_c(v)
 	void *	v
 	CODE:
 	glColor3usv(v);
 
+#//# glColor3usv_s((PACKED)v);
 void
 glColor3usv_s(v)
 	SV *	v
@@ -6308,6 +8312,8 @@ glColor3usv_s(v)
 		glColor3usv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glColor3us
+#//# glColor3usv_p($red, $green, $blue);
 void
 glColor3usv_p(red, green, blue)
 	GLushort	red
@@ -6322,6 +8328,7 @@ glColor3usv_p(red, green, blue)
 		glColor3usv(param);
 	}
 
+#//# glColor4b($red, $green, $blue, $alpha);
 void
 glColor4b(red, green, blue, alpha)
 	GLbyte	red
@@ -6329,12 +8336,14 @@ glColor4b(red, green, blue, alpha)
 	GLbyte	blue
 	GLbyte	alpha
 
+#//# glColor4bv_c((CPTR)v);
 void
 glColor4bv_c(v)
 	void *	v
 	CODE:
 	glColor4bv(v);
 
+#//# glColor4bv_s((PACKED)v);
 void
 glColor4bv_s(v)
 	SV *	v
@@ -6344,6 +8353,8 @@ glColor4bv_s(v)
 		glColor4bv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glColor3b
+#//# glColor3bv_p($red, $green, $blue, $alpha);
 void
 glColor4bv_p(red, green, blue, alpha)
 	GLbyte	red
@@ -6360,6 +8371,7 @@ glColor4bv_p(red, green, blue, alpha)
 		glColor4bv(param);
 	}
 
+#//# glColor4d($red, $green, $blue, $alpha);
 void
 glColor4d(red, green, blue, alpha)
 	GLdouble	red
@@ -6367,12 +8379,14 @@ glColor4d(red, green, blue, alpha)
 	GLdouble	blue
 	GLdouble	alpha
 
+#//# glColor4dv_c((CPTR)v);
 void
 glColor4dv_c(v)
 	void *	v
 	CODE:
 	glColor4dv(v);
 
+#//# glColor4dv_s((PACKED)v);
 void
 glColor4dv_s(v)
 	SV *	v
@@ -6382,6 +8396,8 @@ glColor4dv_s(v)
 		glColor4dv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glColor3d
+#//# glColor3dv_p($red, $green, $blue, $alpha);
 void
 glColor4dv_p(red, green, blue, alpha)
 	GLdouble	red
@@ -6398,6 +8414,7 @@ glColor4dv_p(red, green, blue, alpha)
 		glColor4dv(param);
 	}
 
+#//# glColor4f($red, $green, $blue, $alpha);
 void
 glColor4f(red, green, blue, alpha)
 	GLfloat	red
@@ -6405,12 +8422,14 @@ glColor4f(red, green, blue, alpha)
 	GLfloat	blue
 	GLfloat	alpha
 
+#//# glColor4fv_c((CPTR)v);
 void
 glColor4fv_c(v)
 	void *	v
 	CODE:
 	glColor4fv(v);
 
+#//# glColor4fv_s((PACKED)v);
 void
 glColor4fv_s(v)
 	SV *	v
@@ -6420,6 +8439,8 @@ glColor4fv_s(v)
 		glColor4fv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glColor3f
+#//# glColor3fv_p($red, $green, $blue, $alpha);
 void
 glColor4fv_p(red, green, blue, alpha)
 	GLfloat	red
@@ -6436,6 +8457,7 @@ glColor4fv_p(red, green, blue, alpha)
 		glColor4fv(param);
 	}
 
+#//# glColor4i($red, $green, $blue, $alpha);
 void
 glColor4i(red, green, blue, alpha)
 	GLint	red
@@ -6443,12 +8465,14 @@ glColor4i(red, green, blue, alpha)
 	GLint	blue
 	GLint	alpha
 
+#//# glColor4iv_c((CPTR)v);
 void
 glColor4iv_c(v)
 	void *	v
 	CODE:
 	glColor4iv(v);
 
+#//# glColor4iv_s((PACKED)v);
 void
 glColor4iv_s(v)
 	SV *	v
@@ -6458,6 +8482,8 @@ glColor4iv_s(v)
 		glColor4iv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glColor3i
+#//# glColor3iv_p($red, $green, $blue, $alpha);
 void
 glColor4iv_p(red, green, blue, alpha)
 	GLint	red
@@ -6474,6 +8500,7 @@ glColor4iv_p(red, green, blue, alpha)
 		glColor4iv(param);
 	}
 
+#//# glColor4s($red, $green, $blue, $alpha);
 void
 glColor4s(red, green, blue, alpha)
 	GLshort	red
@@ -6481,12 +8508,14 @@ glColor4s(red, green, blue, alpha)
 	GLshort	blue
 	GLshort	alpha
 
+#//# glColor4sv_c((CPTR)v);
 void
 glColor4sv_c(v)
 	void *	v
 	CODE:
 	glColor4sv(v);
 
+#//# glColor4sv_s((PACKED)v);
 void
 glColor4sv_s(v)
 	SV *	v
@@ -6496,6 +8525,8 @@ glColor4sv_s(v)
 		glColor4sv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glColor3s
+#//# glColor3sv_p($red, $green, $blue, $alpha);
 void
 glColor4sv_p(red, green, blue, alpha)
 	GLshort	red
@@ -6512,6 +8543,7 @@ glColor4sv_p(red, green, blue, alpha)
 		glColor4sv(param);
 	}
 
+#//# glColor4ub(red, green, blue, alpha);
 void
 glColor4ub(red, green, blue, alpha)
 	GLubyte	red
@@ -6519,12 +8551,14 @@ glColor4ub(red, green, blue, alpha)
 	GLubyte	blue
 	GLubyte	alpha
 
+#//# glColor4ubv_c((CPTR)v);
 void
 glColor4ubv_c(v)
 	void *	v
 	CODE:
 	glColor4ubv(v);
 
+#//# glColor4ubv_s((PACKED)v);
 void
 glColor4ubv_s(v)
 	SV *	v
@@ -6534,6 +8568,8 @@ glColor4ubv_s(v)
 		glColor4ubv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glColor3ub
+#//# glColor3ubv_p($red, $green, $blue, $alpha);
 void
 glColor4ubv_p(red, green, blue, alpha)
 	GLubyte	red
@@ -6550,6 +8586,7 @@ glColor4ubv_p(red, green, blue, alpha)
 		glColor4ubv(param);
 	}
 
+#//# glColor4ui($red, $green, $blue, $alpha);
 void
 glColor4ui(red, green, blue, alpha)
 	GLuint	red
@@ -6557,6 +8594,7 @@ glColor4ui(red, green, blue, alpha)
 	GLuint	blue
 	GLuint	alpha
 
+#//# glColor4uiv_s((PACKED)v);
 void
 glColor4uiv_s(v)
 	SV *	v
@@ -6566,12 +8604,15 @@ glColor4uiv_s(v)
 		glColor4uiv(v_s);
 	}
 
+#//# glColor4uiv_c((CPTR)v);
 void
 glColor4uiv_c(v)
 	void *	v
 	CODE:
 	glColor4uiv(v);
 
+#//!!! Do we really need this?  It duplicates glColor3ui
+#//# glColor3uiv_p($red, $green, $blue, $alpha);
 void
 glColor4uiv_p(red, green, blue, alpha)
 	GLuint	red
@@ -6588,6 +8629,7 @@ glColor4uiv_p(red, green, blue, alpha)
 		glColor4uiv(param);
 	}
 
+#//# glColor4us($red, $green, $blue, $alpha);
 void
 glColor4us(red, green, blue, alpha)
 	GLushort	red
@@ -6595,12 +8637,14 @@ glColor4us(red, green, blue, alpha)
 	GLushort	blue
 	GLushort	alpha
 
+#//# glColor4usv_c((CPTR)v);
 void
 glColor4usv_c(v)
 	void *	v
 	CODE:
 	glColor4usv(v);
 
+#//# glColor4usv_s((PACKED)v);
 void
 glColor4usv_s(v)
 	SV *	v
@@ -6610,6 +8654,8 @@ glColor4usv_s(v)
 		glColor4usv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glColor3us
+#//# glColor3usv_p($red, $green, $blue, $alpha);
 void
 glColor4usv_p(red, green, blue, alpha)
 	GLushort	red
@@ -6626,16 +8672,19 @@ glColor4usv_p(red, green, blue, alpha)
 		glColor4usv(param);
 	}
 
+#//# glTexCoord1d($s);
 void
 glTexCoord1d(s)
 	GLdouble	s
 
+#//# glTexCoord1dv_c((CPTR)v);
 void
 glTexCoord1dv_c(v)
 	void *	v
 	CODE:
 	glTexCoord1dv(v);
 
+#//# glTexCoord1dv_c((PACKED)v);
 void
 glTexCoord1dv_s(v)
 	SV *	v
@@ -6645,6 +8694,8 @@ glTexCoord1dv_s(v)
 		glTexCoord1dv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glTexCoord1d
+#//# glTexCoord1dv_p($s);
 void
 glTexCoord1dv_p(s)
 	GLdouble	s
@@ -6655,16 +8706,19 @@ glTexCoord1dv_p(s)
 		glTexCoord1dv(param);
 	}
 
+#//# glTexCoord1f($s);
 void
 glTexCoord1f(s)
 	GLfloat	s
 
+#//# glTexCoord1fv_c((CPTR)v);
 void
 glTexCoord1fv_c(v)
 	void *	v
 	CODE:
 	glTexCoord1fv(v);
 
+#//# glTexCoord1fv_s((PACKED)v);
 void
 glTexCoord1fv_s(v)
 	SV *	v
@@ -6674,6 +8728,8 @@ glTexCoord1fv_s(v)
 		glTexCoord1fv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glTexCoord1f
+#//# glTexCoord1fv_p($s);
 void
 glTexCoord1fv_p(s)
 	GLfloat	s
@@ -6684,16 +8740,19 @@ glTexCoord1fv_p(s)
 		glTexCoord1fv(param);
 	}
 
+#//# glTexCoord1i($s);
 void
 glTexCoord1i(s)
 	GLint	s
 
+#//# glTexCoord1iv_c((CPTR)v);
 void
 glTexCoord1iv_c(v)
 	void *	v
 	CODE:
 	glTexCoord1iv(v);
 
+#//# glTexCoord1iv_s((PACKED)v);
 void
 glTexCoord1iv_s(v)
 	SV *	v
@@ -6703,6 +8762,8 @@ glTexCoord1iv_s(v)
 		glTexCoord1iv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glTexCoord1i
+#//# glTexCoord1iv_p($s);
 void
 glTexCoord1iv_p(s)
 	GLint	s
@@ -6713,16 +8774,19 @@ glTexCoord1iv_p(s)
 		glTexCoord1iv(param);
 	}
 
+#//# glTexCoord1s($s);
 void
 glTexCoord1s(s)
 	GLshort	s
 
+#//# glTexCoord1sv_c((CPTR)v)
 void
 glTexCoord1sv_c(v)
 	void *	v
 	CODE:
 	glTexCoord1sv(v);
 
+#//# glTexCoord1sv_s((PACKED)v)
 void
 glTexCoord1sv_s(v)
 	SV *	v
@@ -6732,6 +8796,8 @@ glTexCoord1sv_s(v)
 		glTexCoord1sv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glTexCoord1s
+#//# glTexCoord1sv_p($s);
 void
 glTexCoord1sv_p(s)
 	GLshort	s
@@ -6742,17 +8808,20 @@ glTexCoord1sv_p(s)
 		glTexCoord1sv(param);
 	}
 
+#//# glTexCoord2d($s, $t);
 void
 glTexCoord2d(s, t)
 	GLdouble	s
 	GLdouble	t
 
+#//# glTexCoord2dv_c((CPTR)v);
 void
 glTexCoord2dv_c(v)
 	void *	v
 	CODE:
 	glTexCoord2dv(v);
 
+#//# glTexCoord2dv_s((PACKED)v);
 void
 glTexCoord2dv_s(v)
 	SV *	v
@@ -6762,6 +8831,8 @@ glTexCoord2dv_s(v)
 		glTexCoord2dv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glTexCoord2d
+#//# glTexCoord2dv_p($s, $t);
 void
 glTexCoord2dv_p(s, t)
 	GLdouble	s
@@ -6774,17 +8845,20 @@ glTexCoord2dv_p(s, t)
 		glTexCoord2dv(param);
 	}
 
+#//# glTexCoord2f($s, $t);
 void
 glTexCoord2f(s, t)
 	GLfloat	s
 	GLfloat	t
 
+#//# glTexCoord2fv_c((CPTR)v);
 void
 glTexCoord2fv_c(v)
 	void *	v
 	CODE:
 	glTexCoord2fv(v);
 
+#//# glTexCoord2fv_s((PACKED)v);
 void
 glTexCoord2fv_s(v)
 	SV *	v
@@ -6794,6 +8868,8 @@ glTexCoord2fv_s(v)
 		glTexCoord2fv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glTexCoord2f
+#//# glTexCoord2fv_p($s, $t);
 void
 glTexCoord2fv_p(s, t)
 	GLfloat	s
@@ -6806,17 +8882,20 @@ glTexCoord2fv_p(s, t)
 		glTexCoord2fv(param);
 	}
 
+#//# glTexCoord2i($s, $t);
 void
 glTexCoord2i(s, t)
 	GLint	s
 	GLint	t
 
+#//# glTexCoord2iv_c((CPTR)v);
 void
 glTexCoord2iv_c(v)
 	void *	v
 	CODE:
 	glTexCoord2iv(v);
 
+#//# glTexCoord2iv_s((PACKED)v);
 void
 glTexCoord2iv_s(v)
 	SV *	v
@@ -6826,6 +8905,8 @@ glTexCoord2iv_s(v)
 		glTexCoord2iv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glTexCoord2i
+#//# glTexCoord2iv_p($s, $t);
 void
 glTexCoord2iv_p(s, t)
 	GLint	s
@@ -6838,17 +8919,20 @@ glTexCoord2iv_p(s, t)
 		glTexCoord2iv(param);
 	}
 
+#//# glTexCoord2s($s, $t);
 void
 glTexCoord2s(s, t)
 	GLshort	s
 	GLshort	t
 
+#//# glTexCoord2sv_c((CPTR)v);
 void
 glTexCoord2sv_c(v)
 	void *	v
 	CODE:
 	glTexCoord2sv(v);
 
+#//# glTexCoord2sv_c((PACKED)v);
 void
 glTexCoord2sv_s(v)
 	SV *	v
@@ -6858,6 +8942,8 @@ glTexCoord2sv_s(v)
 		glTexCoord2sv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glTexCoord2s
+#//# glTexCoord2sv_p($s, $t);
 void
 glTexCoord2sv_p(s, t)
 	GLshort	s
@@ -6870,18 +8956,21 @@ glTexCoord2sv_p(s, t)
 		glTexCoord2sv(param);
 	}
 
+#//# glTexCoord3d($s, $t, $r);
 void
 glTexCoord3d(s, t, r)
 	GLdouble	s
 	GLdouble	t
 	GLdouble	r
 
+#//# glTexCoord3dv_c((CPTR)v);
 void
 glTexCoord3dv_c(v)
 	void *	v
 	CODE:
 	glTexCoord3dv(v);
 
+#//# glTexCoord3dv_s((PACKED)v);
 void
 glTexCoord3dv_s(v)
 	SV *	v
@@ -6891,6 +8980,8 @@ glTexCoord3dv_s(v)
 		glTexCoord3dv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glTexCoord3d
+#//# glTexCoord3dv_p($s, $t, $r);
 void
 glTexCoord3dv_p(s, t, r)
 	GLdouble	s
@@ -6905,18 +8996,21 @@ glTexCoord3dv_p(s, t, r)
 		glTexCoord3dv(param);
 	}
 
+#//# glTexCoord3f($s, $t, $r);
 void
 glTexCoord3f(s, t, r)
 	GLfloat	s
 	GLfloat	t
 	GLfloat	r
 
+#//# glTexCoord3fv_c((CPTR)v);
 void
 glTexCoord3fv_c(v)
 	void *	v
 	CODE:
 	glTexCoord3fv(v);
 
+#//# glTexCoord3fv_s((PACKED)v);
 void
 glTexCoord3fv_s(v)
 	SV *	v
@@ -6926,6 +9020,8 @@ glTexCoord3fv_s(v)
 		glTexCoord3fv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glTexCoord3f
+#//# glTexCoord3fv_p($s, $t, $r);
 void
 glTexCoord3fv_p(s, t, r)
 	GLfloat	s
@@ -6940,18 +9036,21 @@ glTexCoord3fv_p(s, t, r)
 		glTexCoord3fv(param);
 	}
 
+#//# glTexCoord3i($s, $t, $r);
 void
 glTexCoord3i(s, t, r)
 	GLint	s
 	GLint	t
 	GLint	r
 
+#//# glTexCoord3iv_c((CPTR)v);
 void
 glTexCoord3iv_c(v)
 	void *	v
 	CODE:
 	glTexCoord3iv(v);
 
+#//# glTexCoord3iv_s((PACKED)v);
 void
 glTexCoord3iv_s(v)
 	SV *	v
@@ -6961,6 +9060,8 @@ glTexCoord3iv_s(v)
 		glTexCoord3iv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glTexCoord3i
+#//# glTexCoord3iv_p($s, $t, $r);
 void
 glTexCoord3iv_p(s, t, r)
 	GLint	s
@@ -6975,12 +9076,14 @@ glTexCoord3iv_p(s, t, r)
 		glTexCoord3iv(param);
 	}
 
+#//# glTexCoord3s($s, $t, $r);
 void
 glTexCoord3s(s, t, r)
 	GLshort	s
 	GLshort	t
 	GLshort	r
 
+#//# glTexCoord3sv_s((PACKED)v);
 void
 glTexCoord3sv_s(v)
 	SV *	v
@@ -6990,12 +9093,15 @@ glTexCoord3sv_s(v)
 		glTexCoord3sv(v_s);
 	}
 
+#//# glTexCoord3sv_c((CPTR)v);
 void
 glTexCoord3sv_c(v)
 	void *	v
 	CODE:
 	glTexCoord3sv(v);
 
+#//!!! Do we really need this?  It duplicates glTexCoord3s
+#//# glTexCoord3sv_p($s, $t, $r);
 void
 glTexCoord3sv_p(s, t, r)
 	GLshort	s
@@ -7010,6 +9116,7 @@ glTexCoord3sv_p(s, t, r)
 		glTexCoord3sv(param);
 	}
 
+#//# glTexCoord4d($s, $t, $r, $q);
 void
 glTexCoord4d(s, t, r, q)
 	GLdouble	s
@@ -7017,12 +9124,14 @@ glTexCoord4d(s, t, r, q)
 	GLdouble	r
 	GLdouble	q
 
+#//# glTexCoord4dv_c((CPTR)v);
 void
 glTexCoord4dv_c(v)
 	void *	v
 	CODE:
 	glTexCoord4dv(v);
 
+#//# glTexCoord4dv_s((PACKED)v);
 void
 glTexCoord4dv_s(v)
 	SV *	v
@@ -7032,6 +9141,8 @@ glTexCoord4dv_s(v)
 		glTexCoord4dv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glTexCoord4d
+#//# glTexCoord4dv_p($s, $t, $r, $q);
 void
 glTexCoord4dv_p(s, t, r, q)
 	GLdouble	s
@@ -7048,6 +9159,7 @@ glTexCoord4dv_p(s, t, r, q)
 		glTexCoord4dv(param);
 	}
 
+#//# glTexCoord4f($s, $t, $r, $q);
 void
 glTexCoord4f(s, t, r, q)
 	GLfloat	s
@@ -7055,12 +9167,14 @@ glTexCoord4f(s, t, r, q)
 	GLfloat	r
 	GLfloat	q
 
+#//# glTexCoord4fv_c((CPTR)v);
 void
 glTexCoord4fv_c(v)
 	void *	v
 	CODE:
 	glTexCoord4fv(v);
 
+#//# glTexCoord4fv_s((PACKED)v);
 void
 glTexCoord4fv_s(v)
 	SV *	v
@@ -7070,6 +9184,8 @@ glTexCoord4fv_s(v)
 		glTexCoord4fv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glTexCoord4f
+#//# glTexCoord4fv_p($s, $t, $r, $q);
 void
 glTexCoord4fv_p(s, t, r, q)
 	GLfloat	s
@@ -7086,6 +9202,7 @@ glTexCoord4fv_p(s, t, r, q)
 		glTexCoord4fv(param);
 	}
 
+#//# glTexCoord4i($s, $t, $r, $q);
 void
 glTexCoord4i(s, t, r, q)
 	GLint	s
@@ -7093,12 +9210,14 @@ glTexCoord4i(s, t, r, q)
 	GLint	r
 	GLint	q
 
+#//# glTexCoord4iv_c((CPTR)v);
 void
 glTexCoord4iv_c(v)
 	void *	v
 	CODE:
 	glTexCoord4iv(v);
 
+#//# glTexCoord4iv_s((PACKED)v);
 void
 glTexCoord4iv_s(v)
 	SV *	v
@@ -7108,6 +9227,8 @@ glTexCoord4iv_s(v)
 		glTexCoord4iv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glTexCoord4i
+#//# glTexCoord4iv_p($s, $t, $r, $q);
 void
 glTexCoord4iv_p(s, t, r, q)
 	GLint	s
@@ -7124,6 +9245,7 @@ glTexCoord4iv_p(s, t, r, q)
 		glTexCoord4iv(param);
 	}
 
+#//# glTexCoord4s($s, $t, $r, $q);
 void
 glTexCoord4s(s, t, r, q)
 	GLshort	s
@@ -7131,12 +9253,14 @@ glTexCoord4s(s, t, r, q)
 	GLshort	r
 	GLshort	q
 
+#//# glTexCoord4sv_c((CPTR)v);
 void
 glTexCoord4sv_c(v)
 	void *	v
 	CODE:
 	glTexCoord4sv(v);
 
+#//# glTexCoord4sv_s((PACKED)v);
 void
 glTexCoord4sv_s(v)
 	SV *	v
@@ -7146,6 +9270,8 @@ glTexCoord4sv_s(v)
 		glTexCoord4sv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glTexCoord4s
+#//# glTexCoord4sv_p($s, $t, $r, $q);
 void
 glTexCoord4sv_p(s, t, r, q)
 	GLshort	s
@@ -7162,17 +9288,20 @@ glTexCoord4sv_p(s, t, r, q)
 		glTexCoord4sv(param);
 	}
 
+#//# glRasterPos2d(x, y);
 void
 glRasterPos2d(x, y)
 	GLdouble	x
 	GLdouble	y
 
+#//# glRasterPos2dv_c((CPTR)v);
 void
 glRasterPos2dv_c(v)
 	void *	v
 	CODE:
 	glRasterPos2dv(v);
 
+#//# glRasterPos2dv_s((PACKED)v);
 void
 glRasterPos2dv_s(v)
 	SV *	v
@@ -7182,6 +9311,8 @@ glRasterPos2dv_s(v)
 		glRasterPos2dv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glRasterPos2d
+#//# glRasterPos2dv_p($x, $y);
 void
 glRasterPos2dv_p(x, y)
 	GLdouble	x
@@ -7194,17 +9325,20 @@ glRasterPos2dv_p(x, y)
 		glRasterPos2dv(param);
 	}
 
+#//# glRasterPos2f($x, $y);
 void
 glRasterPos2f(x, y)
 	GLfloat	x
 	GLfloat	y
 
+#//# glRasterPos2fv_c((CPTR)v);
 void
 glRasterPos2fv_c(v)
 	void *	v
 	CODE:
 	glRasterPos2fv(v);
 
+#//# glRasterPos2fv_s((PACKED)v);
 void
 glRasterPos2fv_s(v)
 	SV *	v
@@ -7214,6 +9348,8 @@ glRasterPos2fv_s(v)
 		glRasterPos2fv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glRasterPos2f
+#//# glRasterPos2fv_p($x, $y);
 void
 glRasterPos2fv_p(x, y)
 	GLfloat	x
@@ -7226,17 +9362,20 @@ glRasterPos2fv_p(x, y)
 		glRasterPos2fv(param);
 	}
 
+#//# glRasterPos2i($x, $y);
 void
 glRasterPos2i(x, y)
 	GLint	x
 	GLint	y
 
+#//# glRasterPos2iv_c((CPTR)v);
 void
 glRasterPos2iv_c(v)
 	void *	v
 	CODE:
 	glRasterPos2iv(v);
 
+#//# glRasterPos2iv_s((PACKED)v);
 void
 glRasterPos2iv_s(v)
 	SV *	v
@@ -7246,6 +9385,8 @@ glRasterPos2iv_s(v)
 		glRasterPos2iv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glRasterPos2i
+#//# glRasterPos2iv_p($x, $y);
 void
 glRasterPos2iv_p(x, y)
 	GLint	x
@@ -7258,17 +9399,20 @@ glRasterPos2iv_p(x, y)
 		glRasterPos2iv(param);
 	}
 
+#//# glRasterPos2s($x, $y);
 void
 glRasterPos2s(x, y)
 	GLshort	x
 	GLshort	y
 
+#//# glRasterPos2sv_c((CPTR)v);
 void
 glRasterPos2sv_c(v)
 	void *	v
 	CODE:
 	glRasterPos2sv(v);
 
+#//# glRasterPos2sv_s((PACKED)v);
 void
 glRasterPos2sv_s(v)
 	SV *	v
@@ -7278,6 +9422,8 @@ glRasterPos2sv_s(v)
 		glRasterPos2sv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glRasterPos2s
+#//# glRasterPos2sv_p($x, $y);
 void
 glRasterPos2sv_p(x, y)
 	GLshort	x
@@ -7290,18 +9436,21 @@ glRasterPos2sv_p(x, y)
 		glRasterPos2sv(param);
 	}
 
+#//# glRasterPos3d($x, $y, $z);
 void
 glRasterPos3d(x, y, z)
 	GLdouble	x
 	GLdouble	y
 	GLdouble	z
 
+#//# glRasterPos3dv_c((CPTR)v);
 void
 glRasterPos3dv_c(v)
 	void *	v
 	CODE:
 	glRasterPos3dv(v);
 
+#//# glRasterPos3dv_s((PACKED)v);
 void
 glRasterPos3dv_s(v)
 	SV *	v
@@ -7311,6 +9460,8 @@ glRasterPos3dv_s(v)
 		glRasterPos3dv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glRasterPos3d
+#//# glRasterPos3dv_p($x, $y, $z);
 void
 glRasterPos3dv_p(x, y, z)
 	GLdouble	x
@@ -7325,18 +9476,21 @@ glRasterPos3dv_p(x, y, z)
 		glRasterPos3dv(param);
 	}
 
+#//# glRasterPos3f($x, $y, $z);
 void
 glRasterPos3f(x, y, z)
 	GLfloat	x
 	GLfloat	y
 	GLfloat	z
 
+#//# glRasterPos3fv_c((CPTR)v);
 void
 glRasterPos3fv_c(v)
 	void *	v
 	CODE:
 	glRasterPos3fv(v);
 
+#//# glRasterPos3fv_s((PACKED)v);
 void
 glRasterPos3fv_s(v)
 	SV *	v
@@ -7346,6 +9500,8 @@ glRasterPos3fv_s(v)
 		glRasterPos3fv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glRasterPos3f
+#//# glRasterPos3fv_p($x, $y, $z);
 void
 glRasterPos3fv_p(x, y, z)
 	GLfloat	x
@@ -7360,18 +9516,21 @@ glRasterPos3fv_p(x, y, z)
 		glRasterPos3fv(param);
 	}
 
+#//# glRasterPos3i($x, $y, $z);
 void
 glRasterPos3i(x, y, z)
 	GLint	x
 	GLint	y
 	GLint	z
 
+#//# glRasterPos3iv_c((CPTR)v);
 void
 glRasterPos3iv_c(v)
 	void *	v
 	CODE:
 	glRasterPos3iv(v);
 
+#//# glRasterPos3iv_s((PACKED)v);
 void
 glRasterPos3iv_s(v)
 	SV *	v
@@ -7381,6 +9540,8 @@ glRasterPos3iv_s(v)
 		glRasterPos3iv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glRasterPos3i
+#//# glRasterPos3iv_p($x, $y, $z);
 void
 glRasterPos3iv_p(x, y, z)
 	GLint	x
@@ -7395,18 +9556,21 @@ glRasterPos3iv_p(x, y, z)
 		glRasterPos3iv(param);
 	}
 
+#//# glRasterPos3s($x, $y, $z);
 void
 glRasterPos3s(x, y, z)
 	GLshort	x
 	GLshort	y
 	GLshort	z
 
+#//# glRasterPos3sv_c((CPTR)v);
 void
 glRasterPos3sv_c(v)
 	void *	v
 	CODE:
 	glRasterPos3sv(v);
 
+#//# glRasterPos3sv_s((PACKED)v);
 void
 glRasterPos3sv_s(v)
 	SV *	v
@@ -7416,6 +9580,8 @@ glRasterPos3sv_s(v)
 		glRasterPos3sv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glRasterPos3s
+#//# glRasterPos3sv_p($x, $y, $z);
 void
 glRasterPos3sv_p(x, y, z)
 	GLshort	x
@@ -7430,6 +9596,7 @@ glRasterPos3sv_p(x, y, z)
 		glRasterPos3sv(param);
 	}
 
+#//# glRasterPos4d($x, $y, $z, $w);
 void
 glRasterPos4d(x, y, z, w)
 	GLdouble	x
@@ -7437,12 +9604,14 @@ glRasterPos4d(x, y, z, w)
 	GLdouble	z
 	GLdouble	w
 
+#//# glRasterPos4dv_c((CPTR)v);
 void
 glRasterPos4dv_c(v)
 	void *	v
 	CODE:
 	glRasterPos4dv(v);
 
+#//# glRasterPos4dv_s((PACKED)v);
 void
 glRasterPos4dv_s(v)
 	SV *	v
@@ -7452,6 +9621,8 @@ glRasterPos4dv_s(v)
 		glRasterPos4dv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glRasterPos4d
+#//# glRasterPos4dv_p($x, $y, $z, $w);
 void
 glRasterPos4dv_p(x, y, z, w)
 	GLdouble	x
@@ -7468,6 +9639,7 @@ glRasterPos4dv_p(x, y, z, w)
 		glRasterPos4dv(param);
 	}
 
+#//# glRasterPos4f($x, $y, $z, $w);
 void
 glRasterPos4f(x, y, z, w)
 	GLfloat	x
@@ -7475,12 +9647,14 @@ glRasterPos4f(x, y, z, w)
 	GLfloat	z
 	GLfloat	w
 
+#//# glRasterPos4fv_c((CPTR)v);
 void
 glRasterPos4fv_c(v)
 	void *	v
 	CODE:
 	glRasterPos4fv(v);
 
+#//# glRasterPos4fv_s((PACKED)v);
 void
 glRasterPos4fv_s(v)
 	SV *	v
@@ -7490,6 +9664,8 @@ glRasterPos4fv_s(v)
 		glRasterPos4fv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glRasterPos4f
+#//# glRasterPos4fv_p($x, $y, $z, $w);
 void
 glRasterPos4fv_p(x, y, z, w)
 	GLfloat	x
@@ -7506,6 +9682,7 @@ glRasterPos4fv_p(x, y, z, w)
 		glRasterPos4fv(param);
 	}
 
+#//# glRasterPos4i($x, $y, $z, $w);
 void
 glRasterPos4i(x, y, z, w)
 	GLint	x
@@ -7513,12 +9690,14 @@ glRasterPos4i(x, y, z, w)
 	GLint	z
 	GLint	w
 
+#//# glRasterPos4iv_c((CPTR)v);
 void
 glRasterPos4iv_c(v)
 	void *	v
 	CODE:
 	glRasterPos4iv(v);
 
+#//# glRasterPos4iv_s((PACKED)v);
 void
 glRasterPos4iv_s(v)
 	SV *	v
@@ -7528,6 +9707,8 @@ glRasterPos4iv_s(v)
 		glRasterPos4iv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glRasterPos4i
+#//# glRasterPos4iv_p($x, $y, $z, $w);
 void
 glRasterPos4iv_p(x, y, z, w)
 	GLint	x
@@ -7544,6 +9725,7 @@ glRasterPos4iv_p(x, y, z, w)
 		glRasterPos4iv(param);
 	}
 
+#//# glRasterPos4s($x, $y, $z, $w);
 void
 glRasterPos4s(x, y, z, w)
 	GLshort	x
@@ -7551,12 +9733,14 @@ glRasterPos4s(x, y, z, w)
 	GLshort	z
 	GLshort	w
 
+#//# glRasterPos4sv_c((CPTR)v);
 void
 glRasterPos4sv_c(v)
 	void *	v
 	CODE:
 	glRasterPos4sv(v);
 
+#//# glRasterPos4sv_s((PACKED)v);
 void
 glRasterPos4sv_s(v)
 	SV *	v
@@ -7566,6 +9750,8 @@ glRasterPos4sv_s(v)
 		glRasterPos4sv(v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glRasterPos4s
+#//# glRasterPos4sv_p($x, $y, $z, $w);
 void
 glRasterPos4sv_p(x, y, z, w)
 	GLshort	x
@@ -7589,6 +9775,7 @@ glRasterPos4sv_p(x, y, z, w)
 #ifdef DEPRECATED
 #ifdef GL_EXT_polygon_offset
 
+#// glPolygonOffsetEXT($factor, $bias);
 void
 glPolygonOffsetEXT(factor, bias)
 	GLfloat	factor
@@ -7598,10 +9785,12 @@ glPolygonOffsetEXT(factor, bias)
 
 #ifdef GL_EXT_texture_object
 
+#// glIsTextureEXT($list);
 GLboolean
 glIsTextureEXT(list)
 	GLuint	list
 
+#// glPrioritizeTexturesEXT_p(@textureIDs,@priorities);
 void
 glPrioritizeTexturesEXT_p(...)
 	CODE:
@@ -7622,13 +9811,15 @@ glPrioritizeTexturesEXT_p(...)
 		free(prior);
 	}
 
+#// glBindTextureEXT($target, $texture);
 void
 glBindTextureEXT(target, texture)
 	GLenum	target
 	GLuint	texture
 
+#// glDeleteTexturesEXT_p(@textureIDs);
 void
-glDeleteTexturesEXT_p(...)
+glDeleteTexturesEXT_p(...);
 	CODE:
 	if (items) {
 		GLuint * list = malloc(sizeof(GLuint) * items);
@@ -7641,6 +9832,7 @@ glDeleteTexturesEXT_p(...)
 		free(list);
 	}
 
+#// @textureIDs = glGenTexturesEXT_p($n);
 void
 glGenTexturesEXT_p(n)
 	GLint	n
@@ -7658,6 +9850,7 @@ glGenTexturesEXT_p(n)
 		free(textures);
 	} 
 
+#// ($result,@residences) = glAreTexturesResidentEXT_p(@textureIDs);
 void
 glAreTexturesResidentEXT_p(...)
 	PPCODE:
@@ -7690,6 +9883,7 @@ glAreTexturesResidentEXT_p(...)
 
 #ifdef GL_EXT_copy_texture
 
+#// glCopyTexImage1DEXT($target, $level, $internalFormat, $x, $y, $width, $border);
 void
 glCopyTexImage1DEXT(target, level, internalFormat, x, y, width, border)
 	GLenum	target
@@ -7700,6 +9894,7 @@ glCopyTexImage1DEXT(target, level, internalFormat, x, y, width, border)
 	GLsizei	width
 	GLint	border
 
+#// glCopyTexImage2DEXT($target, $level, $internalFormat, $x, $y, $width, $height, $border);
 void
 glCopyTexImage2DEXT(target, level, internalFormat, x, y, width, height, border)
 	GLenum	target
@@ -7711,6 +9906,7 @@ glCopyTexImage2DEXT(target, level, internalFormat, x, y, width, height, border)
 	GLsizei	height
 	GLint	border
 
+#// glCopyTexSubImage1DEXT($target, $level, $xoffset, $x, $y, $width);
 void
 glCopyTexSubImage1DEXT(target, level, xoffset, x, y, width)
 	GLenum	target
@@ -7720,6 +9916,7 @@ glCopyTexSubImage1DEXT(target, level, xoffset, x, y, width)
 	GLint	y
 	GLsizei	width
 
+#// glCopyTexSubImage2DEXT($target, $level, $xoffset, $yoffset, $x, $y, $width, $height);
 void
 glCopyTexSubImage2DEXT(target, level, xoffset, yoffset, x, y, width, height)
 	GLenum	target
@@ -7731,6 +9928,7 @@ glCopyTexSubImage2DEXT(target, level, xoffset, yoffset, x, y, width, height)
 	GLsizei	width
 	GLsizei	height
 
+#// glCopyTexSubImage3DEXT($target, $level, $xoffset, $yoffset, $zoffset, $x, $y, $width, $height);
 void
 glCopyTexSubImage3DEXT(target, level, xoffset, yoffset, zoffset, x, y, width, height)
 	GLenum	target
@@ -7747,6 +9945,7 @@ glCopyTexSubImage3DEXT(target, level, xoffset, yoffset, zoffset, x, y, width, he
 
 #ifdef GL_EXT_subtexture
 
+#// glTexSubImage1DEXT_c($target, $level, $xoffset, $width, $format, $type, (CPTR)pixels);
 void
 glTexSubImage1DEXT_c(target, level, xoffset, width, format, type, pixels)
 	GLenum	target
@@ -7763,6 +9962,7 @@ glTexSubImage1DEXT_c(target, level, xoffset, width, format, type, pixels)
 		glTexSubImage1DEXT(target, level, xoffset, width, format, type, pixels);
 	}
 
+#// glTexSubImage1DEXT_s($target, $level, $xoffset, $width, $format, $type, (PACKED)pixels);
 void
 glTexSubImage1DEXT_s(target, level, xoffset, width, format, type, pixels)
 	GLenum	target
@@ -7781,6 +9981,7 @@ glTexSubImage1DEXT_s(target, level, xoffset, width, format, type, pixels)
 		glTexSubImage1DEXT(target, level, xoffset, width, format, type, ptr);
 	}
 
+#// glTexSubImage1DEXT_p($target, $level, $xoffset, $width, $format, $type, @pixels);
 void
 glTexSubImage1DEXT_p(target, level, xoffset, width, format, type, ...)
 	GLenum	target
@@ -7803,6 +10004,7 @@ glTexSubImage1DEXT_p(target, level, xoffset, width, format, type, ...)
 		free(ptr);
 	}
 
+#// glTexSubImage2DEXT_c($target, $level, $xoffset, $yoffset, $width, $height, $format, $type, (CPTR)pixels);
 void
 glTexSubImage2DEXT_c(target, level, xoffset, yoffset, width, height, format, type, pixels)
 	GLenum	target
@@ -7822,6 +10024,7 @@ glTexSubImage2DEXT_c(target, level, xoffset, yoffset, width, height, format, typ
 			format, type, pixels);
 	}
 
+#// glTexSubImage2DEXT_s($target, $level, $xoffset, $yoffset, $width, $height, $format, $type, (PACKED)pixels);
 void
 glTexSubImage2DEXT_s(target, level, xoffset, yoffset, width, height, format, type, pixels)
 	GLenum	target
@@ -7843,6 +10046,7 @@ glTexSubImage2DEXT_s(target, level, xoffset, yoffset, width, height, format, typ
 			format, type, ptr);
 	}
 
+#// glTexSubImage2DEXT_p($target, $level, $xoffset, $yoffset, $width, $height, $format, $type, @pixels);
 void
 glTexSubImage2DEXT_p(target, level, xoffset, yoffset, width, height, format, type, ...)
 	GLenum	target
@@ -7869,12 +10073,13 @@ glTexSubImage2DEXT_p(target, level, xoffset, yoffset, width, height, format, typ
 	}
 
 #endif
-#endif
+#endif //DEPRECATED
 
 ################## POST 1.1 VERSIONS ########################
 
 #ifdef GL_VERSION_1_2
 
+#//# glBlendColor($red, $green, $blue, $alpha);
 void
 glBlendColor(red, green, blue, alpha)
 	GLclampf	red
@@ -7886,6 +10091,7 @@ glBlendColor(red, green, blue, alpha)
 	CODE:
 		glBlendColor(red, green, blue, alpha);
 
+#//# glBlendEquation($mode);
 void
 glBlendEquation(mode)
 	GLenum	mode
@@ -7901,6 +10107,7 @@ glBlendEquation(mode)
 
 #ifdef GL_EXT_texture3D
 
+#//# glTexImage3DEXT_c($target, $level, $internalformat, $width, $height, $depth, $border, $format, $type, (CPTR)pixels);
 void
 glTexImage3DEXT_c(target, level, internalformat, width, height, depth, border, format, type, pixels)
 	GLenum	target
@@ -7921,6 +10128,7 @@ glTexImage3DEXT_c(target, level, internalformat, width, height, depth, border, f
 			depth, border, format, type, pixels);
 	}
 
+#//# glTexImage3DEXT_s($target, $level, $internalformat, $width, $height, $depth, $border, $format, $type, (PACKED)pixels);
 void
 glTexImage3DEXT_s(target, level, internalformat, width, height, depth, border, format, type, pixels)
 	GLenum	target
@@ -7943,6 +10151,7 @@ glTexImage3DEXT_s(target, level, internalformat, width, height, depth, border, f
 			depth, border, format, type, ptr);
 	}
 
+#//# glTexImage3DEXT_p($target, $level, $internalformat, $width, $height, $depth, $border, $format, $type, @pixels);
 void
 glTexImage3DEXT_p(target, level, internalformat, width, height, depth, border, format, type, ...)
 	GLenum	target
@@ -7969,6 +10178,7 @@ glTexImage3DEXT_p(target, level, internalformat, width, height, depth, border, f
 		free(ptr);
 	}
 
+#//# glTexSubImage3DEXT_c($target, $level, $xoffset, $yoffset, $zoffset, $width, $height, $depth, $format, $type, (CPTR)pixels);
 void
 glTexSubImage3DEXT_c(target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, pixels)
 	GLenum	target
@@ -7990,6 +10200,7 @@ glTexSubImage3DEXT_c(target, level, xoffset, yoffset, zoffset, width, height, de
 			width, height, depth, format, type, pixels);
 	}
 
+#//# glTexSubImage3DEXT_s($target, $level, $xoffset, $yoffset, $zoffset, $width, $height, $depth, $format, $type, (PACKED)pixels);
 void
 glTexSubImage3DEXT_s(target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, pixels)
 	GLenum	target
@@ -8013,6 +10224,7 @@ glTexSubImage3DEXT_s(target, level, xoffset, yoffset, zoffset, width, height, de
 			width, height, depth, format, type, ptr);
 	}
 
+#//# glTexSubImage3DEXT_p($target, $level, $xoffset, $yoffset, $zoffset, $width, $height, $depth, $format, $type, @pixels);
 void
 glTexSubImage3DEXT_p(target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, ...)
 	GLenum	target
@@ -8048,6 +10260,7 @@ glTexSubImage3DEXT_p(target, level, xoffset, yoffset, zoffset, width, height, de
 
 #if defined(GL_EXT_blend_minmax) && (!defined(GL_SRC_ALPHA_SATURATE) || defined(GL_CONSTANT_COLOR))
 
+#//# glBlendEquationEXT($mode);
 void
 glBlendEquationEXT(mode)
 	GLenum	mode
@@ -8060,6 +10273,7 @@ glBlendEquationEXT(mode)
 
 #ifdef GL_EXT_blend_color
 
+#//# glBlendColorEXT($red, $green, $blue, $alpha);
 void
 glBlendColorEXT(red, green, blue, alpha)
 	GLclampf	red
@@ -8075,12 +10289,14 @@ glBlendColorEXT(red, green, blue, alpha)
 
 #ifdef GL_EXT_vertex_array
 
+#//# glArrayElementEXT($i);
 void
 glArrayElementEXT(i)
 	GLint	i
 	INIT:
 		loadProc(glArrayElementEXT,"glArrayElementEXT");
 
+#//# glDrawArraysEXT($mode, $first, $count);
 void
 glDrawArraysEXT(mode, first, count)
 	GLenum	mode
@@ -8089,6 +10305,7 @@ glDrawArraysEXT(mode, first, count)
 	INIT:
 		loadProc(glDrawArraysEXT,"glDrawArraysEXT");
 
+#//# glVertexPointerEXT_c($size, $type, $stride, $count, (CPTR)pointer);
 void
 glVertexPointerEXT_c(size, type, stride, count, pointer)
 	GLint	size
@@ -8101,6 +10318,7 @@ glVertexPointerEXT_c(size, type, stride, count, pointer)
 	CODE:
 		glVertexPointerEXT(size, type, stride, count, pointer);
 
+#//# glVertexPointerEXT_s($size, $type, $stride, $count, (PACKED)pointer);
 void
 glVertexPointerEXT_s(size, type, stride, count, pointer)
 	GLint	size
@@ -8117,6 +10335,7 @@ glVertexPointerEXT_s(size, type, stride, count, pointer)
 		glVertexPointerEXT(size, type, stride, count, pointer_s);
 	}
 
+#//# glVertexPointerEXT_p($size, (OGA)pointer);
 void
 glVertexPointerEXT_p(size, oga)
 	GLint	size
@@ -8138,6 +10357,7 @@ glVertexPointerEXT_p(size, oga)
 #endif
 	}
 
+#//# glNormalPointerEXT_c($type, $stride, $count, (CPTR)pointer);
 void
 glNormalPointerEXT_c(type, stride, count, pointer)
 	GLenum	type
@@ -8149,6 +10369,7 @@ glNormalPointerEXT_c(type, stride, count, pointer)
 	CODE:
 		glNormalPointerEXT(type, stride, count, pointer);
 
+#//# glNormalPointerEXT_s($type, $stride, $count, (PACKED)pointer);
 void
 glNormalPointerEXT_s(type, stride, count, pointer)
 	GLenum	type
@@ -8164,6 +10385,7 @@ glNormalPointerEXT_s(type, stride, count, pointer)
 		glNormalPointerEXT(type, stride, count, pointer_s);
 	}
 
+#//# glNormalPointerEXT_p((OGA)pointer);
 void
 glNormalPointerEXT_p(oga)
 	OpenGL::Array oga
@@ -8184,6 +10406,7 @@ glNormalPointerEXT_p(oga)
 #endif
 	}
 
+#//# glColorPointerEXT_c($size, $type, $stride, $count, (CPTR)pointer);
 void
 glColorPointerEXT_c(size, type, stride, count, pointer)
 	GLint	size
@@ -8196,6 +10419,7 @@ glColorPointerEXT_c(size, type, stride, count, pointer)
 	CODE:
 		glColorPointerEXT(size, type, stride, count, pointer);
 
+#//# glColorPointerEXT_s($size, $type, $stride, $count, (PACKED)pointer);
 void
 glColorPointerEXT_s(size, type, stride, count, pointer)
 	GLint	size
@@ -8212,6 +10436,7 @@ glColorPointerEXT_s(size, type, stride, count, pointer)
 		glColorPointerEXT(size, type, stride, count, pointer_s);
 	}
 
+#//# glColorPointerEXT_p($size, (OGA)pointer);
 void
 glColorPointerEXT_p(size, oga)
 	GLint	size
@@ -8233,6 +10458,7 @@ glColorPointerEXT_p(size, oga)
 #endif
 	}
 
+#//# glIndexPointerEXT_c($type, $stride, $count, (CPTR)pointer);
 void
 glIndexPointerEXT_c(type, stride, count, pointer)
 	GLenum	type
@@ -8244,6 +10470,7 @@ glIndexPointerEXT_c(type, stride, count, pointer)
 	CODE:
 		glIndexPointerEXT(type, stride, count, pointer);
 
+#//# glIndexPointerEXT_s($type, $stride, $count, (PACKED)pointer);
 void
 glIndexPointerEXT_s(type, stride, count, pointer)
 	GLenum	type
@@ -8259,6 +10486,7 @@ glIndexPointerEXT_s(type, stride, count, pointer)
 		glIndexPointerEXT(type, stride, count, pointer_s);
 	}
 
+#//# glIndexPointerEXT_p((OGA)pointer);
 void
 glIndexPointerEXT_p(oga)
 	OpenGL::Array oga
@@ -8279,6 +10507,7 @@ glIndexPointerEXT_p(oga)
 #endif
 	}
 
+#//# glTexCoordPointerEXT_c($size, $type, $stride, $count, (CPTR)pointer);
 void
 glTexCoordPointerEXT_c(size, type, stride, count, pointer)
 	GLint	size
@@ -8291,6 +10520,7 @@ glTexCoordPointerEXT_c(size, type, stride, count, pointer)
 	CODE:
 		glTexCoordPointerEXT(size, type, stride, count, pointer);
 
+#//# glTexCoordPointerEXT_s($size, $type, $stride, $count, (PACKED)pointer);
 void
 glTexCoordPointerEXT_s(size, type, stride, count, pointer)
 	GLint	size
@@ -8307,6 +10537,7 @@ glTexCoordPointerEXT_s(size, type, stride, count, pointer)
 		glTexCoordPointerEXT(size, type, stride, count, pointer_s);
 	}
 
+#//# glTexCoordPointerEXT_p($size, (OGA)pointer);
 void
 glTexCoordPointerEXT_p(size, oga)
 	GLint	size
@@ -8328,6 +10559,7 @@ glTexCoordPointerEXT_p(size, oga)
 #endif
 	}
 
+#//# glEdgeFlagPointerEXT_c($stride, $count, (CPTR)pointer);
 void
 glEdgeFlagPointerEXT_c(stride, count, pointer)
 	GLint	stride
@@ -8338,6 +10570,7 @@ glEdgeFlagPointerEXT_c(stride, count, pointer)
 	CODE:
 		glEdgeFlagPointerEXT(stride, count, pointer);
 
+#//# glEdgeFlagPointerEXT_s($stride, $count, (PACKED)pointer);
 void
 glEdgeFlagPointerEXT_s(stride, count, pointer)
 	GLsizei	stride
@@ -8352,6 +10585,7 @@ glEdgeFlagPointerEXT_s(stride, count, pointer)
 		glEdgeFlagPointerEXT(stride, count, pointer_s);
 	}
 
+#//# glEdgeFlagPointerEXT_p((OGA)pointer);
 void
 glEdgeFlagPointerEXT_p(oga)
 	OpenGL::Array oga
@@ -8375,28 +10609,33 @@ glEdgeFlagPointerEXT_p(oga)
 
 #ifdef GL_MESA_window_pos
 
+#// glWindowPos2iMESA($x, $y);
 void
 glWindowPos2iMESA(x, y)
 	GLint	x
 	GLint	y
 
+#// glWindowPos2dMESA($x, $y);
 void
 glWindowPos2dMESA(x, y)
 	GLdouble	x
 	GLdouble	y
 
+#// glWindowPos3iMESA($x, $y, $z);
 void
 glWindowPos3iMESA(x, y, z)
 	GLint	x
 	GLint	y
 	GLint	z
 
+#// glWindowPos3dMESA($x, $y, $z);
 void
 glWindowPos3dMESA(x, y, z)
 	GLdouble	x
 	GLdouble	y
 	GLdouble	z
 
+#// glWindowPos4iMESA($x, $y, $z, $w);
 void
 glWindowPos4iMESA(x, y, z, w)
 	GLint	x
@@ -8404,6 +10643,7 @@ glWindowPos4iMESA(x, y, z, w)
 	GLint	z
 	GLint	w
 
+#// glWindowPos4dMESA($x, $y, $z, $w);
 void
 glWindowPos4dMESA(x, y, z, w)
 	GLdouble	x
@@ -8415,6 +10655,7 @@ glWindowPos4dMESA(x, y, z, w)
 
 #ifdef GL_MESA_resize_buffers
 
+#// glResizeBuffersMESA();
 void
 glResizeBuffersMESA()
 
@@ -8422,6 +10663,7 @@ glResizeBuffersMESA()
 
 #ifdef GL_ARB_draw_buffers
 
+#//# glDrawBuffersARB_c($n,(CPTR)buffers);
 void
 glDrawBuffersARB_c(n,buffers)
 	GLsizei n
@@ -8433,6 +10675,7 @@ glDrawBuffersARB_c(n,buffers)
 		glDrawBuffersARB(n,buffers);
 	}
 
+#//# glDrawBuffersARB_s($n,(PACKED)buffers);
 void
 glDrawBuffersARB_s(n,buffers)
 	GLsizei n
@@ -8445,6 +10688,7 @@ glDrawBuffersARB_s(n,buffers)
 		glDrawBuffersARB(n,buffers_s);
 	}
 
+#//# glDrawBuffersARB_p(@buffers);
 void
 glDrawBuffersARB_p(...)
 	INIT:
@@ -8465,6 +10709,7 @@ glDrawBuffersARB_p(...)
 #endif
 #ifdef GL_VERSION_2_0
 
+#//# glDrawBuffers_c($n,(CPTR)buffers);
 void
 glDrawBuffers_c(n,buffers)
 	GLsizei n
@@ -8474,6 +10719,7 @@ glDrawBuffers_c(n,buffers)
 		glDrawBuffers(n,buffers);
 	}
 
+#//# glDrawBuffers_s($n,(PACKED)buffers);
 void
 glDrawBuffers_s(n,buffers)
 	GLsizei n
@@ -8484,6 +10730,7 @@ glDrawBuffers_s(n,buffers)
 		glDrawBuffers(n,buffers_s);
 	}
 
+#//# glDrawBuffers_p(@buffers);
 void
 glDrawBuffers_p(...)
 	CODE:
@@ -8504,6 +10751,7 @@ glDrawBuffers_p(...)
 
 #ifdef GL_EXT_framebuffer_object
 
+#//# glIsRenderbufferEXT(renderbuffer);
 GLboolean
 glIsRenderbufferEXT(renderbuffer)
 	GLuint	renderbuffer
@@ -8516,6 +10764,7 @@ glIsRenderbufferEXT(renderbuffer)
 	OUTPUT:
 		RETVAL
 
+#//# glBindRenderbufferEXT(target,renderbuffer);
 void
 glBindRenderbufferEXT(target,renderbuffer)
 	GLenum target
@@ -8527,6 +10776,7 @@ glBindRenderbufferEXT(target,renderbuffer)
 		glBindRenderbufferEXT(target,renderbuffer);
 	}
 
+#//# glDeleteRenderbuffersEXT_c($n,(CPTR)renderbuffers);
 void
 glDeleteRenderbuffersEXT_c(n,renderbuffers)
 	GLsizei n
@@ -8538,6 +10788,7 @@ glDeleteRenderbuffersEXT_c(n,renderbuffers)
 		glDeleteRenderbuffersEXT(n,renderbuffers);
 	}
 
+#//# glDeleteRenderbuffersEXT_s($n,(PACKED)renderbuffers);
 void
 glDeleteRenderbuffersEXT_s(n,renderbuffers)
 	GLsizei n
@@ -8550,6 +10801,7 @@ glDeleteRenderbuffersEXT_s(n,renderbuffers)
 		glDeleteRenderbuffersEXT(n,renderbuffers_s);
 	}
 
+#//# glDeleteRenderbuffersEXT_p(@renderbuffers);
 void
 glDeleteRenderbuffersEXT_p(...)
 	INIT:
@@ -8568,6 +10820,7 @@ glDeleteRenderbuffersEXT_p(...)
 		}
 	}
 
+#//# glGenRenderbuffersEXT_c($n,(CPTR)renderbuffers);
 void
 glGenRenderbuffersEXT_c(n,renderbuffers)
 	GLsizei n
@@ -8579,6 +10832,7 @@ glGenRenderbuffersEXT_c(n,renderbuffers)
 		glGenRenderbuffersEXT(n, renderbuffers);
 	}
 
+#//# glGenRenderbuffersEXT_s($n,(PACKED)renderbuffers);
 void
 glGenRenderbuffersEXT_s(n,renderbuffers)
 	GLsizei n
@@ -8591,6 +10845,7 @@ glGenRenderbuffersEXT_s(n,renderbuffers)
 		glGenRenderbuffersEXT(n, renderbuffers_s);
 	}
 
+#//# @renderbuffers = glGenRenderbuffersEXT_c($n);
 void
 glGenRenderbuffersEXT_p(n)
 	GLsizei n
@@ -8611,6 +10866,7 @@ glGenRenderbuffersEXT_p(n)
 		free(renderbuffers);
 	} 
 
+#//# glRenderbufferStorageEXT($target,$internalformat,$width,$height);
 void
 glRenderbufferStorageEXT(target,internalformat,width,height)
 	GLenum	target
@@ -8624,6 +10880,7 @@ glRenderbufferStorageEXT(target,internalformat,width,height)
 		glRenderbufferStorageEXT(target,internalformat,width,height);
 	}
 
+#//# glGetRenderbufferParameterivEXT_s($target,$pname,(PACKED)params);
 void
 glGetRenderbufferParameterivEXT_s(target,pname,params)
 	GLenum	target
@@ -8637,6 +10894,7 @@ glGetRenderbufferParameterivEXT_s(target,pname,params)
 		glGetRenderbufferParameterivEXT(target,pname,params_s);
         }
 
+#//# glGetRenderbufferParameterivEXT_c($target,$pname,(CPTR)params);
 void
 glGetRenderbufferParameterivEXT_c(target,pname,params)
 	GLenum	target
@@ -8649,6 +10907,7 @@ glGetRenderbufferParameterivEXT_c(target,pname,params)
 		glGetRenderbufferParameterivEXT(target,pname,params);
         }
 
+#//# glIsFramebufferEXT($framebuffer);
 GLboolean
 glIsFramebufferEXT(framebuffer)
 	GLuint framebuffer
@@ -8661,6 +10920,7 @@ glIsFramebufferEXT(framebuffer)
 	OUTPUT:
 		RETVAL
 
+#//# glBindFramebufferEXT($target,$framebuffer);
 void
 glBindFramebufferEXT(target,framebuffer)
 	GLenum target
@@ -8672,6 +10932,7 @@ glBindFramebufferEXT(target,framebuffer)
 		glBindFramebufferEXT(target,framebuffer);
         }
 
+#//# glDeleteFramebuffersEXT_c($n,(CPTR)framebuffers);
 void
 glDeleteFramebuffersEXT_c(n,framebuffers)
 	GLsizei n
@@ -8683,6 +10944,7 @@ glDeleteFramebuffersEXT_c(n,framebuffers)
 		glDeleteFramebuffersEXT(n,framebuffers);
 	}
 
+#//# glDeleteFramebuffersEXT_s($n,(PACKED)framebuffers);
 void
 glDeleteFramebuffersEXT_s(n,framebuffers)
 	GLsizei n
@@ -8695,6 +10957,7 @@ glDeleteFramebuffersEXT_s(n,framebuffers)
 		glDeleteFramebuffersEXT(n,framebuffers_s);
 	}
 
+#//# glDeleteFramebuffersEXT_p(@framebuffers);
 void
 glDeleteFramebuffersEXT_p(...)
 	INIT:
@@ -8713,6 +10976,7 @@ glDeleteFramebuffersEXT_p(...)
 		}
 	}
 
+#//# glGenFramebuffersEXT_c($n,(CPTR)framebuffers);
 void
 glGenFramebuffersEXT_c(n,framebuffers)
 	GLsizei n
@@ -8724,6 +10988,7 @@ glGenFramebuffersEXT_c(n,framebuffers)
 		glGenFramebuffersEXT(n,framebuffers);
 	}
 
+#//# glGenFramebuffersEXT_s($n,(PACKED)framebuffers);
 void
 glGenFramebuffersEXT_s(n,framebuffers)
 	GLsizei n
@@ -8736,6 +11001,7 @@ glGenFramebuffersEXT_s(n,framebuffers)
 		glGenFramebuffersEXT(n,framebuffers_s);
 	}
 
+#//# @framebuffers = glGenFramebuffersEXT_c($n);
 void
 glGenFramebuffersEXT_p(n)
 	GLsizei n
@@ -8756,6 +11022,7 @@ glGenFramebuffersEXT_p(n)
 		free(framebuffers);
 	} 
 
+#//# glCheckFramebufferStatusEXT($target);
 GLenum
 glCheckFramebufferStatusEXT(target)
 	GLenum target
@@ -8768,6 +11035,7 @@ glCheckFramebufferStatusEXT(target)
 	OUTPUT:
 		RETVAL
 
+#//# glFramebufferTexture1DEXT($target,$attachment,$textarget,$texture,$level);
 void
 glFramebufferTexture1DEXT(target,attachment,textarget,texture,level)
 	GLenum target
@@ -8782,6 +11050,7 @@ glFramebufferTexture1DEXT(target,attachment,textarget,texture,level)
 		glFramebufferTexture1DEXT(target,attachment,textarget,texture,level);
 	}
 
+#//# glFramebufferTexture2DEXT($target,$attachment,$textarget,$texture,$level);
 void
 glFramebufferTexture2DEXT(target,attachment,textarget,texture,level)
 	GLenum target
@@ -8796,6 +11065,7 @@ glFramebufferTexture2DEXT(target,attachment,textarget,texture,level)
 		glFramebufferTexture2DEXT(target,attachment,textarget,texture,level);
 	}
 
+#//# glFramebufferTexture3DEXT($target,$attachment,$textarget,$texture,$level,$zoffset)'
 void
 glFramebufferTexture3DEXT(target,attachment,textarget,texture,level,zoffset)
 	GLenum target
@@ -8811,6 +11081,7 @@ glFramebufferTexture3DEXT(target,attachment,textarget,texture,level,zoffset)
 		glFramebufferTexture3DEXT(target,attachment,textarget,texture,level,zoffset);
 	}
 
+#//# glFramebufferRenderbufferEXT($target,$attachment,$renderbuffertarget,$renderbuffer);
 void
 glFramebufferRenderbufferEXT(target,attachment,renderbuffertarget,renderbuffer)
 	GLenum target
@@ -8824,6 +11095,7 @@ glFramebufferRenderbufferEXT(target,attachment,renderbuffertarget,renderbuffer)
 		glFramebufferRenderbufferEXT(target,attachment,renderbuffertarget,renderbuffer);
 	}
 
+#//# glGetFramebufferAttachmentParameterivEXT_s($target,$attachment,$pname,(PACKED)params);
 void
 glGetFramebufferAttachmentParameterivEXT_s(target,attachment,pname,params)
 	GLenum	target
@@ -8838,6 +11110,7 @@ glGetFramebufferAttachmentParameterivEXT_s(target,attachment,pname,params)
 		glGetFramebufferAttachmentParameterivEXT(target,attachment,pname,params_s);
         }
 
+#//# glGetFramebufferAttachmentParameterivEXT_c($target,$attachment,$pname,(CPTR)params);
 void
 glGetFramebufferAttachmentParameterivEXT_c(target,attachment,pname,params)
 	GLenum	target
@@ -8851,6 +11124,7 @@ glGetFramebufferAttachmentParameterivEXT_c(target,attachment,pname,params)
 		glGetFramebufferAttachmentParameterivEXT(target,attachment,pname,params);
         }
 
+#//# glGenerateMipmapEXT($target);
 void
 glGenerateMipmapEXT(target)
 	GLenum target
@@ -8866,6 +11140,7 @@ glGenerateMipmapEXT(target)
 
 #ifdef GL_ARB_vertex_buffer_object
 
+#//# glBindBufferARB($target,$buffer);
 void
 glBindBufferARB(target,buffer)
 	GLenum target
@@ -8877,6 +11152,7 @@ glBindBufferARB(target,buffer)
 		glBindBufferARB(target,buffer);
 	}
 
+#//# glDeleteBuffersARB_c($n,(CPTR)buffers);
 void
 glDeleteBuffersARB_c(n,buffers)
 	GLsizei	n
@@ -8888,6 +11164,7 @@ glDeleteBuffersARB_c(n,buffers)
 		glDeleteBuffersARB(n,buffers);
 	}
 
+#//# glDeleteBuffersARB_s($n,(PACKED)buffers);
 void
 glDeleteBuffersARB_s(n,buffers)
 	GLsizei n
@@ -8900,6 +11177,7 @@ glDeleteBuffersARB_s(n,buffers)
 		glDeleteBuffersARB(n,buffers_s);
 	}
 
+#//# glDeleteBuffersARB_p(@buffers);
 void
 glDeleteBuffersARB_p(...)
 	INIT:
@@ -8918,6 +11196,7 @@ glDeleteBuffersARB_p(...)
 		}
 	}
 
+#//# glGenBuffersARB_c($n,(CPTR)buffers);
 void
 glGenBuffersARB_c(n,buffers)
 	GLsizei n
@@ -8929,6 +11208,7 @@ glGenBuffersARB_c(n,buffers)
 		glGenBuffersARB(n, buffers);
 	}
 
+#//# glGenBuffersARB_s($n,(PACKED)buffers);
 void
 glGenBuffersARB_s(n,buffers)
 	GLsizei n
@@ -8941,6 +11221,7 @@ glGenBuffersARB_s(n,buffers)
 		glGenBuffersARB(n, buffers_s);
 	}
 
+#//# @buffers = glGenBuffersARB_p($n);
 void
 glGenBuffersARB_p(n)
 	GLsizei n
@@ -8961,6 +11242,7 @@ glGenBuffersARB_p(n)
 		free(buffers);
 	} 
 
+#//# glIsBufferARB($buffer);
 GLboolean
 glIsBufferARB(buffer)
 	GLuint buffer
@@ -8973,6 +11255,7 @@ glIsBufferARB(buffer)
 	OUTPUT:
 		RETVAL
 
+#//# glBufferDataARB_c($target,$size,(CPTR)data,$usage);
 void
 glBufferDataARB_c(target,size,data,usage)
 	GLenum	target
@@ -8986,6 +11269,7 @@ glBufferDataARB_c(target,size,data,usage)
 		glBufferDataARB(target,size,data,usage);
 	}
 
+#//# glBufferDataARB_s($target,$size,(PACKED)data,$usage);
 void
 glBufferDataARB_s(target,size,data,usage)
 	GLenum	target
@@ -9000,6 +11284,7 @@ glBufferDataARB_s(target,size,data,usage)
 		glBufferDataARB(target,size,data_s,usage);
 	}
 
+#//# glBufferDataARB_p($target,(OGA)data,$usage);
 void
 glBufferDataARB_p(target,oga,usage)
 	GLenum target
@@ -9012,6 +11297,7 @@ glBufferDataARB_p(target,oga,usage)
 		glBufferDataARB(target,oga->data_length,oga->data,usage);
 	}
 
+#//# glBufferSubDataARB_c($target,$offset,$size,(CPTR)data);
 void
 glBufferSubDataARB_c(target,offset,size,data)
 	GLenum	target
@@ -9025,6 +11311,7 @@ glBufferSubDataARB_c(target,offset,size,data)
 		glBufferSubDataARB(target,offset,size,data);
 	}
 
+#//# glBufferSubDataARB_s($target,$offset,$size,(PACKED)data);
 void
 glBufferSubDataARB_s(target,offset,size,data)
 	GLenum	target
@@ -9039,6 +11326,7 @@ glBufferSubDataARB_s(target,offset,size,data)
 		glBufferSubDataARB(target,offset,size,data);
 	}
 
+#//# glBufferSubDataARB_p($target,$offset,(OGA)data);
 void
 glBufferSubDataARB_p(target,offset,oga)
 	GLenum	target
@@ -9051,6 +11339,7 @@ glBufferSubDataARB_p(target,offset,oga)
 		glBufferSubDataARB(target,offset*oga->total_types_width,oga->data_length,oga->data);
 	}
 
+#//# glGetBufferSubDataARB_c($target,$offset,$size,(CPTR)data)
 void
 glGetBufferSubDataARB_c(target,offset,size,data)
 	GLenum	target
@@ -9062,6 +11351,7 @@ glGetBufferSubDataARB_c(target,offset,size,data)
 	CODE:
 		glGetBufferSubDataARB(target,offset,size,data);
 
+#//# glGetBufferSubDataARB_s($target,$offset,$size,(PACKED)data)
 void
 glGetBufferSubDataARB_s(target,offset,size,data)
 	GLenum	target
@@ -9076,6 +11366,8 @@ glGetBufferSubDataARB_s(target,offset,size,data)
 		glGetBufferSubDataARB(target,offset,size,data_s);
 	}
 
+#//# $oga = glGetBufferSubDataARB_p($target,$offset,$count,@types);
+#//- If no types are provided, GLubyte is assumed
 OpenGL::Array
 glGetBufferSubDataARB_p(target,offset,count,...)
 	GLenum	target
@@ -9136,6 +11428,7 @@ glGetBufferSubDataARB_p(target,offset,count,...)
 	OUTPUT:
 		RETVAL
 
+#//# (CPTR)buffer = glMapBufferARB_c($target,$access);
 void *
 glMapBufferARB_c(target,access)
 	GLenum	target
@@ -9149,6 +11442,8 @@ glMapBufferARB_c(target,access)
 
 #define FIXME /* !!! Need to refactor with glGetBufferPointervARB_p */
 
+#//# $oga = glMapBufferARB_p($target,$access,@types);
+#//- If no types are provided, GLubyte is assumed
 OpenGL::Array
 glMapBufferARB_p(target,access,...)
 	GLenum	target
@@ -9208,6 +11503,7 @@ glMapBufferARB_p(target,access,...)
 	OUTPUT:
 		RETVAL
 
+#//# glUnmapBufferARB($target);
 GLboolean
 glUnmapBufferARB(target)
 	GLenum	target
@@ -9218,6 +11514,7 @@ glUnmapBufferARB(target)
 	OUTPUT:
 		RETVAL
 
+#//# glGetBufferParameterivARB_c($target,$pname,(CPTR)params);
 void
 glGetBufferParameterivARB_c(target,pname,params)
 	GLenum	target
@@ -9228,6 +11525,7 @@ glGetBufferParameterivARB_c(target,pname,params)
 	CODE:
 		glGetBufferParameterivARB(target,pname,params);
 
+#//# glGetBufferParameterivARB_s($target,$pname,(PACKED)params);
 void
 glGetBufferParameterivARB_s(target,pname,params)
 	GLenum	target
@@ -9241,6 +11539,7 @@ glGetBufferParameterivARB_s(target,pname,params)
 		glGetBufferParameterivARB(target,pname,params_s);
 	}
 
+#//# @params = glGetBufferParameterivARB_p($target,$pname);
 void
 glGetBufferParameterivARB_p(target,pname)
 	GLenum	target
@@ -9254,6 +11553,7 @@ glGetBufferParameterivARB_p(target,pname)
 		PUSHs(sv_2mortal(newSViv(ret)));
 	}
 
+#//# glGetBufferPointervARB_c($target,$pname,(CPTR)params);
 void
 glGetBufferPointervARB_c(target,pname,params)
 	GLenum	target
@@ -9264,6 +11564,7 @@ glGetBufferPointervARB_c(target,pname,params)
 	CODE:
 		glGetBufferPointervARB(target,pname,&params);
 
+#//# glGetBufferPointervARB_s($target,$pname,(PACKED)params);
 void
 glGetBufferPointervARB_s(target,pname,params)
 	GLenum	target
@@ -9277,6 +11578,8 @@ glGetBufferPointervARB_s(target,pname,params)
 		glGetBufferPointervARB(target,pname,params_s);
 	}
 
+#//# $oga = glGetBufferPointervARB_p($target,$pname,@types);
+#//- If no types are provided, GLubyte is assumed
 OpenGL::Array
 glGetBufferPointervARB_p(target,pname,...)
 	GLenum	target
@@ -9343,6 +11646,7 @@ glGetBufferPointervARB_p(target,pname,...)
 
 #ifdef GL_ARB_multitexture
 
+#//# glActiveTextureARB($texture);
 void
 glActiveTextureARB(texture)
 	GLenum texture
@@ -9351,6 +11655,7 @@ glActiveTextureARB(texture)
 	CODE:
 		glActiveTextureARB(texture);
 
+#//# glClientActiveTextureARB($texture);
 void
 glClientActiveTextureARB(texture)
 	GLenum texture
@@ -9359,6 +11664,7 @@ glClientActiveTextureARB(texture)
 	CODE:
 		glClientActiveTextureARB(texture);
 
+#//# glMultiTexCoord1dARB($target,$s)
 void
 glMultiTexCoord1dARB(target,s)
 	GLenum target
@@ -9368,6 +11674,7 @@ glMultiTexCoord1dARB(target,s)
 	CODE:
 		glMultiTexCoord1dARB(target,s);
 
+#//# glMultiTexCoord1dvARB_c($target,(CPTR)v);
 void
 glMultiTexCoord1dvARB_c(target,v)
 	GLenum target
@@ -9377,6 +11684,7 @@ glMultiTexCoord1dvARB_c(target,v)
 	CODE:
 		glMultiTexCoord1dvARB(target,v);
 
+#//# glMultiTexCoord1dvARB_s($target,(PACKED)v);
 void
 glMultiTexCoord1dvARB_s(target,v)
 	GLenum target
@@ -9389,6 +11697,8 @@ glMultiTexCoord1dvARB_s(target,v)
 		glMultiTexCoord1dvARB(target,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glMultiTexCoord1dARB
+#//# glMultiTexCoord1dvARB_p($target,$s);
 void
 glMultiTexCoord1dvARB_p(target,s)
 	GLenum target
@@ -9400,6 +11710,7 @@ glMultiTexCoord1dvARB_p(target,s)
 		glMultiTexCoord1dvARB(target,&s);
 	}
 
+#//# glMultiTexCoord1fARB($target,$s);
 void
 glMultiTexCoord1fARB(target,s)
 	GLenum target
@@ -9409,6 +11720,7 @@ glMultiTexCoord1fARB(target,s)
 	CODE:
 		glMultiTexCoord1fARB(target,s);
 
+#//# glMultiTexCoord1fvARB_c($target,(CPTR)v);
 void
 glMultiTexCoord1fvARB_c(target,v)
 	GLenum target
@@ -9418,6 +11730,7 @@ glMultiTexCoord1fvARB_c(target,v)
 	CODE:
 		glMultiTexCoord1fvARB(target,v);
 
+#//# glMultiTexCoord1fvARB_s($target,(PACKED)v);
 void
 glMultiTexCoord1fvARB_s(target,v)
 	GLenum target
@@ -9430,6 +11743,8 @@ glMultiTexCoord1fvARB_s(target,v)
 		glMultiTexCoord1fvARB(target,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glMultiTexCoord1fARB
+#//# glMultiTexCoord1fvARB_p($target,$s);
 void
 glMultiTexCoord1fvARB_p(target,s)
 	GLenum target
@@ -9441,6 +11756,7 @@ glMultiTexCoord1fvARB_p(target,s)
 		glMultiTexCoord1fvARB(target,&s);
 	}
 
+#//# glMultiTexCoord1iARB($target,$s);
 void
 glMultiTexCoord1iARB(target,s)
 	GLenum target
@@ -9450,6 +11766,7 @@ glMultiTexCoord1iARB(target,s)
 	CODE:
 		glMultiTexCoord1iARB(target,s);
 
+#//# glMultiTexCoord1ivARB_c($target,(CPTR)v);
 void
 glMultiTexCoord1ivARB_c(target,v)
 	GLenum target
@@ -9459,6 +11776,7 @@ glMultiTexCoord1ivARB_c(target,v)
 	CODE:
 		glMultiTexCoord1ivARB(target,v);
 
+#//# glMultiTexCoord1ivARB_s($target,(PACKED)v);
 void
 glMultiTexCoord1ivARB_s(target,v)
 	GLenum target
@@ -9471,6 +11789,8 @@ glMultiTexCoord1ivARB_s(target,v)
 		glMultiTexCoord1ivARB(target,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glMultiTexCoord1iARB
+#//# glMultiTexCoord1ivARB_p($target,$s);
 void
 glMultiTexCoord1ivARB_p(target,s)
 	GLenum target
@@ -9482,6 +11802,7 @@ glMultiTexCoord1ivARB_p(target,s)
 		glMultiTexCoord1ivARB(target,&s);
 	}
 
+#//# glMultiTexCoord1sARB($target,$s);
 void
 glMultiTexCoord1sARB(target,s)
 	GLenum target
@@ -9491,6 +11812,7 @@ glMultiTexCoord1sARB(target,s)
 	CODE:
 		glMultiTexCoord1sARB(target,s);
 
+#//# glMultiTexCoord1svARB_c($target,(CPTR)v);
 void
 glMultiTexCoord1svARB_c(target,v)
 	GLenum target
@@ -9500,6 +11822,7 @@ glMultiTexCoord1svARB_c(target,v)
 	CODE:
 		glMultiTexCoord1svARB(target,v);
 
+#//# glMultiTexCoord1svARB_s($target,(PACKED)v);
 void
 glMultiTexCoord1svARB_s(target,v)
 	GLenum target
@@ -9512,6 +11835,8 @@ glMultiTexCoord1svARB_s(target,v)
 		glMultiTexCoord1svARB(target,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glMultiTexCoord1sARB
+#//# glMultiTexCoord1svARB_p($target,$s);
 void
 glMultiTexCoord1svARB_p(target,s)
 	GLenum target
@@ -9523,6 +11848,7 @@ glMultiTexCoord1svARB_p(target,s)
 		glMultiTexCoord1svARB(target,&s);
 	}
 
+#//# glMultiTexCoord2dARB($target,$s,$t);
 void
 glMultiTexCoord2dARB(target,s,t)
 	GLenum target
@@ -9533,6 +11859,7 @@ glMultiTexCoord2dARB(target,s,t)
 	CODE:
 		glMultiTexCoord2dARB(target,s,t);
 
+#//# glMultiTexCoord2dvARB_c(target,(CPTR)v);
 void
 glMultiTexCoord2dvARB_c(target,v)
 	GLenum target
@@ -9542,6 +11869,7 @@ glMultiTexCoord2dvARB_c(target,v)
 	CODE:
 		glMultiTexCoord2dvARB(target,v);
 
+#//# glMultiTexCoord2dvARB_s(target,(PACKED)v);
 void
 glMultiTexCoord2dvARB_s(target,v)
 	GLenum target
@@ -9554,6 +11882,8 @@ glMultiTexCoord2dvARB_s(target,v)
 		glMultiTexCoord2dvARB(target,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glMultiTexCoord2dARB
+#//# glMultiTexCoord2dvARB_p($target,$s,$t);
 void
 glMultiTexCoord2dvARB_p(target,s,t)
 	GLenum target
@@ -9569,6 +11899,7 @@ glMultiTexCoord2dvARB_p(target,s,t)
 		glMultiTexCoord2dvARB(target,param);
 	}
 
+#//# glMultiTexCoord2fARB($target,$s,$t);
 void
 glMultiTexCoord2fARB(target,s,t)
 	GLenum target
@@ -9579,6 +11910,7 @@ glMultiTexCoord2fARB(target,s,t)
 	CODE:
 		glMultiTexCoord2fARB(target,s,t);
 
+#//# glMultiTexCoord2fvARB_c($target,(CPTR)v);
 void
 glMultiTexCoord2fvARB_c(target,v)
 	GLenum target
@@ -9588,6 +11920,7 @@ glMultiTexCoord2fvARB_c(target,v)
 	CODE:
 		glMultiTexCoord2fvARB(target,v);
 
+#//# glMultiTexCoord2fvARB_s($target,(PACKED)v);
 void
 glMultiTexCoord2fvARB_s(target,v)
 	GLenum target
@@ -9600,6 +11933,8 @@ glMultiTexCoord2fvARB_s(target,v)
 		glMultiTexCoord2fvARB(target,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glMultiTexCoord2fARB
+#//# glMultiTexCoord2fvARB_p($target,$s,$t);
 void
 glMultiTexCoord2fvARB_p(target,s,t)
 	GLenum target
@@ -9615,6 +11950,7 @@ glMultiTexCoord2fvARB_p(target,s,t)
 		glMultiTexCoord2fvARB(target,param);
 	}
 
+#//# glMultiTexCoord2iARB($target,$s,$t);
 void
 glMultiTexCoord2iARB(target,s,t)
 	GLenum target
@@ -9625,6 +11961,7 @@ glMultiTexCoord2iARB(target,s,t)
 	CODE:
 		glMultiTexCoord2iARB(target,s,t);
 
+#//# glMultiTexCoord2ivARB_c($target,(CPTR)v);
 void
 glMultiTexCoord2ivARB_c(target,v)
 	GLenum target
@@ -9634,6 +11971,7 @@ glMultiTexCoord2ivARB_c(target,v)
 	CODE:
 		glMultiTexCoord2ivARB(target,v);
 
+#//# glMultiTexCoord2ivARB_s($target,(PACKED)v);
 void
 glMultiTexCoord2ivARB_s(target,v)
 	GLenum target
@@ -9646,6 +11984,8 @@ glMultiTexCoord2ivARB_s(target,v)
 		glMultiTexCoord2ivARB(target,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glMultiTexCoord2iARB
+#//# glMultiTexCoord2ivARB_p($target,$s,$t);
 void
 glMultiTexCoord2ivARB_p(target,s,t)
 	GLenum target
@@ -9661,6 +12001,7 @@ glMultiTexCoord2ivARB_p(target,s,t)
 		glMultiTexCoord2ivARB(target,param);
 	}
 
+#//# glMultiTexCoord2sARB($target,$s,$t);
 void
 glMultiTexCoord2sARB(target,s,t)
 	GLenum target
@@ -9671,6 +12012,7 @@ glMultiTexCoord2sARB(target,s,t)
 	CODE:
 		glMultiTexCoord2sARB(target,s,t);
 
+#//# glMultiTexCoord2svARB_c($target,(CPTR)v);
 void
 glMultiTexCoord2svARB_c(target,v)
 	GLenum target
@@ -9680,6 +12022,7 @@ glMultiTexCoord2svARB_c(target,v)
 	CODE:
 		glMultiTexCoord2svARB(target,v);
 
+#//# glMultiTexCoord2svARB_s($target,(PACKED)v);
 void
 glMultiTexCoord2svARB_s(target,v)
 	GLenum target
@@ -9692,6 +12035,8 @@ glMultiTexCoord2svARB_s(target,v)
 		glMultiTexCoord2svARB(target,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glMultiTexCoord2sARB
+#//# glMultiTexCoord2svARB_p($target,$s,$t);
 void
 glMultiTexCoord2svARB_p(target,s,t)
 	GLenum target
@@ -9707,6 +12052,7 @@ glMultiTexCoord2svARB_p(target,s,t)
 		glMultiTexCoord2svARB(target,param);
 	}
 
+#//# glMultiTexCoord3dARB($target,$s,$t,$r);
 void
 glMultiTexCoord3dARB(target,s,t,r)
 	GLenum target
@@ -9718,6 +12064,7 @@ glMultiTexCoord3dARB(target,s,t,r)
 	CODE:
 		glMultiTexCoord3dARB(target,s,t,r);
 
+#//# glMultiTexCoord3dvARB_c(target,(CPTR)v);
 void
 glMultiTexCoord3dvARB_c(target,v)
 	GLenum target
@@ -9727,6 +12074,7 @@ glMultiTexCoord3dvARB_c(target,v)
 	CODE:
 		glMultiTexCoord3dvARB(target,v);
 
+#//# glMultiTexCoord3dvARB_s(target,(PACKED)v);
 void
 glMultiTexCoord3dvARB_s(target,v)
 	GLenum target
@@ -9739,6 +12087,8 @@ glMultiTexCoord3dvARB_s(target,v)
 		glMultiTexCoord3dvARB(target,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glMultiTexCoord3dARB
+#//# glMultiTexCoord3dvARB_p($target,$s,$t,$r);
 void
 glMultiTexCoord3dvARB_p(target,s,t,r)
 	GLenum target
@@ -9756,6 +12106,7 @@ glMultiTexCoord3dvARB_p(target,s,t,r)
 		glMultiTexCoord3dvARB(target,param);
 	}
 
+#//# glMultiTexCoord3fARB($target,$s,$t,$r);
 void
 glMultiTexCoord3fARB(target,s,t,r)
 	GLenum target
@@ -9767,6 +12118,7 @@ glMultiTexCoord3fARB(target,s,t,r)
 	CODE:
 		glMultiTexCoord3fARB(target,s,t,r);
 
+#//# glMultiTexCoord3fvARB_c($target,(CPTR)v);
 void
 glMultiTexCoord3fvARB_c(target,v)
 	GLenum target
@@ -9776,6 +12128,7 @@ glMultiTexCoord3fvARB_c(target,v)
 	CODE:
 		glMultiTexCoord3fvARB(target,v);
 
+#//# glMultiTexCoord3fvARB_s($target,(PACKED)v);
 void
 glMultiTexCoord3fvARB_s(target,v)
 	GLenum target
@@ -9788,6 +12141,8 @@ glMultiTexCoord3fvARB_s(target,v)
 		glMultiTexCoord3fvARB(target,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glMultiTexCoord3fARB
+#//# glMultiTexCoord3fvARB_p($target,$s,$t,$r);
 void
 glMultiTexCoord3fvARB_p(target,s,t,r)
 	GLenum target
@@ -9805,6 +12160,7 @@ glMultiTexCoord3fvARB_p(target,s,t,r)
 		glMultiTexCoord3fvARB(target,param);
 	}
 
+#//# glMultiTexCoord3iARB($target,$s,$t,$r);
 void
 glMultiTexCoord3iARB(target,s,t,r)
 	GLenum target
@@ -9816,6 +12172,7 @@ glMultiTexCoord3iARB(target,s,t,r)
 	CODE:
 		glMultiTexCoord3iARB(target,s,t,r);
 
+#//# glMultiTexCoord3ivARB_c($target,(CPTR)v);
 void
 glMultiTexCoord3ivARB_c(target,v)
 	GLenum target
@@ -9825,6 +12182,7 @@ glMultiTexCoord3ivARB_c(target,v)
 	CODE:
 		glMultiTexCoord3ivARB(target,v);
 
+#//# glMultiTexCoord3ivARB_s($target,(PACKED)v);
 void
 glMultiTexCoord3ivARB_s(target,v)
 	GLenum target
@@ -9837,6 +12195,8 @@ glMultiTexCoord3ivARB_s(target,v)
 		glMultiTexCoord3ivARB(target,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glMultiTexCoord3iARB
+#//# glMultiTexCoord3ivARB_p($target,$s,$t,$r);
 void
 glMultiTexCoord3ivARB_p(target,s,t,r)
 	GLenum target
@@ -9854,6 +12214,7 @@ glMultiTexCoord3ivARB_p(target,s,t,r)
 		glMultiTexCoord3ivARB(target,param);
 	}
 
+#//# glMultiTexCoord3sARB($target,$s,$t,$r);
 void
 glMultiTexCoord3sARB(target,s,t,r)
 	GLenum target
@@ -9865,6 +12226,7 @@ glMultiTexCoord3sARB(target,s,t,r)
 	CODE:
 		glMultiTexCoord3sARB(target,s,t,r);
 
+#//# glMultiTexCoord3svARB_c($target,(CPTR)v);
 void
 glMultiTexCoord3svARB_c(target,v)
 	GLenum target
@@ -9874,6 +12236,7 @@ glMultiTexCoord3svARB_c(target,v)
 	CODE:
 		glMultiTexCoord3svARB(target,v);
 
+#//# glMultiTexCoord3svARB_s($target,(PACKED)v);
 void
 glMultiTexCoord3svARB_s(target,v)
 	GLenum target
@@ -9886,6 +12249,8 @@ glMultiTexCoord3svARB_s(target,v)
 		glMultiTexCoord3svARB(target,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glMultiTexCoord3sARB
+#//# glMultiTexCoord3svARB_p($target,$s,$t,$r);
 void
 glMultiTexCoord3svARB_p(target,s,t,r)
 	GLenum target
@@ -9903,6 +12268,7 @@ glMultiTexCoord3svARB_p(target,s,t,r)
 		glMultiTexCoord3svARB(target,param);
 	}
 
+#//# glMultiTexCoord4dARB($target,$s,$t,$r,$q);
 void
 glMultiTexCoord4dARB(target,s,t,r,q)
 	GLenum target
@@ -9915,6 +12281,7 @@ glMultiTexCoord4dARB(target,s,t,r,q)
 	CODE:
 		glMultiTexCoord4dARB(target,s,t,r,q);
 
+#//# glMultiTexCoord4dvARB_c($target,(CPTR)v);
 void
 glMultiTexCoord4dvARB_c(target,v)
 	GLenum target
@@ -9924,6 +12291,7 @@ glMultiTexCoord4dvARB_c(target,v)
 	CODE:
 		glMultiTexCoord4dvARB(target,v);
 
+#//# glMultiTexCoord4dvARB_s($target,(PACKED)v);
 void
 glMultiTexCoord4dvARB_s(target,v)
 	GLenum target
@@ -9936,6 +12304,8 @@ glMultiTexCoord4dvARB_s(target,v)
 		glMultiTexCoord4dvARB(target,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glMultiTexCoord4dARB
+#//# glMultiTexCoord4dvARB_p($target,$s,$t,$r,$q);
 void
 glMultiTexCoord4dvARB_p(target,s,t,r,q)
 	GLenum target
@@ -9955,6 +12325,7 @@ glMultiTexCoord4dvARB_p(target,s,t,r,q)
 		glMultiTexCoord4dvARB(target,param);
 	}
 
+#//# glMultiTexCoord4fARB($target,$s,$t,$r,$q);
 void
 glMultiTexCoord4fARB(target,s,t,r,q)
 	GLenum target
@@ -9967,6 +12338,7 @@ glMultiTexCoord4fARB(target,s,t,r,q)
 	CODE:
 		glMultiTexCoord4fARB(target,s,t,r,q);
 
+#//# glMultiTexCoord4fvARB_c($target,(CPTR)v);
 void
 glMultiTexCoord4fvARB_c(target,v)
 	GLenum target
@@ -9976,6 +12348,7 @@ glMultiTexCoord4fvARB_c(target,v)
 	CODE:
 		glMultiTexCoord4fvARB(target,v);
 
+#//# glMultiTexCoord4fvARB_s($target,(PACKED)v);
 void
 glMultiTexCoord4fvARB_s(target,v)
 	GLenum target
@@ -9988,6 +12361,8 @@ glMultiTexCoord4fvARB_s(target,v)
 		glMultiTexCoord4fvARB(target,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glMultiTexCoord4fARB
+#//# glMultiTexCoord4fvARB_p($target,$s,$t,$r,$q);
 void
 glMultiTexCoord4fvARB_p(target,s,t,r,q)
 	GLenum target
@@ -10007,6 +12382,7 @@ glMultiTexCoord4fvARB_p(target,s,t,r,q)
 		glMultiTexCoord4fvARB(target,param);
 	}
 
+#//# glMultiTexCoord4iARB($target,$s,$t,$r,$q)
 void
 glMultiTexCoord4iARB(target,s,t,r,q)
 	GLenum target
@@ -10019,6 +12395,7 @@ glMultiTexCoord4iARB(target,s,t,r,q)
 	CODE:
 		glMultiTexCoord4iARB(target,s,t,r,q);
 
+#//# glMultiTexCoord4ivARB_c($target,(CPTR)v);
 void
 glMultiTexCoord4ivARB_c(target,v)
 	GLenum target
@@ -10028,6 +12405,7 @@ glMultiTexCoord4ivARB_c(target,v)
 	CODE:
 		glMultiTexCoord4ivARB(target,v);
 
+#//# glMultiTexCoord4ivARB_s($target,(PACKED)v);
 void
 glMultiTexCoord4ivARB_s(target,v)
 	GLenum target
@@ -10040,6 +12418,8 @@ glMultiTexCoord4ivARB_s(target,v)
 		glMultiTexCoord4ivARB(target,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glMultiTexCoord4iARB
+#//# glMultiTexCoord4ivARB_p($target,$s,$t,$r,$q);
 void
 glMultiTexCoord4ivARB_p(target,s,t,r,q)
 	GLenum target
@@ -10059,6 +12439,7 @@ glMultiTexCoord4ivARB_p(target,s,t,r,q)
 		glMultiTexCoord4ivARB(target,param);
 	}
 
+#//# glMultiTexCoord4sARB($target,$s,$t,$r,$q);
 void
 glMultiTexCoord4sARB(target,s,t,r,q)
 	GLenum target
@@ -10071,6 +12452,7 @@ glMultiTexCoord4sARB(target,s,t,r,q)
 	CODE:
 		glMultiTexCoord4sARB(target,s,t,r,q);
 
+#//# glMultiTexCoord4svARB_c($target,(CPTR)v);
 void
 glMultiTexCoord4svARB_c(target,v)
 	GLenum target
@@ -10080,6 +12462,7 @@ glMultiTexCoord4svARB_c(target,v)
 	CODE:
 		glMultiTexCoord4svARB(target,v);
 
+#//# glMultiTexCoord4svARB_s($target,(PACKED)v);
 void
 glMultiTexCoord4svARB_s(target,v)
 	GLenum target
@@ -10092,6 +12475,8 @@ glMultiTexCoord4svARB_s(target,v)
 		glMultiTexCoord4svARB(target,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glMultiTexCoord4sARB
+#//# glMultiTexCoord4svARB_p($target,$s,$t,$r,$q);
 void
 glMultiTexCoord4svARB_p(target,s,t,r,q)
 	GLenum target
@@ -10117,6 +12502,7 @@ glMultiTexCoord4svARB_p(target,s,t,r,q)
 
 #ifdef GL_ARB_shader_objects
 
+#//# glDeleteObjectARB($obj);
 void
 glDeleteObjectARB(obj)
 	GLhandleARB	obj
@@ -10127,6 +12513,7 @@ glDeleteObjectARB(obj)
 		glDeleteObjectARB(obj);
 	}
 
+#//# glGetHandleARB($pname);
 GLhandleARB
 glGetHandleARB(pname)
 	GLenum	pname
@@ -10139,6 +12526,7 @@ glGetHandleARB(pname)
 	OUTPUT:
 		RETVAL
 
+#//# glDetachObjectARB($containerObj, $attachedObj);
 void
 glDetachObjectARB(containerObj, attachedObj)
 	GLhandleARB containerObj
@@ -10150,6 +12538,7 @@ glDetachObjectARB(containerObj, attachedObj)
 		glDetachObjectARB(containerObj, attachedObj);
 	}
 
+#//# glCreateShaderObjectARB($shaderType);
 GLhandleARB
 glCreateShaderObjectARB(shaderType)
 	GLenum shaderType
@@ -10162,6 +12551,7 @@ glCreateShaderObjectARB(shaderType)
 	OUTPUT:
 		RETVAL
 
+#//# glShaderSourceARB_c($shaderObj, $count, (CPTR)string, (CPTR)length);
 void
 glShaderSourceARB_c(shaderObj, count, string, length)
 	GLhandleARB shaderObj
@@ -10175,6 +12565,7 @@ glShaderSourceARB_c(shaderObj, count, string, length)
 		glShaderSourceARB(shaderObj, count, string, length);
 	}
 
+#//# glShaderSourceARB_p($shaderObj, @string);
 void
 glShaderSourceARB_p(shaderObj, ...)
 	GLhandleARB shaderObj
@@ -10199,6 +12590,7 @@ glShaderSourceARB_p(shaderObj, ...)
                 free(string);
 	}
 
+#//# glCompileShaderARB($shaderObj);
 void
 glCompileShaderARB(shaderObj)
 	GLhandleARB shaderObj
@@ -10209,6 +12601,7 @@ glCompileShaderARB(shaderObj)
 		glCompileShaderARB(shaderObj);
 	}
 
+#//# $obj = glCreateProgramObjectARB();
 GLhandleARB
 glCreateProgramObjectARB()
 	INIT:
@@ -10220,6 +12613,7 @@ glCreateProgramObjectARB()
 	OUTPUT:
 		RETVAL
 
+#//# glAttachObjectARB($containerObj, $obj);
 void
 glAttachObjectARB(containerObj, obj)
 	GLhandleARB containerObj
@@ -10231,6 +12625,7 @@ glAttachObjectARB(containerObj, obj)
 		glAttachObjectARB(containerObj, obj);
 	}
 
+#//# glLinkProgramARB($programObj);
 void
 glLinkProgramARB(programObj)
 	GLhandleARB programObj
@@ -10241,6 +12636,7 @@ glLinkProgramARB(programObj)
 		glLinkProgramARB(programObj);
 	}
 
+#//# glUseProgramObjectARB($programObj);
 void
 glUseProgramObjectARB(programObj)
 	GLhandleARB programObj
@@ -10251,6 +12647,7 @@ glUseProgramObjectARB(programObj)
 		glUseProgramObjectARB(programObj);
 	}
 
+#//# glValidateProgramARB($programObj);
 void
 glValidateProgramARB(programObj)
 	GLhandleARB programObj
@@ -10261,6 +12658,7 @@ glValidateProgramARB(programObj)
 		glValidateProgramARB(programObj);
 	}
 
+#//# glUniform1fARB($location, $v0);
 void
 glUniform1fARB(location, v0)
 	GLint location
@@ -10272,6 +12670,7 @@ glUniform1fARB(location, v0)
 		glUniform1fARB(location, v0);
 	}
 
+#//# glUniform2fARB($location, $v0, $v1);
 void
 glUniform2fARB(location, v0, v1)
 	GLint location
@@ -10284,6 +12683,7 @@ glUniform2fARB(location, v0, v1)
 		glUniform2fARB(location, v0, v1);
 	}
 
+#//# glUniform3fARB($location, $v0, $v1, $v2);
 void
 glUniform3fARB(location, v0, v1, v2)
 	GLint location
@@ -10297,6 +12697,7 @@ glUniform3fARB(location, v0, v1, v2)
 		glUniform3fARB(location, v0, v1, v2);
 	}
 
+#//# glUniform4fARB($location, $v0, $v1, $v2, $v3);
 void
 glUniform4fARB(location, v0, v1, v2, v3)
 	GLint location
@@ -10311,6 +12712,7 @@ glUniform4fARB(location, v0, v1, v2, v3)
 		glUniform4fARB(location, v0, v1, v2, v3);
 	}
 
+#//# glUniform1iARB($location, $v0);
 void
 glUniform1iARB(location, v0)
 	GLint location
@@ -10322,6 +12724,7 @@ glUniform1iARB(location, v0)
 		glUniform1iARB(location, v0);
 	}
 
+#//# glUniform2iARB($location, $v0, $v1);
 void
 glUniform2iARB(location, v0, v1)
 	GLint location
@@ -10334,6 +12737,7 @@ glUniform2iARB(location, v0, v1)
 		glUniform2iARB(location, v0, v1);
 	}
 
+#//# glUniform3iARB($location, $v0, $v1, $v2);
 void
 glUniform3iARB(location, v0, v1, v2)
 	GLint location
@@ -10347,6 +12751,7 @@ glUniform3iARB(location, v0, v1, v2)
 		glUniform3iARB(location, v0, v1, v2);
 	}
 
+#//# glUniform4iARB($location, $v0, $v1, $v2, $v3);
 void
 glUniform4iARB(location, v0, v1, v2, v3)
 	GLint location
@@ -10361,6 +12766,7 @@ glUniform4iARB(location, v0, v1, v2, v3)
 		glUniform4iARB(location, v0, v1, v2, v3);
 	}
 
+#//# glUniform1fvARB_c($location, $count, (CPTR)value);
 void
 glUniform1fvARB_c(location, count, value)
 	GLint	location
@@ -10371,6 +12777,7 @@ glUniform1fvARB_c(location, count, value)
 	CODE:
 		glUniform1fvARB(location, count, value);
 
+#//# glUniform1fvARB_s($location, $count, (PACKED)value);
 void
 glUniform1fvARB_s(location, count, value)
 	GLint	location
@@ -10384,6 +12791,7 @@ glUniform1fvARB_s(location, count, value)
 		glUniform1fvARB(location, count, value_s);
 	}
 
+#//# glUniform1fvARB_p(location, @value);
 void
 glUniform1fvARB_p(location, ...)
 	GLint location
@@ -10396,7 +12804,7 @@ glUniform1fvARB_p(location, ...)
 		GLfloat *value = malloc(sizeof(GLfloat) * count);
 
 		for(i=0;i<count;i++) {
-			value[i] = SvNV(ST(i+1));
+			value[i] = (GLfloat)SvNV(ST(i+1));
 		}
 
 		glUniform1fvARB(location, count, value);
@@ -10404,6 +12812,7 @@ glUniform1fvARB_p(location, ...)
 		free(value);
 	}
 
+#//# glUniform2fvARB_c($location, $count, (CPTR)value);
 void
 glUniform2fvARB_c(location, count, value)
 	GLint	location
@@ -10414,6 +12823,7 @@ glUniform2fvARB_c(location, count, value)
 	CODE:
 		glUniform2fvARB(location, count, value);
 
+#//# glUniform2fvARB_s($location, $count, (PACKED)value);
 void
 glUniform2fvARB_s(location, count, value)
 	GLint	location
@@ -10427,6 +12837,7 @@ glUniform2fvARB_s(location, count, value)
 		glUniform2fvARB(location, count, value_s);
 	}
 
+#//# glUniform2fvARB_p($location, @value);
 void
 glUniform2fvARB_p(location, ...)
 	GLint location
@@ -10440,7 +12851,7 @@ glUniform2fvARB_p(location, ...)
 		GLfloat *value = malloc(sizeof(GLfloat) * elements);
 
 		for(i=0;i<elements;i++) {
-			value[i] = SvNV(ST(i+1));
+			value[i] = (GLfloat)SvNV(ST(i+1));
 		}
 
 		glUniform2fvARB(location, count, value);
@@ -10448,6 +12859,7 @@ glUniform2fvARB_p(location, ...)
 		free(value);
 	}
 
+#//# glUniform3fvARB_c($location, $count, (CPTR)value);
 void
 glUniform3fvARB_c(location, count, value)
 	GLint	location
@@ -10458,6 +12870,7 @@ glUniform3fvARB_c(location, count, value)
 	CODE:
 		glUniform3fvARB(location, count, value);
 
+#//# glUniform3fvARB_s($location, $count, (PACKED)value);
 void
 glUniform3fvARB_s(location, count, value)
 	GLint	location
@@ -10471,6 +12884,7 @@ glUniform3fvARB_s(location, count, value)
 		glUniform3fvARB(location, count, value_s);
 	}
 
+#//# glUniform3fvARB_p($location, @value);
 void
 glUniform3fvARB_p(location, ...)
 	GLint location
@@ -10484,7 +12898,7 @@ glUniform3fvARB_p(location, ...)
 		GLfloat *value = malloc(sizeof(GLfloat) * elements);
 
 		for(i=0;i<elements;i++) {
-			value[i] = SvNV(ST(i+1));
+			value[i] = (GLfloat)SvNV(ST(i+1));
 		}
 
 		glUniform3fvARB(location, count, value);
@@ -10492,6 +12906,7 @@ glUniform3fvARB_p(location, ...)
 		free(value);
 	}
 
+#//# glUniform4fvARB_c($location, $count, (CPTR)value);
 void
 glUniform4fvARB_c(location, count, value)
 	GLint	location
@@ -10502,6 +12917,7 @@ glUniform4fvARB_c(location, count, value)
 	CODE:
 		glUniform4fvARB(location, count, value);
 
+#//# glUniform4fvARB_s($location, $count, (PACKED)value);
 void
 glUniform4fvARB_s(location, count, value)
 	GLint	location
@@ -10515,6 +12931,7 @@ glUniform4fvARB_s(location, count, value)
 		glUniform4fvARB(location, count, value_s);
 	}
 
+#//# glUniform4fvARB_p($location, @value);
 void
 glUniform4fvARB_p(location, ...)
 	GLint location
@@ -10528,7 +12945,7 @@ glUniform4fvARB_p(location, ...)
 		GLfloat *value = malloc(sizeof(GLfloat) * elements);
 
 		for(i=0;i<elements;i++) {
-			value[i] = SvNV(ST(i+1));
+			value[i] = (GLfloat)SvNV(ST(i+1));
 		}
 
 		glUniform4fvARB(location, count, value);
@@ -10536,6 +12953,7 @@ glUniform4fvARB_p(location, ...)
 		free(value);
 	}
 
+#//# glUniform1ivARB_c($location, $count, (CPTR)value);
 void
 glUniform1ivARB_c(location, count, value)
 	GLint	location
@@ -10546,6 +12964,7 @@ glUniform1ivARB_c(location, count, value)
 	CODE:
 		glUniform1ivARB(location, count, value);
 
+#//# glUniform1ivARB_s($location, $count, (PACKED)value);
 void
 glUniform1ivARB_s(location, count, value)
 	GLint	location
@@ -10559,6 +12978,7 @@ glUniform1ivARB_s(location, count, value)
 		glUniform1ivARB(location, count, value_s);
 	}
 
+#//# glUniform1ivARB_p($location, @value);
 void
 glUniform1ivARB_p(location, ...)
 	GLint location
@@ -10579,6 +12999,7 @@ glUniform1ivARB_p(location, ...)
 		free(value);
 	}
 
+#//# glUniform2ivARB_c($location, $count, (CPTR)value);
 void
 glUniform2ivARB_c(location, count, value)
 	GLint	location
@@ -10589,6 +13010,7 @@ glUniform2ivARB_c(location, count, value)
 	CODE:
 		glUniform2ivARB(location, count, value);
 
+#//# glUniform2ivARB_s($location, $count, (PACKED)value);
 void
 glUniform2ivARB_s(location, count, value)
 	GLint	location
@@ -10602,6 +13024,7 @@ glUniform2ivARB_s(location, count, value)
 		glUniform2ivARB(location, count, value_s);
 	}
 
+#//# glUniform2ivARB_p($location, @value);
 void
 glUniform2ivARB_p(location, ...)
 	GLint location
@@ -10623,6 +13046,7 @@ glUniform2ivARB_p(location, ...)
 		free(value);
 	}
 
+#//# glUniform3ivARB_c($location, $count, (CPTR)value);
 void
 glUniform3ivARB_c(location, count, value)
 	GLint	location
@@ -10633,6 +13057,7 @@ glUniform3ivARB_c(location, count, value)
 	CODE:
 		glUniform3ivARB(location, count, value);
 
+#//# glUniform3ivARB_s($location, $count, (PACKED)value);
 void
 glUniform3ivARB_s(location, count, value)
 	GLint	location
@@ -10646,6 +13071,7 @@ glUniform3ivARB_s(location, count, value)
 		glUniform3ivARB(location, count, value_s);
 	}
 
+#//# glUniform3ivARB_p($location, @value);
 void
 glUniform3ivARB_p(location, ...)
 	GLint location
@@ -10667,6 +13093,7 @@ glUniform3ivARB_p(location, ...)
 		free(value);
 	}
 
+#//# glUniform4ivARB_c($location, $count, (CPTR)value);
 void
 glUniform4ivARB_c(location, count, value)
 	GLint	location
@@ -10677,6 +13104,7 @@ glUniform4ivARB_c(location, count, value)
 	CODE:
 		glUniform4ivARB(location, count, value);
 
+#//# glUniform4ivARB_s($location, $count, (PACKED)value);
 void
 glUniform4ivARB_s(location, count, value)
 	GLint	location
@@ -10690,6 +13118,7 @@ glUniform4ivARB_s(location, count, value)
 		glUniform4ivARB(location, count, value_s);
 	}
 
+#//# glUniform4ivARB_p($location, @value);
 void
 glUniform4ivARB_p(location, ...)
 	GLint location
@@ -10711,6 +13140,7 @@ glUniform4ivARB_p(location, ...)
 		free(value);
 	}
 
+#//# glUniformMatrix2fvARB_c($location, $count, $transpose, (CPTR)value);
 void
 glUniformMatrix2fvARB_c(location, count, transpose, value)
 	GLint	location
@@ -10722,6 +13152,7 @@ glUniformMatrix2fvARB_c(location, count, transpose, value)
 	CODE:
 		glUniformMatrix2fvARB(location, count, transpose, value);
 
+#//# glUniformMatrix2fvARB_s($location, $count, $transpose, (PACKED)value);
 void
 glUniformMatrix2fvARB_s(location, count, transpose, value)
 	GLint	location
@@ -10736,6 +13167,7 @@ glUniformMatrix2fvARB_s(location, count, transpose, value)
 		glUniformMatrix2fvARB(location, count, transpose, value_s);
 	}
 
+#//# glUniformMatrix2fvARB_p($location, $transpose, @matrix);
 void
 glUniformMatrix2fvARB_p(location, transpose, ...)
 	GLint location
@@ -10750,7 +13182,7 @@ glUniformMatrix2fvARB_p(location, transpose, ...)
 		GLfloat *value = malloc(sizeof(GLfloat) * elements);
 
 		for(i=0;i<elements;i++) {
-			value[i] = SvNV(ST(i+2));
+			value[i] = (GLfloat)SvNV(ST(i+2));
 		}
 
 		glUniformMatrix2fvARB(location, count, transpose, value);
@@ -10758,6 +13190,7 @@ glUniformMatrix2fvARB_p(location, transpose, ...)
 		free(value);
 	}
 
+#//# glUniformMatrix3fvARB_c($location, $count, $transpose, (CPTR)value);
 void
 glUniformMatrix3fvARB_c(location, count, transpose, value)
 	GLint	location
@@ -10769,6 +13202,7 @@ glUniformMatrix3fvARB_c(location, count, transpose, value)
 	CODE:
 		glUniformMatrix3fvARB(location, count, transpose, value);
 
+#//# glUniformMatrix3fvARB_s($location, $count, $transpose, (PACKED)value);
 void
 glUniformMatrix3fvARB_s(location, count, transpose, value)
 	GLint	location
@@ -10783,6 +13217,7 @@ glUniformMatrix3fvARB_s(location, count, transpose, value)
 		glUniformMatrix3fvARB(location, count, transpose, value_s);
 	}
 
+#//# glUniformMatrix3fvARB_p($location, $transpose, @matrix);
 void
 glUniformMatrix3fvARB_p(location, transpose, ...)
 	GLint location
@@ -10797,7 +13232,7 @@ glUniformMatrix3fvARB_p(location, transpose, ...)
 		GLfloat *value = malloc(sizeof(GLfloat) * elements);
 
 		for(i=0;i<elements;i++) {
-			value[i] = SvNV(ST(i+2));
+			value[i] = (GLfloat)SvNV(ST(i+2));
 		}
 
 		glUniformMatrix3fvARB(location, count, transpose, value);
@@ -10805,6 +13240,7 @@ glUniformMatrix3fvARB_p(location, transpose, ...)
 		free(value);
 	}
 
+#//# glUniformMatrix4fvARB_c($location, $count, $transpose, (CPTR)value);
 void
 glUniformMatrix4fvARB_c(location, count, transpose, value)
 	GLint	location
@@ -10816,6 +13252,7 @@ glUniformMatrix4fvARB_c(location, count, transpose, value)
 	CODE:
 		glUniformMatrix4fvARB(location, count, transpose, value);
 
+#//# glUniformMatrix4fvARB_s($location, $count, $transpose, (PACKED)value);
 void
 glUniformMatrix4fvARB_s(location, count, transpose, value)
 	GLint	location
@@ -10830,6 +13267,7 @@ glUniformMatrix4fvARB_s(location, count, transpose, value)
 		glUniformMatrix4fvARB(location, count, transpose, value_s);
 	}
 
+#//# glUniformMatrix4fvARB_p($location, $transpose, @matrix);
 void
 glUniformMatrix4fvARB_p(location, transpose, ...)
 	GLint location
@@ -10844,7 +13282,7 @@ glUniformMatrix4fvARB_p(location, transpose, ...)
 		GLfloat *value = malloc(sizeof(GLfloat) * elements);
 
 		for(i=0;i<elements;i++) {
-			value[i] = SvNV(ST(i+2));
+			value[i] = (GLfloat)SvNV(ST(i+2));
 		}
 
 		glUniformMatrix4fvARB(location, count, transpose, value);
@@ -10852,6 +13290,7 @@ glUniformMatrix4fvARB_p(location, transpose, ...)
 		free(value);
 	}
 
+#//# glGetObjectParameterfvARB_c($obj,$pname,(CPTR)params);
 void
 glGetObjectParameterfvARB_c(obj,pname,params)
 	GLhandleARB obj
@@ -10862,6 +13301,7 @@ glGetObjectParameterfvARB_c(obj,pname,params)
 	CODE:
 		glGetObjectParameterfvARB(obj,pname,params);
 
+#//# glGetObjectParameterfvARB_s($obj,$pname,(PACKED)params);
 void
 glGetObjectParameterfvARB_s(obj,pname,params)
 	GLhandleARB obj
@@ -10875,6 +13315,7 @@ glGetObjectParameterfvARB_s(obj,pname,params)
 		glGetObjectParameterfvARB(obj,pname,params_s);
 	}
 
+#//# $param = glGetObjectParameterfvARB_p($obj,$pname);
 GLfloat
 glGetObjectParameterfvARB_p(obj,pname)
 	GLhandleARB obj
@@ -10890,6 +13331,7 @@ glGetObjectParameterfvARB_p(obj,pname)
 	OUTPUT:
 		RETVAL
 
+#//# glGetObjectParameterivARB_c($obj,$pname,(CPTR)params);
 void
 glGetObjectParameterivARB_c(obj,pname,params)
 	GLhandleARB obj
@@ -10900,6 +13342,7 @@ glGetObjectParameterivARB_c(obj,pname,params)
 	CODE:
 		glGetObjectParameterivARB(obj,pname,params);
 
+#//# glGetObjectParameterivARB_s($obj,$pname,(PACKED)params);
 void
 glGetObjectParameterivARB_s(obj,pname,params)
 	GLhandleARB obj
@@ -10913,6 +13356,7 @@ glGetObjectParameterivARB_s(obj,pname,params)
 		glGetObjectParameterivARB(obj,pname,params_s);
 	}
 
+#//# $param = glGetObjectParameterivARB_c($obj,$pname);
 GLint
 glGetObjectParameterivARB_p(obj,pname)
 	GLhandleARB obj
@@ -10928,6 +13372,7 @@ glGetObjectParameterivARB_p(obj,pname)
 	OUTPUT:
 		RETVAL
 
+#//# glGetInfoLogARB_c($obj, $maxLength, (CPTR)length, (CPTR)infoLog);
 void
 glGetInfoLogARB_c(obj, maxLength, length, infoLog)
 	GLhandleARB obj
@@ -10939,6 +13384,7 @@ glGetInfoLogARB_c(obj, maxLength, length, infoLog)
 	CODE:
 		glGetInfoLogARB(obj, maxLength, length, infoLog);
 
+#//# $infoLog = glGetInfoLogARB_c($obj);
 SV *
 glGetInfoLogARB_p(obj)
 	GLhandleARB obj
@@ -10970,6 +13416,7 @@ glGetInfoLogARB_p(obj)
 	OUTPUT:
 		RETVAL
 
+#//# glGetAttachedObjectsARB_c($containerObj, $maxCount, (CPTR)count, (CPTR)obj);
 void
 glGetAttachedObjectsARB_c(containerObj, maxCount, count, obj)
 	GLhandleARB containerObj
@@ -10981,6 +13428,7 @@ glGetAttachedObjectsARB_c(containerObj, maxCount, count, obj)
 	CODE:
 		glGetAttachedObjectsARB(containerObj, maxCount, count, obj);
 
+#//# glGetAttachedObjectsARB_s($containerObj, $maxCount, (PACKED)count, (PACKED)obj);
 void
 glGetAttachedObjectsARB_s(containerObj, maxCount, count, obj)
 	GLhandleARB containerObj
@@ -11003,6 +13451,7 @@ glGetAttachedObjectsARB_s(containerObj, maxCount, count, obj)
 		}
 	}
 
+#//# @objs = glGetAttachedObjectsARB_p($containerObj);
 void
 glGetAttachedObjectsARB_p(containerObj)
 	GLhandleARB containerObj
@@ -11029,6 +13478,7 @@ glGetAttachedObjectsARB_p(containerObj)
 		free(obj);
 	}
 
+#//# glGetUniformLocationARB_c($programObj, (CPTR)name);
 GLint
 glGetUniformLocationARB_c(programObj, name)
 	GLhandleARB programObj
@@ -11040,6 +13490,7 @@ glGetUniformLocationARB_c(programObj, name)
 	OUTPUT:
 		RETVAL
 
+#//# $value = glGetUniformLocationARB_p($programObj, $name);
 GLint
 glGetUniformLocationARB_p(programObj, ...)
 	GLhandleARB programObj
@@ -11053,6 +13504,7 @@ glGetUniformLocationARB_p(programObj, ...)
 	OUTPUT:
 		RETVAL
 
+#//# glGetActiveUniformARB_c($programObj, $index, $maxLength, (CPTR)length, (CPTR)size, (CPTR)type, (CPTR)name);
 void
 glGetActiveUniformARB_c(programObj, index, maxLength, length, size, type, name)
 	GLhandleARB programObj
@@ -11067,6 +13519,7 @@ glGetActiveUniformARB_c(programObj, index, maxLength, length, size, type, name)
 	CODE:
 		glGetActiveUniformARB(programObj,index,maxLength,length,size,type,name);
 
+#//# glGetActiveUniformARB_s($programObj, $index, $maxLength, (PACKED)length, (PACKED)size, (PACKED)type, (PACKED)name);
 void
 glGetActiveUniformARB_s(programObj, index, maxLength, length, size, type, name)
 	GLhandleARB programObj
@@ -11087,6 +13540,7 @@ glGetActiveUniformARB_s(programObj, index, maxLength, length, size, type, name)
 		glGetActiveUniformARB(programObj,index,maxLength,length_s,size_s,type_s,name_s);
 	}
 
+#//# ($name,$type,$size) = glGetActiveUniformARB_p($programObj, $index);
 void
 glGetActiveUniformARB_p(programObj, index)
 	GLhandleARB programObj
@@ -11133,6 +13587,7 @@ glGetActiveUniformARB_p(programObj, index)
 		}
 	}
 
+#//# glGetUniformfvARB_c($programObj, $location, (CPTR)params);
 void
 glGetUniformfvARB_c(programObj, location, params)
 	GLhandleARB programObj
@@ -11143,6 +13598,7 @@ glGetUniformfvARB_c(programObj, location, params)
 	CODE:
 		glGetUniformfvARB(programObj, location, params);
 
+#//# @params = glGetUniformfvARB_p($programObj, $location[, $count]);
 void
 glGetUniformfvARB_p(programObj, location, count=1)
 	GLhandleARB programObj
@@ -11160,6 +13616,7 @@ glGetUniformfvARB_p(programObj, location, count=1)
 			PUSHs(sv_2mortal(newSVnv(ret[i])));
 	}
 
+#//# glGetUniformivARB_c($programObj, $location, (CPTR)params);
 void
 glGetUniformivARB_c(programObj, location, params)
 	GLhandleARB programObj
@@ -11170,6 +13627,7 @@ glGetUniformivARB_c(programObj, location, params)
 	CODE:
 		glGetUniformivARB(programObj, location, params);
 
+#//# @params = glGetUniformivARB_p($programObj, $location[, $count]);
 void
 glGetUniformivARB_p(programObj, location, count=1)
 	GLhandleARB programObj
@@ -11187,6 +13645,7 @@ glGetUniformivARB_p(programObj, location, count=1)
 			PUSHs(sv_2mortal(newSViv(ret[i])));
 	}
 
+#//# glGetShaderSourceARB_c($obj, $maxLength, (CPTR)length, (CPTR)source);
 void
 glGetShaderSourceARB_c(obj, maxLength, length, source)
 	GLhandleARB obj
@@ -11198,6 +13657,7 @@ glGetShaderSourceARB_c(obj, maxLength, length, source)
 	CODE:
 		glGetShaderSourceARB(obj, maxLength, length, source);
 
+#//# $source = glGetShaderSourceARB_p($obj);
 void
 glGetShaderSourceARB_p(obj)
 	GLhandleARB obj
@@ -11243,6 +13703,7 @@ glGetShaderSourceARB_p(obj)
 
 #ifdef GL_ARB_vertex_program
 
+#//# glProgramStringARB_c($target,$format,$len,(CPTR)string);
 void
 glProgramStringARB_c(target,format,len,string)
 	GLenum target
@@ -11254,6 +13715,7 @@ glProgramStringARB_c(target,format,len,string)
 	CODE:
 		glProgramStringARB(target,format,len,string);
 
+#//# glProgramStringARB_s($target,$format,$len,(PACKED)string);
 void
 glProgramStringARB_s(target,format,len,string)
 	GLenum target
@@ -11268,6 +13730,8 @@ glProgramStringARB_s(target,format,len,string)
 		glProgramStringARB(target,format,len,string_s);
 	}
 
+#//# glProgramStringARB_p($target,$string);
+#//- Assumes GL_PROGRAM_FORMAT_ASCII_ARB
 void
 glProgramStringARB_p(target,string)
 	GLenum target
@@ -11280,6 +13744,7 @@ glProgramStringARB_p(target,string)
 		glProgramStringARB(target,GL_PROGRAM_FORMAT_ASCII_ARB,len,string);
 	}
 
+#//# glBindProgramARB($target,$program);
 void
 glBindProgramARB(target,program)
 	GLenum target
@@ -11287,6 +13752,7 @@ glBindProgramARB(target,program)
 	INIT:
 		loadProc(glBindProgramARB,"glBindProgramARB");
 
+#//# glDeleteProgramsARB_c($n,(CPTR)programs);
 void
 glDeleteProgramsARB_c(n,programs)
 	GLsizei n
@@ -11298,6 +13764,7 @@ glDeleteProgramsARB_c(n,programs)
 		glDeleteProgramsARB(n,(GLuint*)programs);
 	}
 
+#//# glDeleteProgramsARB_c($n,(PACKED)programs);
 void
 glDeleteProgramsARB_s(n,programs)
 	GLsizei n
@@ -11310,6 +13777,7 @@ glDeleteProgramsARB_s(n,programs)
 		glDeleteProgramsARB(n,programs_s);
 	}
 
+#//# glDeleteProgramsARB_p(@programIDs);
 void
 glDeleteProgramsARB_p(...)
 	INIT:
@@ -11328,6 +13796,7 @@ glDeleteProgramsARB_p(...)
 		}
 	}
 
+#//# glGenProgramsARB_c($n,(CPTR)programs);
 void
 glGenProgramsARB_c(n,programs)
 	GLsizei n
@@ -11339,6 +13808,7 @@ glGenProgramsARB_c(n,programs)
 		glGenProgramsARB(n,(GLuint*)programs);
 	}
 
+#//# glGenProgramsARB_s($n,(PACKED)programs);
 void
 glGenProgramsARB_s(n,programs)
 	GLsizei n
@@ -11351,6 +13821,7 @@ glGenProgramsARB_s(n,programs)
 		glGenProgramsARB(n, programs_s);
 	}
 
+#//# @programIDs = glGenProgramsARB_c($n);
 void
 glGenProgramsARB_p(n)
 	GLsizei n
@@ -11371,6 +13842,7 @@ glGenProgramsARB_p(n)
 		free(programs);
 	} 
 
+#//# glProgramEnvParameter4dARB($target,$index,$x,$y,$z,$w);
 void
 glProgramEnvParameter4dARB(target,index,x,y,z,w)
 	GLenum target
@@ -11382,6 +13854,7 @@ glProgramEnvParameter4dARB(target,index,x,y,z,w)
 	INIT:
 		loadProc(glProgramEnvParameter4dARB,"glProgramEnvParameter4dARB");
 
+#//# glProgramEnvParameter4dvARB_c($target,$index,(CPTR)v);
 void
 glProgramEnvParameter4dvARB_c(target,index,v)
 	GLenum target
@@ -11392,6 +13865,7 @@ glProgramEnvParameter4dvARB_c(target,index,v)
 	CODE:
 		glProgramEnvParameter4dvARB(target,index,(GLdouble*)v);
 
+#//# glProgramEnvParameter4dvARB_s($target,$index,(PACKED)v);
 void
 glProgramEnvParameter4dvARB_s(target,index,v)
 	GLenum target
@@ -11405,6 +13879,8 @@ glProgramEnvParameter4dvARB_s(target,index,v)
 		glProgramEnvParameter4dvARB(target,index,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glProgramEnvParameter4dARB
+#//# glProgramEnvParameter4dvARB_p($target,$index,$x,$y,$z,$w);
 void
 glProgramEnvParameter4dvARB_p(target,index,x,y,z,w)
 	GLenum target
@@ -11425,6 +13901,7 @@ glProgramEnvParameter4dvARB_p(target,index,x,y,z,w)
 		glProgramEnvParameter4dvARB(target,index,param);
 	}
 
+#//# glProgramEnvParameter4fARB($target,$index,$x,$y,$z,$w);
 void
 glProgramEnvParameter4fARB(target,index,x,y,z,w)
 	GLenum target
@@ -11436,6 +13913,7 @@ glProgramEnvParameter4fARB(target,index,x,y,z,w)
 	INIT:
 		loadProc(glProgramEnvParameter4fARB,"glProgramEnvParameter4fARB");
 
+#//# glProgramEnvParameter4fvARB_c($target,$index,(CPTR)v);
 void
 glProgramEnvParameter4fvARB_c(target,index,v)
 	GLenum target
@@ -11446,6 +13924,7 @@ glProgramEnvParameter4fvARB_c(target,index,v)
 	CODE:
 		glProgramEnvParameter4fvARB(target,index,(GLfloat*)v);
 
+#//# glProgramEnvParameter4fvARB_s($target,$index,(PACKED)v);
 void
 glProgramEnvParameter4fvARB_s(target,index,v)
 	GLenum target
@@ -11459,6 +13938,8 @@ glProgramEnvParameter4fvARB_s(target,index,v)
 		glProgramEnvParameter4fvARB(target,index,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glProgramEnvParameter4fARB
+#//# glProgramEnvParameter4fvARB_p($target,$index,$x,$y,$z,$w);
 void
 glProgramEnvParameter4fvARB_p(target,index,x,y,z,w)
 	GLenum target
@@ -11479,6 +13960,7 @@ glProgramEnvParameter4fvARB_p(target,index,x,y,z,w)
 		glProgramEnvParameter4fvARB(target,index,param);
 	}
 
+#//# glProgramLocalParameter4dARB($target,$index,$x,$y,$z,$w);
 void
 glProgramLocalParameter4dARB(target,index,x,y,z,w)
 	GLenum target
@@ -11490,6 +13972,7 @@ glProgramLocalParameter4dARB(target,index,x,y,z,w)
 	INIT:
 		loadProc(glProgramLocalParameter4dARB,"glProgramLocalParameter4dARB");
 
+#//# glProgramLocalParameter4dvARB_c($target,$index,(CPTR)v);
 void
 glProgramLocalParameter4dvARB_c(target,index,v)
 	GLenum target
@@ -11500,6 +13983,7 @@ glProgramLocalParameter4dvARB_c(target,index,v)
 	CODE:
 		glProgramLocalParameter4dvARB(target,index,(GLdouble*)v);
 
+#//# glProgramLocalParameter4dvARB_s($target,$index,(PACKED)v);
 void
 glProgramLocalParameter4dvARB_s(target,index,v)
 	GLenum target
@@ -11513,6 +13997,8 @@ glProgramLocalParameter4dvARB_s(target,index,v)
 		glProgramLocalParameter4dvARB(target,index,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glProgramLocalParameter4dARB
+#//# glProgramLocalParameter4dvARB_p($target,$index,$x,$y,$z,$w);
 void
 glProgramLocalParameter4dvARB_p(target,index,x,y,z,w)
 	GLenum target
@@ -11533,6 +14019,7 @@ glProgramLocalParameter4dvARB_p(target,index,x,y,z,w)
 		glProgramLocalParameter4dvARB(target,index,param);
 	}
 
+#//# glProgramLocalParameter4fARB($target,$index,$x,$y,$z,$w);
 void
 glProgramLocalParameter4fARB(target,index,x,y,z,w)
 	GLenum target
@@ -11544,6 +14031,7 @@ glProgramLocalParameter4fARB(target,index,x,y,z,w)
 	INIT:
 		loadProc(glProgramLocalParameter4fARB,"glProgramLocalParameter4fARB");
 
+#//# glProgramLocalParameter4fvARB_c($target,$index,(CPTR)v);
 void
 glProgramLocalParameter4fvARB_c(target,index,v)
 	GLenum target
@@ -11554,6 +14042,7 @@ glProgramLocalParameter4fvARB_c(target,index,v)
 	CODE:
 		glProgramLocalParameter4fvARB(target,index,(GLfloat*)v);
 
+#//# glProgramLocalParameter4fvARB_s($target,$index,(PACKED)v);
 void
 glProgramLocalParameter4fvARB_s(target,index,v)
 	GLenum target
@@ -11567,6 +14056,8 @@ glProgramLocalParameter4fvARB_s(target,index,v)
 		glProgramLocalParameter4fvARB(target,index,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glProgramLocalParameter4fARB
+#//# glProgramLocalParameter4fvARB_p($target,$index,$x,$y,$z,$w);
 void
 glProgramLocalParameter4fvARB_p(target,index,x,y,z,w)
 	GLenum target
@@ -11587,6 +14078,7 @@ glProgramLocalParameter4fvARB_p(target,index,x,y,z,w)
 		glProgramLocalParameter4fvARB(target,index,param);
 	}
 
+#//# glGetProgramEnvParameterdvARB_c($target,$index,(CPTR)params);
 void
 glGetProgramEnvParameterdvARB_c(target,index,params)
 	GLenum	target
@@ -11597,6 +14089,7 @@ glGetProgramEnvParameterdvARB_c(target,index,params)
 	CODE:
 		glGetProgramEnvParameterdvARB(target,index,(GLdouble*)params);
 
+#//# glGetProgramEnvParameterdvARB_s($target,$index,(PACKED)params);
 void
 glGetProgramEnvParameterdvARB_s(target,index,params)
 	GLenum	target
@@ -11610,6 +14103,7 @@ glGetProgramEnvParameterdvARB_s(target,index,params)
 		glGetProgramEnvParameterdvARB(target,index,params_s);
 	}
 
+#//# @params = glGetProgramEnvParameterdvARB_p($target,$index);
 void
 glGetProgramEnvParameterdvARB_p(target,index)
 	GLenum	target
@@ -11628,6 +14122,7 @@ glGetProgramEnvParameterdvARB_p(target,index)
 		PUSHs(sv_2mortal(newSVnv(params[3])));
 	}
 
+#//# glGetProgramEnvParameterfvARB_c($target,$index,(CPTR)params);
 void
 glGetProgramEnvParameterfvARB_c(target,index,params)
 	GLenum	target
@@ -11638,6 +14133,7 @@ glGetProgramEnvParameterfvARB_c(target,index,params)
 	CODE:
 		glGetProgramEnvParameterfvARB(target,index,(GLfloat*)params);
 
+#//# glGetProgramEnvParameterfvARB_s($target,$index,(PACKED)params);
 void
 glGetProgramEnvParameterfvARB_s(target,index,params)
 	GLenum	target
@@ -11651,6 +14147,7 @@ glGetProgramEnvParameterfvARB_s(target,index,params)
 		glGetProgramEnvParameterfvARB(target,index,params_s);
 	}
 
+#//# @params = glGetProgramEnvParameterfvARB_p($target,$index);
 void
 glGetProgramEnvParameterfvARB_p(target,index)
 	GLenum	target
@@ -11669,6 +14166,7 @@ glGetProgramEnvParameterfvARB_p(target,index)
 		PUSHs(sv_2mortal(newSVnv(params[3])));
 	}
 
+#//# glGetProgramLocalParameterdvARB_c($target,$index,(CPTR)params);
 void
 glGetProgramLocalParameterdvARB_c(target,index,params)
 	GLenum	target
@@ -11679,6 +14177,7 @@ glGetProgramLocalParameterdvARB_c(target,index,params)
 	CODE:
 		glGetProgramLocalParameterdvARB(target,index,(GLdouble*)params);
 
+#//# glGetProgramLocalParameterdvARB_s($target,$index,(PACKED)params);
 void
 glGetProgramLocalParameterdvARB_s(target,index,params)
 	GLenum	target
@@ -11692,6 +14191,7 @@ glGetProgramLocalParameterdvARB_s(target,index,params)
 		glGetProgramLocalParameterdvARB(target,index,params_s);
 	}
 
+#//# @params = glGetProgramLocalParameterdvARB_p($target,$index);
 void
 glGetProgramLocalParameterdvARB_p(target,index)
 	GLenum	target
@@ -11710,6 +14210,7 @@ glGetProgramLocalParameterdvARB_p(target,index)
 		PUSHs(sv_2mortal(newSVnv(params[3])));
 	}
 
+#//# glGetProgramLocalParameterfvARB_c($target,$index,(CPTR)params);
 void
 glGetProgramLocalParameterfvARB_c(target,index,params)
 	GLenum	target
@@ -11720,6 +14221,7 @@ glGetProgramLocalParameterfvARB_c(target,index,params)
 	CODE:
 		glGetProgramLocalParameterfvARB(target,index,(GLfloat*)params);
 
+#//# glGetProgramLocalParameterfvARB_s($target,$index,(PACKED)params);
 void
 glGetProgramLocalParameterfvARB_s(target,index,params)
 	GLenum	target
@@ -11733,6 +14235,7 @@ glGetProgramLocalParameterfvARB_s(target,index,params)
 		glGetProgramLocalParameterfvARB(target,index,params_s);
 	}
 
+#//# @params = glGetProgramLocalParameterfvARB_p($target,$index);
 void
 glGetProgramLocalParameterfvARB_p(target,index)
 	GLenum	target
@@ -11751,6 +14254,7 @@ glGetProgramLocalParameterfvARB_p(target,index)
 		PUSHs(sv_2mortal(newSVnv(params[3])));
 	}
 
+#//# glGetProgramivARB_c($target,$pname,(CPTR)params);
 void
 glGetProgramivARB_c(target,pname,params)
 	GLenum	target
@@ -11761,6 +14265,7 @@ glGetProgramivARB_c(target,pname,params)
 	CODE:
 		glGetProgramivARB(target,pname,params);
 
+#//# glGetProgramivARB_s($target,$pname,(PACKED)params);
 void
 glGetProgramivARB_s(target,pname,params)
 	GLenum	target
@@ -11774,6 +14279,7 @@ glGetProgramivARB_s(target,pname,params)
 		glGetProgramivARB(target,pname,params_s);
 	}
 
+#//# $value = glGetProgramivARB_p($target,$pname);
 GLuint
 glGetProgramivARB_p(target,pname)
 	GLenum	target
@@ -11789,6 +14295,7 @@ glGetProgramivARB_p(target,pname)
 	OUTPUT:
 		RETVAL
 
+#//# glGetProgramStringARB_c(target,pname,(CPTR)string);
 void
 glGetProgramStringARB_c(target,pname,string)
 	GLenum	target
@@ -11799,6 +14306,7 @@ glGetProgramStringARB_c(target,pname,string)
 	CODE:
 		glGetProgramStringARB(target,pname,string);
 
+#//# glGetProgramStringARB_s(target,pname,(PACKED)string);
 void
 glGetProgramStringARB_s(target,pname,string)
 	GLenum	target
@@ -11818,6 +14326,8 @@ glGetProgramStringARB_s(target,pname,string)
 		}
 	}
 
+#//# $string = glGetProgramStringARB_p(target[,pname]);
+#//- Defaults to GL_PROGRAM_STRING_ARB
 SV *
 glGetProgramStringARB_p(target,pname=GL_PROGRAM_STRING_ARB)
 	GLenum	target
@@ -11849,6 +14359,7 @@ glGetProgramStringARB_p(target,pname=GL_PROGRAM_STRING_ARB)
 	OUTPUT:
 		RETVAL
 
+#//# glIsProgramARB(program);
 GLboolean
 glIsProgramARB(program)
 	GLuint	program
@@ -11866,6 +14377,7 @@ glIsProgramARB(program)
 
 #if defined(GL_ARB_vertex_program) || defined(GL_ARB_vertex_shader)
 
+#//# glVertexAttrib1dARB($index,$x);
 void
 glVertexAttrib1dARB(index,x)
 	GLuint index
@@ -11873,6 +14385,7 @@ glVertexAttrib1dARB(index,x)
 	INIT:
 		loadProc(glVertexAttrib1dARB,"glVertexAttrib1dARB");
 
+#//# glVertexAttrib1dvARB_c($index,(CPTR)v);
 void
 glVertexAttrib1dvARB_c(index,v)
 	GLuint index
@@ -11882,6 +14395,7 @@ glVertexAttrib1dvARB_c(index,v)
 	CODE:
 		glVertexAttrib1dvARB(index,(GLdouble*)v);
 
+#//# glVertexAttrib1dvARB_s($index,(PACKED)v);
 void
 glVertexAttrib1dvARB_s(index,v)
 	GLuint index
@@ -11894,6 +14408,8 @@ glVertexAttrib1dvARB_s(index,v)
 		glVertexAttrib1dvARB(index,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertexAttrib1dARB
+#//# glVertexAttrib1dvARB_p($index,$x);
 void
 glVertexAttrib1dvARB_p(index,x)
 	GLuint index
@@ -11907,6 +14423,7 @@ glVertexAttrib1dvARB_p(index,x)
 		glVertexAttrib1dvARB(index,param);
 	}
 
+#//# glVertexAttrib1fARB($index,$x);
 void
 glVertexAttrib1fARB(index,x)
 	GLuint index
@@ -11914,6 +14431,7 @@ glVertexAttrib1fARB(index,x)
 	INIT:
 		loadProc(glVertexAttrib1fARB,"glVertexAttrib1fARB");
 
+#//# glVertexAttrib1sARB($index,$x);
 void
 glVertexAttrib1sARB(index,x)
 	GLuint index
@@ -11921,6 +14439,7 @@ glVertexAttrib1sARB(index,x)
 	INIT:
 		loadProc(glVertexAttrib1s,"glVertexAttrib1s");
 
+#//# glVertexAttrib1svARB_c($index,(CPTR)v);
 void
 glVertexAttrib1svARB_c(index,v)
 	GLuint index
@@ -11930,6 +14449,7 @@ glVertexAttrib1svARB_c(index,v)
 	CODE:
 		glVertexAttrib1svARB(index,(GLshort*)v);
 
+#//# glVertexAttrib1svARB_s($index,(PACKED)v);
 void
 glVertexAttrib1svARB_s(index,v)
 	GLuint index
@@ -11942,6 +14462,8 @@ glVertexAttrib1svARB_s(index,v)
 		glVertexAttrib1svARB(index,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertexAttrib1sARB
+#//# glVertexAttrib1svARB_p($index,$x);
 void
 glVertexAttrib1svARB_p(index,x)
 	GLuint index
@@ -11955,6 +14477,7 @@ glVertexAttrib1svARB_p(index,x)
 		glVertexAttrib1svARB(index,param);
 	}
 
+#//# glVertexAttrib2dARB($index,$x,$y);
 void
 glVertexAttrib2dARB(index,x,y)
 	GLuint index
@@ -11963,6 +14486,7 @@ glVertexAttrib2dARB(index,x,y)
 	INIT:
 		loadProc(glVertexAttrib2dARB,"glVertexAttrib2dARB");
 
+#//# glVertexAttrib2dvARB_c($index,(CPTR)v);
 void
 glVertexAttrib2dvARB_c(index,v)
 	GLuint index
@@ -11972,6 +14496,7 @@ glVertexAttrib2dvARB_c(index,v)
 	CODE:
 		glVertexAttrib2dvARB(index,(GLdouble*)v);
 
+#//# glVertexAttrib2dvARB_s($index,(PACKED)v);
 void
 glVertexAttrib2dvARB_s(index,v)
 	GLuint index
@@ -11984,6 +14509,8 @@ glVertexAttrib2dvARB_s(index,v)
 		glVertexAttrib2dvARB(index,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertexAttrib2dARB
+#//# glVertexAttrib2dvARB_p($index,$x,$y);
 void
 glVertexAttrib2dvARB_p(index,x,y)
 	GLuint index
@@ -11999,6 +14526,7 @@ glVertexAttrib2dvARB_p(index,x,y)
 		glVertexAttrib2dvARB(index,param);
 	}
 
+#//# glVertexAttrib2fARB($index,$x,$y);
 void
 glVertexAttrib2fARB(index,x,y)
 	GLuint index
@@ -12007,6 +14535,7 @@ glVertexAttrib2fARB(index,x,y)
 	INIT:
 		loadProc(glVertexAttrib2fARB,"glVertexAttrib2fARB");
 
+#//# glVertexAttrib2sARB($index,$x,$y);
 void
 glVertexAttrib2sARB(index,x,y)
 	GLuint index
@@ -12015,6 +14544,7 @@ glVertexAttrib2sARB(index,x,y)
 	INIT:
 		loadProc(glVertexAttrib2sARB,"glVertexAttrib2sARB");
 
+#//# glVertexAttrib2svARB_c($index,(CPTR)v);
 void
 glVertexAttrib2svARB_c(index,v)
 	GLuint index
@@ -12024,6 +14554,7 @@ glVertexAttrib2svARB_c(index,v)
 	CODE:
 		glVertexAttrib2svARB(index,(GLshort*)v);
 
+#//# glVertexAttrib2svARB_s($index,(PACKED)v);
 void
 glVertexAttrib2svARB_s(index,v)
 	GLuint index
@@ -12036,6 +14567,8 @@ glVertexAttrib2svARB_s(index,v)
 		glVertexAttrib2svARB(index,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertexAttrib2sARB
+#//# glVertexAttrib2svARB_p($index,$x,$y);
 void
 glVertexAttrib2svARB_p(index,x,y)
 	GLuint index
@@ -12051,6 +14584,7 @@ glVertexAttrib2svARB_p(index,x,y)
 		glVertexAttrib2svARB(index,param);
 	}
 
+#//# glVertexAttrib3dARB($index,$x,$y,$z);
 void
 glVertexAttrib3dARB(index,x,y,z)
 	GLuint index
@@ -12060,6 +14594,7 @@ glVertexAttrib3dARB(index,x,y,z)
 	INIT:
 		loadProc(glVertexAttrib3dARB,"glVertexAttrib3dARB");
 
+#//# glVertexAttrib3dvARB_c($index,(CPTR)v);
 void
 glVertexAttrib3dvARB_c(index,v)
 	GLuint index
@@ -12069,6 +14604,7 @@ glVertexAttrib3dvARB_c(index,v)
 	CODE:
 		glVertexAttrib3dvARB(index,(GLdouble*)v);
 
+#//# glVertexAttrib3dvARB_s($index,(PACKED)v);
 void
 glVertexAttrib3dvARB_s(index,v)
 	GLuint index
@@ -12081,6 +14617,8 @@ glVertexAttrib3dvARB_s(index,v)
 		glVertexAttrib3dvARB(index,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertexAttrib3dARB
+#//# glVertexAttrib3dvARB_p($index,$x,$y,$z);
 void
 glVertexAttrib3dvARB_p(index,x,y,z)
 	GLuint index
@@ -12098,6 +14636,7 @@ glVertexAttrib3dvARB_p(index,x,y,z)
 		glVertexAttrib3dvARB(index,param);
 	}
 
+#//# glVertexAttrib3fARB($index,$x,$y,$z);
 void
 glVertexAttrib3fARB(index,x,y,z)
 	GLuint index
@@ -12107,6 +14646,7 @@ glVertexAttrib3fARB(index,x,y,z)
 	INIT:
 		loadProc(glVertexAttrib3fARB,"glVertexAttrib3fARB");
 
+#//# glVertexAttrib3fvARB_c($index,(CPTR)v);
 void
 glVertexAttrib3fvARB_c(index,v)
 	GLuint index
@@ -12116,6 +14656,7 @@ glVertexAttrib3fvARB_c(index,v)
 	CODE:
 		glVertexAttrib3fvARB(index,(GLfloat*)v);
 
+#//# glVertexAttrib3fvARB_s($index,(PACKED)v);
 void
 glVertexAttrib3fvARB_s(index,v)
 	GLuint index
@@ -12128,6 +14669,8 @@ glVertexAttrib3fvARB_s(index,v)
 		glVertexAttrib3fvARB(index,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertexAttrib3fARB
+#//# glVertexAttrib3fvARB_p($index,$x,$y,$z);
 void
 glVertexAttrib3fvARB_p(index,x,y,z)
 	GLuint index
@@ -12145,6 +14688,7 @@ glVertexAttrib3fvARB_p(index,x,y,z)
 		glVertexAttrib3fvARB(index,param);
 	}
 
+#//# glVertexAttrib3sARB($index,$x,$y,$z);
 void
 glVertexAttrib3sARB(index,x,y,z)
 	GLuint index
@@ -12154,6 +14698,7 @@ glVertexAttrib3sARB(index,x,y,z)
 	INIT:
 		loadProc(glVertexAttrib3sARB,"glVertexAttrib3sARB");
 
+#//# glVertexAttrib3svARB_c($index,(CPTR)v);
 void
 glVertexAttrib3svARB_c(index,v)
 	GLuint index
@@ -12163,6 +14708,7 @@ glVertexAttrib3svARB_c(index,v)
 	CODE:
 		glVertexAttrib3svARB(index,(GLshort*)v);
 
+#//# glVertexAttrib3svARB_s($index,(PACKED)v);
 void
 glVertexAttrib3svARB_s(index,v)
 	GLuint index
@@ -12175,6 +14721,8 @@ glVertexAttrib3svARB_s(index,v)
 		glVertexAttrib3svARB(index,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertexAttrib3sARB
+#//# glVertexAttrib3svARB_p($index,$x,$y,$z);
 void
 glVertexAttrib3svARB_p(index,x,y,z)
 	GLuint index
@@ -12192,6 +14740,7 @@ glVertexAttrib3svARB_p(index,x,y,z)
 		glVertexAttrib3svARB(index,param);
 	}
 
+#//# glVertexAttrib4NbvARB_c($index,(CPTR)v);
 void
 glVertexAttrib4NbvARB_c(index,v)
 	GLuint index
@@ -12201,6 +14750,7 @@ glVertexAttrib4NbvARB_c(index,v)
 	CODE:
 		glVertexAttrib4NbvARB(index,(GLbyte*)v);
 
+#//# glVertexAttrib4NbvARB_s($index,(PACKED)v);
 void
 glVertexAttrib4NbvARB_s(index,v)
 	GLuint index
@@ -12213,6 +14763,7 @@ glVertexAttrib4NbvARB_s(index,v)
 		glVertexAttrib4NbvARB(index,v_s);
 	}
 
+#//# glVertexAttrib4NbvARB_p($index,$x,$y,$z,$w);
 void
 glVertexAttrib4NbvARB_p(index,x,y,z,w)
 	GLuint index
@@ -12232,6 +14783,7 @@ glVertexAttrib4NbvARB_p(index,x,y,z,w)
 		glVertexAttrib4NbvARB(index,param);
 	}
 
+#//# glVertexAttrib4NivARB_c($index,(CPTR)v);
 void
 glVertexAttrib4NivARB_c(index,v)
 	GLuint index
@@ -12241,6 +14793,7 @@ glVertexAttrib4NivARB_c(index,v)
 	CODE:
 		glVertexAttrib4NivARB(index,(GLint*)v);
 
+#//# glVertexAttrib4NivARB_s($index,(PACKED)v);
 void
 glVertexAttrib4NivARB_s(index,v)
 	GLuint index
@@ -12253,6 +14806,7 @@ glVertexAttrib4NivARB_s(index,v)
 		glVertexAttrib4NivARB(index,v_s);
 	}
 
+#//# glVertexAttrib4NivARB_p($index,$x,$y,$z,$w);
 void
 glVertexAttrib4NivARB_p(index,x,y,z,w)
 	GLuint index
@@ -12272,6 +14826,7 @@ glVertexAttrib4NivARB_p(index,x,y,z,w)
 		glVertexAttrib4NivARB(index,param);
 	}
 
+#//# glVertexAttrib4NsvARB_c($index,(CPTR)v);
 void
 glVertexAttrib4NsvARB_c(index,v)
 	GLuint index
@@ -12281,6 +14836,7 @@ glVertexAttrib4NsvARB_c(index,v)
 	CODE:
 		glVertexAttrib4NsvARB(index,(GLshort*)v);
 
+#//# glVertexAttrib4NsvARB_s($index,(PACKED)v);
 void
 glVertexAttrib4NsvARB_s(index,v)
 	GLuint index
@@ -12293,6 +14849,7 @@ glVertexAttrib4NsvARB_s(index,v)
 		glVertexAttrib4NsvARB(index,v_s);
 	}
 
+#//# glVertexAttrib4NsvARB_p($index,$x,$y,$z,$w);
 void
 glVertexAttrib4NsvARB_p(index,x,y,z,w)
 	GLuint index
@@ -12312,6 +14869,7 @@ glVertexAttrib4NsvARB_p(index,x,y,z,w)
 		glVertexAttrib4NsvARB(index,param);
 	}
 
+#//# glVertexAttrib4NubARB($index,$x,$y,$z,$w);
 void
 glVertexAttrib4NubARB(index,x,y,z,w)
 	GLuint index
@@ -12322,6 +14880,7 @@ glVertexAttrib4NubARB(index,x,y,z,w)
 	INIT:
 		loadProc(glVertexAttrib4NubARB,"glVertexAttrib4NubARB");
 
+#//# glVertexAttrib4NubvARB_c($index,(CPTR)v);
 void
 glVertexAttrib4NubvARB_c(index,v)
 	GLuint index
@@ -12331,6 +14890,7 @@ glVertexAttrib4NubvARB_c(index,v)
 	CODE:
 		glVertexAttrib4NubvARB(index,(GLubyte*)v);
 
+#//# glVertexAttrib4NubvARB_s($index,(PACKED)v);
 void
 glVertexAttrib4NubvARB_s(index,v)
 	GLuint index
@@ -12343,6 +14903,7 @@ glVertexAttrib4NubvARB_s(index,v)
 		glVertexAttrib4NubvARB(index,v_s);
 	}
 
+#//# glVertexAttrib4NubvARB_p($index,$x,$y,$z,$w);
 void
 glVertexAttrib4NubvARB_p(index,x,y,z,w)
 	GLuint index
@@ -12362,6 +14923,7 @@ glVertexAttrib4NubvARB_p(index,x,y,z,w)
 		glVertexAttrib4NubvARB(index,param);
 	}
 
+#//# glVertexAttrib4NuivARB_c($index,(CPTR)v);
 void
 glVertexAttrib4NuivARB_c(index,v)
 	GLuint index
@@ -12371,6 +14933,7 @@ glVertexAttrib4NuivARB_c(index,v)
 	CODE:
 		glVertexAttrib4NuivARB(index,(GLuint*)v);
 
+#//# glVertexAttrib4NuivARB_s($index,(PACKED)v);
 void
 glVertexAttrib4NuivARB_s(index,v)
 	GLuint index
@@ -12383,6 +14946,7 @@ glVertexAttrib4NuivARB_s(index,v)
 		glVertexAttrib4NuivARB(index,v_s);
 	}
 
+#//# glVertexAttrib4NuivARB_p($index,$x,$y,$z,$w);
 void
 glVertexAttrib4NuivARB_p(index,x,y,z,w)
 	GLuint index
@@ -12402,6 +14966,7 @@ glVertexAttrib4NuivARB_p(index,x,y,z,w)
 		glVertexAttrib4NuivARB(index,param);
 	}
 
+#//# glVertexAttrib4NusvARB_c($index,(CPTR)v);
 void
 glVertexAttrib4NusvARB_c(index,v)
 	GLuint index
@@ -12411,6 +14976,7 @@ glVertexAttrib4NusvARB_c(index,v)
 	CODE:
 		glVertexAttrib4NusvARB(index,(GLushort*)v);
 
+#//# glVertexAttrib4NusvARB_s($index,(PACKED)v);
 void
 glVertexAttrib4NusvARB_s(index,v)
 	GLuint index
@@ -12423,6 +14989,7 @@ glVertexAttrib4NusvARB_s(index,v)
 		glVertexAttrib4NusvARB(index,v_s);
 	}
 
+#//# glVertexAttrib4NusvARB_p($index,$x,$y,$z,$w);
 void
 glVertexAttrib4NusvARB_p(index,x,y,z,w)
 	GLuint index
@@ -12442,6 +15009,7 @@ glVertexAttrib4NusvARB_p(index,x,y,z,w)
 		glVertexAttrib4NusvARB(index,param);
 	}
 
+#//# glVertexAttrib4bvARB_c($index,(CPTR)v);
 void
 glVertexAttrib4bvARB_c(index,v)
 	GLuint index
@@ -12451,6 +15019,7 @@ glVertexAttrib4bvARB_c(index,v)
 	CODE:
 		glVertexAttrib4bvARB(index,(GLbyte*)v);
 
+#//# glVertexAttrib4bvARB_s($index,(PACKED)v);
 void
 glVertexAttrib4bvARB_s(index,v)
 	GLuint index
@@ -12463,6 +15032,7 @@ glVertexAttrib4bvARB_s(index,v)
 		glVertexAttrib4bvARB(index,v_s);
 	}
 
+#//# glVertexAttrib4bvARB_p($index,$x,$y,$z,$w);
 void
 glVertexAttrib4bvARB_p(index,x,y,z,w)
 	GLuint index
@@ -12482,6 +15052,7 @@ glVertexAttrib4bvARB_p(index,x,y,z,w)
 		glVertexAttrib4bvARB(index,param);
 	}
 
+#//# glVertexAttrib4dARB($index,$x,$y,$z,$w);
 void
 glVertexAttrib4dARB(index,x,y,z,w)
 	GLuint index
@@ -12492,6 +15063,7 @@ glVertexAttrib4dARB(index,x,y,z,w)
 	INIT:
 		loadProc(glVertexAttrib4dARB,"glVertexAttrib4dARB");
 
+#//# glVertexAttrib4dvARB_c($index,(CPTR)v);
 void
 glVertexAttrib4dvARB_c(index,v)
 	GLuint index
@@ -12501,6 +15073,7 @@ glVertexAttrib4dvARB_c(index,v)
 	CODE:
 		glVertexAttrib4dvARB(index,(GLdouble*)v);
 
+#//# glVertexAttrib4dvARB_s($index,(PACKED)v);
 void
 glVertexAttrib4dvARB_s(index,v)
 	GLuint index
@@ -12513,6 +15086,8 @@ glVertexAttrib4dvARB_s(index,v)
 		glVertexAttrib4dvARB(index,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertexAttrib4dARB
+#//# glVertexAttrib4dvARB_p($index,$x,$y,$z,$w);
 void
 glVertexAttrib4dvARB_p(index,x,y,z,w)
 	GLuint index
@@ -12532,6 +15107,7 @@ glVertexAttrib4dvARB_p(index,x,y,z,w)
 		glVertexAttrib4dvARB(index,param);
 	}
 
+#//# glVertexAttrib4fARB($index,$x,$y,$z,$w);
 void
 glVertexAttrib4fARB(index,x,y,z,w)
 	GLuint index
@@ -12542,6 +15118,7 @@ glVertexAttrib4fARB(index,x,y,z,w)
 	INIT:
 		loadProc(glVertexAttrib4fARB,"glVertexAttrib4fARB");
 
+#//# glVertexAttrib4fvARB_c($index,(CPTR)v);
 void
 glVertexAttrib4fvARB_c(index,v)
 	GLuint index
@@ -12551,6 +15128,7 @@ glVertexAttrib4fvARB_c(index,v)
 	CODE:
 		glVertexAttrib4fvARB(index,(GLfloat*)v);
 
+#//# glVertexAttrib4fvARB_s($index,(PACKED)v);
 void
 glVertexAttrib4fvARB_s(index,v)
 	GLuint index
@@ -12563,6 +15141,8 @@ glVertexAttrib4fvARB_s(index,v)
 		glVertexAttrib4fvARB(index,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertexAttrib4fARB
+#//# glVertexAttrib4fvARB_p($index,$x,$y,$z,$w);
 void
 glVertexAttrib4fvARB_p(index,x,y,z,w)
 	GLuint index
@@ -12582,6 +15162,7 @@ glVertexAttrib4fvARB_p(index,x,y,z,w)
 		glVertexAttrib4fvARB(index,param);
 	}
 
+#//# glVertexAttrib4ivARB_c($index,(CPTR)v);
 void
 glVertexAttrib4ivARB_c(index,v)
 	GLuint index
@@ -12591,6 +15172,7 @@ glVertexAttrib4ivARB_c(index,v)
 	CODE:
 		glVertexAttrib4ivARB(index,(GLint*)v);
 
+#//# glVertexAttrib4ivARB_s($index,(PACKED)v);
 void
 glVertexAttrib4ivARB_s(index,v)
 	GLuint index
@@ -12603,6 +15185,7 @@ glVertexAttrib4ivARB_s(index,v)
 		glVertexAttrib4ivARB(index,v_s);
 	}
 
+#//# glVertexAttrib4ivARB_p($index,$x,$y,$z,$w);
 void
 glVertexAttrib4ivARB_p(index,x,y,z,w)
 	GLuint index
@@ -12622,6 +15205,7 @@ glVertexAttrib4ivARB_p(index,x,y,z,w)
 		glVertexAttrib4ivARB(index,param);
 	}
 
+#//# glVertexAttrib4sARB($index,$x,$y,$z,$w);
 void
 glVertexAttrib4sARB(index,x,y,z,w)
 	GLuint index
@@ -12632,6 +15216,7 @@ glVertexAttrib4sARB(index,x,y,z,w)
 	INIT:
 		loadProc(glVertexAttrib4sARB,"glVertexAttrib4sARB");
 
+#//# glVertexAttrib4svARB_c($index,(CPTR)v);
 void
 glVertexAttrib4svARB_c(index,v)
 	GLuint index
@@ -12641,6 +15226,7 @@ glVertexAttrib4svARB_c(index,v)
 	CODE:
 		glVertexAttrib4svARB(index,(GLshort*)v);
 
+#//# glVertexAttrib4svARB_s($index,(PACKED)v);
 void
 glVertexAttrib4svARB_s(index,v)
 	GLuint index
@@ -12653,6 +15239,8 @@ glVertexAttrib4svARB_s(index,v)
 		glVertexAttrib4svARB(index,v_s);
 	}
 
+#//!!! Do we really need this?  It duplicates glVertexAttrib4sARB
+#//# glVertexAttrib4svARB_p($index,$x,$y,$z,$w);
 void
 glVertexAttrib4svARB_p(index,x,y,z,w)
 	GLuint index
@@ -12672,6 +15260,7 @@ glVertexAttrib4svARB_p(index,x,y,z,w)
 		glVertexAttrib4svARB(index,param);
 	}
 
+#//# glVertexAttrib4ubvARB_c($index,(CPTR)v);
 void
 glVertexAttrib4ubvARB_c(index,v)
 	GLuint index
@@ -12681,6 +15270,7 @@ glVertexAttrib4ubvARB_c(index,v)
 	CODE:
 		glVertexAttrib4ubvARB(index,(GLubyte*)v);
 
+#//# glVertexAttrib4ubvARB_s($index,(PACKED)v);
 void
 glVertexAttrib4ubvARB_s(index,v)
 	GLuint index
@@ -12693,6 +15283,7 @@ glVertexAttrib4ubvARB_s(index,v)
 		glVertexAttrib4ubvARB(index,v_s);
 	}
 
+#//# glVertexAttrib4ubvARB_p($index,$x,$y,$z,$w);
 void
 glVertexAttrib4ubvARB_p(index,x,y,z,w)
 	GLuint index
@@ -12712,6 +15303,7 @@ glVertexAttrib4ubvARB_p(index,x,y,z,w)
 		glVertexAttrib4ubvARB(index,param);
 	}
 
+#//# glVertexAttrib4uivARB_c($index,(CPTR)v);
 void
 glVertexAttrib4uivARB_c(index,v)
 	GLuint index
@@ -12721,6 +15313,7 @@ glVertexAttrib4uivARB_c(index,v)
 	CODE:
 		glVertexAttrib4uivARB(index,(GLuint*)v);
 
+#//# glVertexAttrib4uivARB_s($index,(PACKED)v);
 void
 glVertexAttrib4uivARB_s(index,v)
 	GLuint index
@@ -12733,6 +15326,7 @@ glVertexAttrib4uivARB_s(index,v)
 		glVertexAttrib4uivARB(index,v_s);
 	}
 
+#//# glVertexAttrib4uivARB_p($index,$x,$y,$z,$w);
 void
 glVertexAttrib4uivARB_p(index,x,y,z,w)
 	GLuint index
@@ -12752,6 +15346,7 @@ glVertexAttrib4uivARB_p(index,x,y,z,w)
 		glVertexAttrib4uivARB(index,param);
 	}
 
+#//# glVertexAttrib4usvARB_c($index,(CPTR)v);
 void
 glVertexAttrib4usvARB_c(index,v)
 	GLuint index
@@ -12761,6 +15356,7 @@ glVertexAttrib4usvARB_c(index,v)
 	CODE:
 		glVertexAttrib4usvARB(index,(GLushort*)v);
 
+#//# glVertexAttrib4usvARB_c($index,(PACKED)v);
 void
 glVertexAttrib4usvARB_s(index,v)
 	GLuint index
@@ -12773,6 +15369,7 @@ glVertexAttrib4usvARB_s(index,v)
 		glVertexAttrib4usvARB(index,v_s);
 	}
 
+#//# glVertexAttrib4usvARB_p($index,$x,$y,$z,$w);
 void
 glVertexAttrib4usvARB_p(index,x,y,z,w)
 	GLuint index
@@ -12792,6 +15389,7 @@ glVertexAttrib4usvARB_p(index,x,y,z,w)
 		glVertexAttrib4usvARB(index,param);
 	}
 
+#//# glVertexAttribPointerARB_c($index,$size,$type,$normalized,$stride,(CPTR)pointer);
 void
 glVertexAttribPointerARB_c(index,size,type,normalized,stride,pointer)
 	GLuint index
@@ -12806,6 +15404,7 @@ glVertexAttribPointerARB_c(index,size,type,normalized,stride,pointer)
 		glVertexAttribPointerARB(index,size,type,
 			normalized,stride,pointer);
 
+#//# glVertexAttribPointerARB_p($index,$type,$normalized,$stride,@attribs);
 void
 glVertexAttribPointerARB_p(index,type,normalized,stride,...)
 	GLuint index
@@ -12828,18 +15427,21 @@ glVertexAttribPointerARB_p(index,type,normalized,stride,...)
 		free(pointer);
 	}
 
+#//# glEnableVertexAttribArrayARB($index);
 void
 glEnableVertexAttribArrayARB(index)
 	GLuint index
 	INIT:
 		loadProc(glEnableVertexAttribArrayARB,"glEnableVertexAttribArrayARB");
 
+#//# glDisableVertexAttribArrayARB($index);
 void
 glDisableVertexAttribArrayARB(index)
 	GLuint index
 	INIT:
 		loadProc(glDisableVertexAttribArrayARB,"glDisableVertexAttribArrayARB");
 
+#//# glGetVertexAttribdvARB_c($index,$pname,(CPTR)params);
 void
 glGetVertexAttribdvARB_c(index,pname,params)
 	GLuint	index
@@ -12850,6 +15452,7 @@ glGetVertexAttribdvARB_c(index,pname,params)
 	CODE:
 		glGetVertexAttribdvARB(index,pname,(GLdouble*)params);
 
+#//# glGetVertexAttribdvARB_s($index,$pname,(PACKED)params);
 void
 glGetVertexAttribdvARB_s(index,pname,params)
 	GLuint	index
@@ -12863,6 +15466,7 @@ glGetVertexAttribdvARB_s(index,pname,params)
 		glGetVertexAttribdvARB(index,pname,params_s);
 	}
 
+#//# $param = glGetVertexAttribdvARB_p($index,$pname);
 GLdouble
 glGetVertexAttribdvARB_p(index,pname)
 	GLuint	index
@@ -12878,6 +15482,7 @@ glGetVertexAttribdvARB_p(index,pname)
 	OUTPUT:
 		RETVAL
 
+#//# glGetVertexAttribfvARB_c($index,$pname,(CPTR)params);
 void
 glGetVertexAttribfvARB_c(index,pname,params)
 	GLuint	index
@@ -12888,6 +15493,7 @@ glGetVertexAttribfvARB_c(index,pname,params)
 	CODE:
 		glGetVertexAttribfvARB(index,pname,(GLfloat*)params);
 
+#//# glGetVertexAttribfvARB_s($index,$pname,(PACKED)params);
 void
 glGetVertexAttribfvARB_s(index,pname,params)
 	GLuint	index
@@ -12901,6 +15507,7 @@ glGetVertexAttribfvARB_s(index,pname,params)
 		glGetVertexAttribfvARB(index,pname,params_s);
 	}
 
+#//# $param = glGetVertexAttribfvARB_p($index,$pname);
 GLfloat
 glGetVertexAttribfvARB_p(index,pname)
 	GLuint	index
@@ -12916,6 +15523,7 @@ glGetVertexAttribfvARB_p(index,pname)
 	OUTPUT:
 		RETVAL
 
+#//# glGetVertexAttribivARB_c($index,$pname,(CPTR)params);
 void
 glGetVertexAttribivARB_c(index,pname,params)
 	GLuint	index
@@ -12926,6 +15534,7 @@ glGetVertexAttribivARB_c(index,pname,params)
 	CODE:
 		glGetVertexAttribivARB(index,pname,(GLint*)params);
 
+#//# glGetVertexAttribivARB_s($index,$pname,(PACKED)params);
 void
 glGetVertexAttribivARB_s(index,pname,params)
 	GLuint	index
@@ -12939,6 +15548,7 @@ glGetVertexAttribivARB_s(index,pname,params)
 		glGetVertexAttribivARB(index,pname,params_s);
 	}
 
+#//# $param = glGetVertexAttribivARB_p($index,$pname);
 GLuint
 glGetVertexAttribivARB_p(index,pname)
 	GLuint	index
@@ -12954,6 +15564,7 @@ glGetVertexAttribivARB_p(index,pname)
 	OUTPUT:
 		RETVAL
 
+#//# glGetVertexAttribPointervARB_c($index,$pname,(CPTR)pointer);
 void
 glGetVertexAttribPointervARB_c(index,pname,pointer)
 	GLuint	index
@@ -12964,6 +15575,7 @@ glGetVertexAttribPointervARB_c(index,pname,pointer)
 	CODE:
 		glGetVertexAttribPointervARB(index,pname,pointer);
 
+#//# $param = glGetVertexAttribPointervARB_p($index,$pname);
 void
 glGetVertexAttribPointervARB_p(index,pname)
 	GLuint	index
@@ -13073,6 +15685,7 @@ glGetVertexAttribPointervARB_p(index,pname)
 
 #ifdef GL_ARB_vertex_shader
 
+#//# glBindAttribLocationARB($programObj, $index, $name);
 void
 glBindAttribLocationARB(programObj, index, name)
 	GLhandleARB programObj
@@ -13083,6 +15696,7 @@ glBindAttribLocationARB(programObj, index, name)
 	CODE:
 		glBindAttribLocationARB(programObj,index,name);
 
+#//# glGetActiveAttribARB_c($programObj, $index, $maxLength, (CPTR)length, (CPTR)size, (CPTR)type, (CPTR)name);
 void
 glGetActiveAttribARB_c(programObj, index, maxLength, length, size, type, name)
 	GLhandleARB programObj
@@ -13097,6 +15711,7 @@ glGetActiveAttribARB_c(programObj, index, maxLength, length, size, type, name)
 	CODE:
 		glGetActiveAttribARB(programObj,index,maxLength,length,size,type,name);
 
+#//# glGetActiveAttribARB_s($programObj, $index, $maxLength, (PACKED)length, (PACKED)size, (PACKED)type, (PACKED)name);
 void
 glGetActiveAttribARB_s(programObj, index, maxLength, length, size, type, name)
 	GLhandleARB programObj
@@ -13117,6 +15732,7 @@ glGetActiveAttribARB_s(programObj, index, maxLength, length, size, type, name)
 		glGetActiveAttribARB(programObj,index,maxLength,length_s,size_s,type_s,name_s);
 	}
 
+#//# ($name,$type,$size) = glGetActiveAttribARB_p($programObj, $index);
 void
 glGetActiveAttribARB_p(programObj, index)
 	GLhandleARB programObj
@@ -13163,6 +15779,7 @@ glGetActiveAttribARB_p(programObj, index)
 		}
 	}
 
+#//# glGetAttribLocationARB_c($programObj, (CPTR)name);
 GLint
 glGetAttribLocationARB_c(programObj, name)
 	GLhandleARB programObj
@@ -13174,6 +15791,8 @@ glGetAttribLocationARB_c(programObj, name)
 	OUTPUT:
 		RETVAL
 
+#//!!! Since pointer is string, should combine _C and _p
+#//# $value = glGetAttribLocationARB_p(programObj, $name);
 GLint
 glGetAttribLocationARB_p(programObj, ...)
 	GLhandleARB programObj
@@ -13190,6 +15809,99 @@ glGetAttribLocationARB_p(programObj, ...)
 #endif
 
 
+#ifdef GL_ARB_point_parameters
+
+#//# glPointParameterfARB($pname,$param);
+void
+glPointParameterfARB(pname,param)
+	GLenum pname
+	GLfloat param
+	INIT:
+		loadProc(glPointParameterfARB,"glPointParameterfARB");
+	CODE:
+	{
+		glPointParameterfARB(pname,param);
+	}
+
+#//# glPointParameterfvARB_c($pname,(CPTR)params);
+void
+glPointParameterfvARB_c(pname,params)
+	GLenum pname
+	void *	params
+	INIT:
+		loadProc(glPointParameterfvARB,"glPointParameterfvARB");
+	CODE:
+		glPointParameterfvARB(pname,(GLfloat*)params);
+
+#//# glPointParameterfvARB_s($pname,(PACKED)params);
+void
+glPointParameterfvARB_s(pname,params)
+	GLenum pname
+	SV *	params
+	INIT:
+		loadProc(glPointParameterfvARB,"glPointParameterfvARB");
+	CODE:
+	{
+		int count = gl_get_count(pname);
+		GLfloat * params_s = EL(params, sizeof(GLfloat)*count);
+		glPointParameterfvARB(pname,params_s);
+	}
+
+#//!!! This implementation doesn't look right
+#//# glPointParameterfvARB_p($pname,@params);
+void
+glPointParameterfvARB_p(pname, ...)
+	GLenum pname
+	INIT:
+		loadProc(glPointParameterfvARB,"glPointParameterfvARB");
+	CODE:
+	{
+		GLfloat params[4];
+		int i;
+		if ((items-1) != gl_get_count(pname))
+			croak("Incorrect number of arguments");
+		for(i=1;i<items;i++)
+			params[i-1] = (GLfloat)SvNV(ST(i));
+		glPointParameterfvARB(pname,params);
+	}
+
+#endif
+
+
+#ifdef GL_ARB_multisample
+
+#//# glSampleCoverageARB($value,$invert);
+void
+glSampleCoverageARB(value,invert)
+	GLclampf value
+	GLboolean invert
+	INIT:
+		loadProc(glSampleCoverageARB,"glSampleCoverageARB");
+	CODE:
+	{
+		glSampleCoverageARB(value,invert);
+	}
+
+#endif
+
+
+#ifdef GL_ARB_color_buffer_float
+
+#//# glClampColorARB($target,$clamp);
+void
+glClampColorARB(target,clamp)
+	GLenum target
+	GLenum clamp
+	INIT:
+		loadProc(glClampColorARB,"glClampColorARB");
+	CODE:
+	{
+		glClampColorARB(target,clamp);
+	}
+
+#endif
+
+##################### !!! End of Extensions !!! #####################
 
 #endif /* HAVE_GL */
 
@@ -13197,42 +15909,51 @@ glGetAttribLocationARB_p(programObj, ...)
 
 #ifdef HAVE_GLU
 
+#// $nurb->gluBeginCurve($nurb);
 void
 gluBeginCurve(nurb)
 	GLUnurbsObj *	nurb
 
+#// gluEndCurve($nurb);
 void
 gluEndCurve(nurb)
 	GLUnurbsObj *	nurb
 
+#// gluBeginPolygon($tess);
 void
 gluBeginPolygon(tess)
 	PGLUtess *	tess
 	CODE:
 	gluBeginPolygon(tess->triangulator);
 
+#// gluEndPolygon($tess);
 void
 gluEndPolygon(tess)
 	PGLUtess *	tess
 	CODE:
 	gluEndPolygon(tess->triangulator);
 
+#// gluBeginSurface($nurb);
 void
 gluBeginSurface(nurb)
 	GLUnurbsObj *	nurb
 
+#// gluEndSurface($nurb);
 void
 gluEndSurface(nurb)
 	GLUnurbsObj *	nurb
 
+#// gluBeginTrim($nurb);
 void
 gluBeginTrim(nurb)
 	GLUnurbsObj *	nurb
 
+#// gluEndTrim($nurb);
 void
 gluEndTrim(nurb)
 	GLUnurbsObj *	nurb
 
+#//# gluBuild1DMipmaps_c($target, $internalformat, $width, $format, $type, (CPTR)data);
 GLint
 gluBuild1DMipmaps_c(target, internalformat, width, format, type, data)
 	GLenum	target
@@ -13249,6 +15970,7 @@ gluBuild1DMipmaps_c(target, internalformat, width, format, type, data)
 	OUTPUT:
 	  RETVAL
 
+#//# gluBuild1DMipmaps_s($target, $internalformat, $width, $format, $type, (PACKED)data);
 GLint
 gluBuild1DMipmaps_s(target, internalformat, width, format, type, data)
 	GLenum	target
@@ -13265,6 +15987,7 @@ gluBuild1DMipmaps_s(target, internalformat, width, format, type, data)
 	OUTPUT:
 	  RETVAL
 
+#//# gluBuild2DMipmaps_c($target, $internalformat, $width, $height, $format, $type, (CPTR)data);
 GLint
 gluBuild2DMipmaps_c(target, internalformat, width, height, format, type, data)
 	GLenum	target
@@ -13282,6 +16005,7 @@ gluBuild2DMipmaps_c(target, internalformat, width, height, format, type, data)
 	OUTPUT:
 	  RETVAL
 
+#//# gluBuild2DMipmaps_s($target, $internalformat, $width, $height, $format, $type, (PACKED)data);
 GLint
 gluBuild2DMipmaps_s(target, internalformat, width, height, format, type, data)
 	GLenum	target
@@ -13299,6 +16023,7 @@ gluBuild2DMipmaps_s(target, internalformat, width, height, format, type, data)
 	OUTPUT:
 	  RETVAL
 
+#// gluCylinder($quad, $base, $top, $height, $slices, $stacks);
 void
 gluCylinder(quad, base, top, height, slices, stacks)
 	GLUquadricObj *	quad
@@ -13308,14 +16033,17 @@ gluCylinder(quad, base, top, height, slices, stacks)
 	GLint	slices
 	GLint	stacks
 
+#// gluDeleteNurbsRenderer($nurb);
 void
 gluDeleteNurbsRenderer(nurb)
 	GLUnurbsObj *	nurb
 
+#// gluDeleteQuadric($quad);
 void
 gluDeleteQuadric(quad)
 	GLUquadricObj *	quad
 
+#// gluDeleteTess($tess);
 void
 gluDeleteTess(tess)
 	PGLUtess *	tess
@@ -13344,6 +16072,7 @@ gluDeleteTess(tess)
 		free(tess);
 	}
 
+#// gluDisk($quad, $inner, $outer, $slices, $loops);
 void
 gluDisk(quad, inner, outer, slices, loops)
 	GLUquadricObj *	quad
@@ -13352,6 +16081,7 @@ gluDisk(quad, inner, outer, slices, loops)
 	GLint	slices
 	GLint	loops
 
+#//# gluErrorString($error);
 char *
 gluErrorString(error)
 	GLenum	error
@@ -13360,6 +16090,7 @@ gluErrorString(error)
 	OUTPUT:
 	RETVAL
 
+#// gluGetNurbsProperty_p($nurb, $property);
 GLfloat
 gluGetNurbsProperty_p(nurb, property)
 	GLUnurbsObj *	nurb
@@ -13372,7 +16103,8 @@ gluGetNurbsProperty_p(nurb, property)
 	}
 	OUTPUT:
 	RETVAL
-	
+
+#// gluNurbsProperty(nurb, property, value);
 void
 gluNurbsProperty(nurb, property, value)
 	GLUnurbsObj *	nurb
@@ -13381,6 +16113,7 @@ gluNurbsProperty(nurb, property, value)
 
 #ifdef GLU_VERSION_1_1
 
+#//# gluGetString($name);
 char *
 gluGetString(name)
 	GLenum	name
@@ -13391,7 +16124,7 @@ gluGetString(name)
 
 #endif
 
-
+#// gluLoadSamplingMatrices_p(nurb, m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16, o1,o2,o3,o4,o5,o6,o7,o8,o9,o10,o11,o12,o13,o14,o15,o16, v1,v2,v3,v4);
 void
 gluLoadSamplingMatrices_p(nurb, m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16, o1,o2,o3,o4,o5,o6,o7,o8,o9,o10,o11,o12,o13,o14,o15,o16, v1,v2,v3,v4)
 	GLUnurbsObj *	nurb
@@ -13401,14 +16134,15 @@ gluLoadSamplingMatrices_p(nurb, m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m
 		GLint v[4];
 		int i;
 		for (i=0;i<16;i++)
-			m[i] = SvIV(ST(i+1));
+			m[i] = (GLfloat)SvNV(ST(i+1));
 		for (i=0;i<16;i++)
-			p[i] = SvIV(ST(i+1+16));
+			p[i] = (GLfloat)SvNV(ST(i+1+16));
 		for (i=0;i<4;i++)
 			v[i] = SvIV(ST(i+1+16+16));
 		gluLoadSamplingMatrices(nurb, m, p, v);
 	}
 
+#//# gluLookAt($eyeX, $eyeY, $eyeZ, $centerX, $centerY, $centerZ, $upX, $upY, $upZ);
 void
 gluLookAt(eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ)
 	GLdouble	eyeX
@@ -13421,12 +16155,15 @@ gluLookAt(eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ)
 	GLdouble	upY
 	GLdouble	upZ
 
+#// gluNewNurbsRenderer();
 GLUnurbsObj *
 gluNewNurbsRenderer()
 
+#// gluNewQuadric();
 GLUquadricObj *
 gluNewQuadric()
 
+#// gluNewTess();
 PGLUtess *
 gluNewTess()
 	CODE:
@@ -13437,6 +16174,7 @@ gluNewTess()
 	OUTPUT:
 	RETVAL
 
+#// gluNextContour(tess, type);
 void
 gluNextContour(tess, type)
 	PGLUtess *	tess
@@ -13444,6 +16182,7 @@ gluNextContour(tess, type)
 	CODE:
 	gluNextContour(tess->triangulator, type);
 
+#// gluNurbsCurve_c(nurb, nknots, knot, stride, ctlarray, order, type);
 void
 gluNurbsCurve_c(nurb, nknots, knot, stride, ctlarray, order, type)
 	GLUnurbsObj *	nurb
@@ -13456,6 +16195,7 @@ gluNurbsCurve_c(nurb, nknots, knot, stride, ctlarray, order, type)
 	CODE:
 	gluNurbsCurve(nurb, nknots, knot, stride, ctlarray, order, type);
 
+#// gluNurbsSurface_c(nurb, sknot_count, sknot, tknot_count, tknot, s_stride, t_stride, ctrlarray, sorder, torder, type);
 void
 gluNurbsSurface_c(nurb, sknot_count, sknot, tknot_count, tknot, s_stride, t_stride, ctrlarray, sorder, torder, type)
 	GLUnurbsObj *	nurb
@@ -13472,6 +16212,7 @@ gluNurbsSurface_c(nurb, sknot_count, sknot, tknot_count, tknot, s_stride, t_stri
 	CODE:
 	gluNurbsSurface(nurb, sknot_count, sknot, tknot_count, tknot, s_stride, t_stride, ctrlarray, sorder, torder, type);
 
+#//# gluOrtho2D($left, $right, $bottom, $top);
 void
 gluOrtho2D(left, right, bottom, top)
 	GLdouble	left
@@ -13479,6 +16220,7 @@ gluOrtho2D(left, right, bottom, top)
 	GLdouble	bottom
 	GLdouble	top
 
+#// gluPartialDisk(quad, inner, outer, slices, loops, start, sweep);
 void
 gluPartialDisk(quad, inner, outer, slices, loops, start, sweep)
 	GLUquadricObj*	quad
@@ -13489,6 +16231,7 @@ gluPartialDisk(quad, inner, outer, slices, loops, start, sweep)
 	GLdouble	start
 	GLdouble	sweep
 
+#//# gluPerspective($fovy, $aspect, $zNear, $zFar);
 void
 gluPerspective(fovy, aspect, zNear, zFar)
 	GLdouble	fovy
@@ -13496,6 +16239,7 @@ gluPerspective(fovy, aspect, zNear, zFar)
 	GLdouble	zNear
 	GLdouble	zFar
 
+#//# gluPickMatrix_p($x, $y, $delX, $delY, $m1,$m2,$m3,$m4);
 void
 gluPickMatrix_p(x, y, delX, delY, m1,m2,m3,m4)
 	GLdouble	x
@@ -13511,6 +16255,7 @@ gluPickMatrix_p(x, y, delX, delY, m1,m2,m3,m4)
 		gluPickMatrix(x, y, delX, delY, &m[0]);
 	}
 
+#//# gluProject_p($objx, $objy, $objz, @m4x4, @o4x4, $v1,$v2,$v3,$v4);
 void
 gluProject_p(objx, objy, objz, m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16, o1,o2,o3,o4,o5,o6,o7,o8,o9,o10,o11,o12,o13,o14,o15,o16, v1,v2,v3,v4)
 	GLdouble	objx
@@ -13522,9 +16267,9 @@ gluProject_p(objx, objy, objz, m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m1
 		GLint v[4];
 		int i;
 		for (i=0;i<16;i++)
-			m[i] = SvIV(ST(i+3));
+			m[i] = SvNV(ST(i+3));
 		for (i=0;i<16;i++)
-			p[i] = SvIV(ST(i+3+16));
+			p[i] = SvNV(ST(i+3+16));
 		for (i=0;i<4;i++)
 			v[i] = SvIV(ST(i+3+16+16));
 		i = gluProject(objx, objy, objz, m, p, v, &winx, &winy, &winz);
@@ -13536,6 +16281,7 @@ gluProject_p(objx, objy, objz, m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m1
 		}
 	}
 
+#// gluPwlCurve_c(nurb, count, data, stride, type);
 void
 gluPwlCurve_c(nurb, count, data, stride, type)
 	GLUnurbsObj *	nurb
@@ -13547,26 +16293,31 @@ gluPwlCurve_c(nurb, count, data, stride, type)
 	gluPwlCurve(nurb, count, data, stride, type);
 
 
+#// gluQuadricDrawStyle(quad, draw);
 void
 gluQuadricDrawStyle(quad, draw)
 	GLUquadricObj *	quad
 	GLenum	draw
 
+#// gluQuadricNormals(quad, normal);
 void
 gluQuadricNormals(quad, normal)
 	GLUquadricObj *	quad
 	GLenum	normal
 
+#// gluQuadricOrientation(quad, orientation);
 void
 gluQuadricOrientation(quad, orientation)
 	GLUquadricObj *	quad
 	GLenum	orientation
 
+#// gluQuadricTexture(quad, texture);
 void
 gluQuadricTexture(quad, texture)
 	GLUquadricObj *	quad
 	GLboolean	texture
 
+#//# gluScaleImage_s($format, $wIn, $hIn, $typeIn, (PACKED)dataIn, $wOut, $hOut, $typeOut, (PACKED)dataOut);
 GLint
 gluScaleImage_s(format, wIn, hIn, typeIn, dataIn, wOut, hOut, typeOut, dataOut)
 	GLenum	format
@@ -13591,6 +16342,7 @@ gluScaleImage_s(format, wIn, hIn, typeIn, dataIn, wOut, hOut, typeOut, dataOut)
 	OUTPUT:
 	RETVAL
 
+#// gluSphere(quad, radius, slices, stacks);
 void
 gluSphere(quad, radius, slices, stacks)
 	GLUquadricObj *	quad
@@ -13600,6 +16352,7 @@ gluSphere(quad, radius, slices, stacks)
 
 #ifdef GLU_VERSION_1_2
 
+#// gluGetTessProperty_p(tess, property);
 GLdouble
 gluGetTessProperty_p(tess, property)
 	PGLUtess *	tess
@@ -13613,27 +16366,33 @@ gluGetTessProperty_p(tess, property)
 	OUTPUT:
 	RETVAL
 
+#// #gluNurbsCallback_p(nurb, which, handler, ...);
 #void
 #gluNurbsCallback_p(nurb, which, handler, ...)
 
+#// gluNurbsCallbackDataEXT
 #void
 #gluNurbsCallbackDataEXT
 
+#// gluQuadricCallback
 #void
 #gluQuadricCallback
 
+#// gluTessBeginCountour(tess);
 void
 gluTessBeginCountour(tess)
 	PGLUtess *	tess
 	CODE:
 	gluTessBeginContour(tess->triangulator);
 
+#// gluTessEndContour(tess);
 void
 gluTessEndContour(tess)
 	PGLUtess *	tess
 	CODE:
 	gluTessEndContour(tess->triangulator);
 
+#// gluTessBeginPolygon(tess, ...);
 void
 gluTessBeginPolygon(tess, ...)
 	PGLUtess *	tess
@@ -13650,6 +16409,7 @@ gluTessBeginPolygon(tess, ...)
 		gluTessBeginPolygon(tess->triangulator, tess);
 	}
 
+#// gluTessEndPolygon(tess);
 void
 gluTessEndPolygon(tess)
 	PGLUtess *	tess
@@ -13661,6 +16421,7 @@ gluTessEndPolygon(tess)
 		}
 	}
 
+#// gluTessNormal(tess, valueX, valueY, valueZ)
 void
 gluTessNormal(tess, valueX, valueY, valueZ)
 	PGLUtess *	tess
@@ -13670,6 +16431,7 @@ gluTessNormal(tess, valueX, valueY, valueZ)
 	CODE:
 	gluTessNormal(tess->triangulator, valueX, valueY, valueZ);
 
+#// gluTessProperty(tess, which, data);
 void
 gluTessProperty(tess, which, data)
 	PGLUtess *	tess
@@ -13678,6 +16440,7 @@ gluTessProperty(tess, which, data)
 	CODE:
 	gluTessProperty(tess->triangulator, which, data);
 
+#// gluTessCallback(tess, which, ...);
 void
 gluTessCallback(tess, which, ...)
 	PGLUtess *	tess
@@ -13723,6 +16486,7 @@ gluTessCallback(tess, which, ...)
 
 #endif
 
+#// gluTessVertex(tess, x, y, z, ...);
 void
 gluTessVertex(tess, x, y, z, ...)
 	PGLUtess *	tess
@@ -13751,8 +16515,9 @@ gluTessVertex(tess, x, y, z, ...)
 		gluTessVertex(tess->triangulator, &v[0], (void*)data);
 	}
 
+#//# gluUnProject_p($winx,$winy,$winz, @m4x4, @o4x4, $v1,$v2,$v3,$v4);
 void
-gluUnProject_p(winx, winy, winz, m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16, o1,o2,o3,o4,o5,o6,o7,o8,o9,o10,o11,o12,o13,o14,o15,o16, v1,v2,v3,v4)
+gluUnProject_p(winx,winy,winz, m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16, o1,o2,o3,o4,o5,o6,o7,o8,o9,o10,o11,o12,o13,o14,o15,o16, v1,v2,v3,v4)
 	GLdouble	winx
 	GLdouble	winy
 	GLdouble	winz
@@ -13761,13 +16526,16 @@ gluUnProject_p(winx, winy, winz, m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,
 		GLdouble m[16], p[16], objx, objy, objz;
 		GLint v[4];
 		int i;
+
 		for (i=0;i<16;i++)
-			m[i] = SvIV(ST(i+3));
+			m[i] = SvNV(ST(i+3));
 		for (i=0;i<16;i++)
-			p[i] = SvIV(ST(i+3+16));
+			p[i] = SvNV(ST(i+3+16));
 		for (i=0;i<4;i++)
 			v[i] = SvIV(ST(i+3+16+16));
-		i = gluUnProject(winx, winy, winz, m, p, v, &objx, &objy, &objz);
+
+		i = gluUnProject(winx,winy,winz, m, p, v, &objx,&objy,&objz);
+
 		if (i) {
 			EXTEND(sp, 3);
 			PUSHs(sv_2mortal(newSVnv(objx)));
@@ -13784,6 +16552,7 @@ gluUnProject_p(winx, winy, winz, m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,
 
 # GLUT
 
+#//# glutInit();
 void
 glutInit()
 	CODE:
@@ -13792,7 +16561,11 @@ glutInit()
 	char ** argv;
 	AV * ARGV;
 	SV * ARGV0;
+	SV * sv;
 	int i;
+
+			if (_done_glutInit)
+				croak("illegal glutInit() reinitialization attempt");
 
 			argv  = 0;
 			ARGV = perl_get_av("ARGV", FALSE);
@@ -13809,32 +16582,37 @@ glutInit()
 			i = argc;
 			glutInit(&argc, argv);
 
+			_done_glutInit = 1;
+
 			while(argc<i--)
-				av_shift(ARGV);
+				sv = av_shift(ARGV);
 			
 			if (argv)
 				free(argv);
 	}
 
+#//# glutInitWindowSize($width, $height);
 void
 glutInitWindowSize(width, height)
 	int	width
 	int	height
 
+#//# glutInitWindowPosition($x, $y);
 void
 glutInitWindowPosition(x, y)
 	int	x
 	int	y
 
+#//# glutInitDisplayMode($mode);
 void
 glutInitDisplayMode(mode)
 	int	mode
 
-
+#//# glutMainLoop();
 void
 glutMainLoop()
 
-
+#//# glutCreateWindow($name);
 int
 glutCreateWindow(name)
 	char *	name
@@ -13844,6 +16622,7 @@ glutCreateWindow(name)
 	OUTPUT:
 	RETVAL
 
+#//# glutCreateSubWindow($win, $x, $y, $width, $height);
 int
 glutCreateSubWindow(win, x, y, width, height)
 	int	win
@@ -13857,13 +16636,16 @@ glutCreateSubWindow(win, x, y, width, height)
 	OUTPUT:
 	RETVAL
 
+#//# glutSetWindow($win);
 void
 glutSetWindow(win)
 	int	win
 
+#//# glutGetWindow();
 int
 glutGetWindow()
 
+#//# glutDestroyWindow($win);
 void
 glutDestroyWindow(win)
 	int	win
@@ -13871,17 +16653,21 @@ glutDestroyWindow(win)
 	glutDestroyWindow(win);
 	destroy_glut_win_handlers(win);
 
+#//# glutPostRedisplay();
 void
 glutPostRedisplay()
 
+#//# glutSwapBuffers();
 void
 glutSwapBuffers()
 
+#//# glutPositionWindow($x, $y);
 void
 glutPositionWindow(x, y)
 	int	x
 	int	y
 
+#//# glutReshapeWindow($width, $height);
 void
 glutReshapeWindow(width, height)
 	int	width
@@ -13889,36 +16675,45 @@ glutReshapeWindow(width, height)
 
 #if GLUT_API_VERSION >= 3
 
+#//# glutFullScreen();
 void
 glutFullScreen()
 
 #endif
 
+#//# glutPopWindow();
 void
 glutPopWindow()
 
+#//# glutPushWindow();
 void
 glutPushWindow()
 
+#//# glutShowWindow();
 void
 glutShowWindow()
 
+#//# glutHideWindow();
 void
 glutHideWindow()
 
+#//# glutIconifyWindow();
 void
 glutIconifyWindow()
 
+#//# glutSetWindowTitle($title);
 void
 glutSetWindowTitle(title)
 	char *	title
 
+#//# glutSetIconTitle($title);
 void
 glutSetIconTitle(title)
 	char *	title
 
 #if GLUT_API_VERSION >= 3
 
+#//# glutSetCursor(cursor);
 void
 glutSetCursor(cursor)
 	int	cursor
@@ -13930,22 +16725,28 @@ glutSetCursor(cursor)
 
 #if GLUT_API_VERSION >= 3
 
+#//# glutEstablishOverlay(); 
 void
 glutEstablishOverlay()
 
+#//# glutUseLayer(layer);
 void
 glutUseLayer(layer)
 	GLenum	layer
 
+#//# glutRemoveOverlay();
 void
 glutRemoveOverlay()
 
+#//# glutPostOverlayRedisplay();
 void
 glutPostOverlayRedisplay()
 
+#//# glutShowOverlay();
 void
 glutShowOverlay()
 
+#//# glutHideOverlay();
 void
 glutHideOverlay()
 
@@ -13953,6 +16754,7 @@ glutHideOverlay()
 
 # Menus
 
+#//# $ID = glutCreateMenu(\&callback);
 int
 glutCreateMenu(handler=0, ...)
 	SV *	handler
@@ -13979,13 +16781,16 @@ glutCreateMenu(handler=0, ...)
 	OUTPUT:
 	RETVAL
 
+#//# glutSetMenu($menu);
 void
 glutSetMenu(menu)
 	int	menu
 
+#//# glutGetMenu();
 int
 glutGetMenu()
 
+#//# glutDestroyMenu($menu);
 void
 glutDestroyMenu(menu)
 	int	menu
@@ -13995,44 +16800,50 @@ glutDestroyMenu(menu)
 		av_store(glut_menu_handlers, menu, newSVsv(&PL_sv_undef));
 	}
 
+#//# glutAddMenuEntry($name, $value);
 void
 glutAddMenuEntry(name, value)
 	char *	name
 	int	value
 
+#//# glutAddSubMenu($name, $menu);
 void
 glutAddSubMenu(name, menu)
 	char *	name
 	int	menu
 
+#//# glutChangeToMenuEntry($entry, $name, $value);
 void
 glutChangeToMenuEntry(entry, name, value)
 	int	entry
 	char *	name
 	int	value
 
+#//# glutChangeToSubMenu($entry, $name, $menu);
 void
 glutChangeToSubMenu(entry, name, menu)
 	int	entry
 	char *	name
 	int	menu
 
+#//# glutRemoveMenuItem($entry);
 void
 glutRemoveMenuItem(entry)
 	int	entry
 
-
+#//# glutAttachMenu(button);
 void
 glutAttachMenu(button)
 	int	button
 
-
+#//# glutDetachMenu(button);
 void
 glutDetachMenu(button)
 	int	button
 
 # Callbacks
 
+#//# glutDisplayFunc(\&callback);
 void
 glutDisplayFunc(handler=0, ...)
 	SV *	handler
@@ -14041,6 +16852,7 @@ glutDisplayFunc(handler=0, ...)
 
 #if GLUT_API_VERSION >= 3
 
+#//# glutOverlayDisplayFunc(\&callback);
 void
 glutOverlayDisplayFunc(handler=0, ...)
 	SV *	handler
@@ -14049,36 +16861,67 @@ glutOverlayDisplayFunc(handler=0, ...)
 
 #endif
 
+#//# glutReshapeFunc(\&callback);
 void
 glutReshapeFunc(handler=0, ...)
 	SV *	handler
 	CODE:
 	decl_gwh_xs(Reshape)
 
+#//# glutKeyboardFunc(\&callback);
 void
 glutKeyboardFunc(handler=0, ...)
 	SV *	handler
 	CODE:
 	decl_gwh_xs(Keyboard)
 
+#if GLUT_API_VERSION >= 4
+
+#//# glutKeyboardUpFunc(\&callback);
+void
+glutKeyboardUpFunc(handler=0, ...)
+	SV *	handler
+	CODE:
+	decl_gwh_xs(KeyboardUp)
+
+#//# glutWindowStatusFunc(\&callback);
+void
+glutWindowStatusFunc(handler=0, ...)
+	SV *	handler
+	CODE:
+	decl_gwh_xs(WindowStatus)
+
+#endif
+
+#//# glutMouseFunc(\&callback);
 void
 glutMouseFunc(handler=0, ...)
 	SV *	handler
 	CODE:
 	decl_gwh_xs(Mouse)
 
+#//# glutMouseWheelFunc(\&callback);
+void
+glutMouseWheelFunc(handler=0, ...)
+	SV *	handler
+	CODE:
+	decl_gwh_xs(MouseWheel)
+
+#//# glutMotionFunc(\&callback);
 void
 glutMotionFunc(handler=0, ...)
 	SV *	handler
 	CODE:
 	decl_gwh_xs(Motion)
 
+#//# glutPassiveMotionFunc(\&callback);
 void
 glutPassiveMotionFunc(handler=0, ...)
 	SV *	handler
 	CODE:
 	decl_gwh_xs(PassiveMotion)
 
+#//# glutVisibilityFunc(\&callback);
 void
 glutVisibilityFunc(handler=0, ...)
 	SV *	handler
@@ -14090,6 +16933,7 @@ glutVisibilityFunc(handler=0, ...)
 
 #if !defined(GL_SRC_ALPHA_SATURATE) || defined(GL_CONSTANT_COLOR)
 
+#//# glutEntryFunc(\&callback);
 void
 glutEntryFunc(handler=0, ...)
 	SV *	handler
@@ -14100,6 +16944,7 @@ glutEntryFunc(handler=0, ...)
 
 #if GLUT_API_VERSION >= 2
 
+#//# glutSpecialFunc(\&callback);
 void
 glutSpecialFunc(handler=0, ...)
 	SV *	handler
@@ -14111,42 +16956,56 @@ glutSpecialFunc(handler=0, ...)
 
 #  if !defined(GL_SRC_ALPHA_SATURATE) || defined(GL_CONSTANT_COLOR)
 
+#//# glutJoystickFunc(\&callback);	/* Open/FreeGLUT -chm */
+# void					/* Not implemented, don't know how */
+# glutJoystickFunc(handler=0, ...)
+# 	SV *	handler
+# 	CODE:
+# 	decl_gwh_xs(Joystick)
+
+#//# glutSpaceballMotionFunc(\&callback);
 void
 glutSpaceballMotionFunc(handler=0, ...)
 	SV *	handler
 	CODE:
 	decl_gwh_xs(SpaceballMotion)
 
+#//# glutSpaceballRotateFunc(\&callback);
 void
 glutSpaceballRotateFunc(handler=0, ...)
 	SV *	handler
 	CODE:
 	decl_gwh_xs(SpaceballRotate)
 
+#//# glutSpaceballButtonFunc(\&callback);
 void
 glutSpaceballButtonFunc(handler=0, ...)
 	SV *	handler
 	CODE:
 	decl_gwh_xs(SpaceballButton)
 
+#//# glutButtonBoxFunc(\&callback);
 void
 glutButtonBoxFunc(handler=0, ...)
 	SV *	handler
 	CODE:
 	decl_gwh_xs(ButtonBox)
 
+#//# glutDialsFunc(\&callback);
 void
 glutDialsFunc(handler=0, ...)
 	SV *	handler
 	CODE:
 	decl_gwh_xs(Dials)
 
+#//# glutTabletMotionFunc(\&callback);
 void
 glutTabletMotionFunc(handler=0, ...)
 	SV *	handler
 	CODE:
 	decl_gwh_xs(TabletMotion)
 
+#//# glutTabletButtonFunc(\&callback);
 void
 glutTabletButtonFunc(handler=0, ...)
 	SV *	handler
@@ -14159,6 +17018,7 @@ glutTabletButtonFunc(handler=0, ...)
 
 #if GLUT_API_VERSION >= 3
 
+#//# glutMenuStatusFunc(\&callback);
 void
 glutMenuStatusFunc(handler=0, ...)
 	SV *	handler
@@ -14167,18 +17027,21 @@ glutMenuStatusFunc(handler=0, ...)
 
 #endif
 
+#//# glutMenuStateFunc(\&callback);
 void
 glutMenuStateFunc(handler=0, ...)
 	SV *	handler
 	CODE:
 	decl_ggh_xs(MenuState)
 
+#//# glutIdleFunc(\&callback);
 void
 glutIdleFunc(handler=0, ...)
 	SV *	handler
 	CODE:
 	decl_ggh_xs(Idle)
 
+#//# glutTimerFunc($msecs, \&callback);
 void
 glutTimerFunc(msecs, handler=0, ...)
 	unsigned int	msecs
@@ -14199,31 +17062,35 @@ glutTimerFunc(msecs, handler=0, ...)
 
 # Colors
 
+#//# glutSetColor($cell, $red, $green, $blue)
 void
 glutSetColor(cell, red, green, blue)
 	int	cell
-	GLdouble	red
-	GLdouble	green
-	GLdouble	blue
+	GLfloat	red
+	GLfloat	green
+	GLfloat	blue
 
+#//# glutGetColor($cell, $component);
 GLfloat
 glutGetColor(cell, component)
 	int	cell
 	int	component
 
-
+#//# glutCopyColormap($win);
 void
 glutCopyColormap(win)
 	int	win
 
 # State
 
+#//# glutGet($state);
 int
 glutGet(state)
 	GLenum	state
 
 #if GLUT_API_VERSION >= 3
 
+#//# glutLayerGet(info);
 int
 glutLayerGet(info)
 	GLenum	info
@@ -14236,6 +17103,7 @@ glutDeviceGet(info)
 
 #if GLUT_API_VERSION >= 3
 
+#//# glutGetModifiers();
 int
 glutGetModifiers()
 
@@ -14243,6 +17111,7 @@ glutGetModifiers()
 
 #if GLUT_API_VERSION >= 2
 
+#//# glutExtensionSupported($extension);
 int
 glutExtensionSupported(extension)
 	char *	extension
@@ -14251,11 +17120,13 @@ glutExtensionSupported(extension)
 
 # Font
 
+#//# glutBitmapCharacter($font, $character);
 void
 glutBitmapCharacter(font, character)
 	void *	font
 	int	character
 
+#//# glutStrokeCharacter($font, $character);
 void
 glutStrokeCharacter(font, character)
 	void *	font
@@ -14266,11 +17137,13 @@ glutStrokeCharacter(font, character)
 
 #if GLUT_API_VERSION >= 2 && (!defined(GL_SRC_ALPHA_SATURATE) || defined(GL_CONSTANT_COLOR))
 
+#//# glutBitmapWidth($font, $character);
 int
 glutBitmapWidth(font, character)
 	void *	font
 	int	character
 
+#//# glutStrokeWidth($font, $character);
 int
 glutStrokeWidth(font, character)
 	void *	font
@@ -14278,28 +17151,53 @@ glutStrokeWidth(font, character)
 
 #endif
 
+
+#if GLUT_API_VERSION >= 3
+
+#//# glutIgnoreKeyRepeat($ignore);
+void
+glutIgnoreKeyRepeat(ignore)
+	int	ignore
+
+#//# glutSetKeyRepeat($repeatMode);
+void
+glutSetKeyRepeat(repeatMode)
+	int	repeatMode
+
+#//# glutForceJoystickFunc();
+void
+glutForceJoystickFunc()
+
+#endif
+
+
 # Solids
 
+#//# glutSolidSphere($radius, $slices, $stacks);
 void
 glutSolidSphere(radius, slices, stacks)
 	GLdouble	radius
 	GLint	slices
 	GLint	stacks
 
+#//# glutWireSphere($radius, $slices, $stacks);
 void
 glutWireSphere(radius, slices, stacks)
 	GLdouble	radius
 	GLint	slices
 	GLint	stacks
 
+#//# glutSolidCube($size);
 void
 glutSolidCube(size)
 	GLdouble	size
 
+#//# glutWireCube($size);
 void
 glutWireCube(size)
 	GLdouble	size
 
+#//# glutSolidCone($base, $height, $slices, $stacks);
 void
 glutSolidCone(base, height, slices, stacks)
 	GLdouble	base
@@ -14307,6 +17205,7 @@ glutSolidCone(base, height, slices, stacks)
 	GLint	slices
 	GLint	stacks
 
+#//# glutWireCone($base, $height, $slices, $stacks);
 void
 glutWireCone(base, height, slices, stacks)
 	GLdouble	base
@@ -14314,6 +17213,7 @@ glutWireCone(base, height, slices, stacks)
 	GLint	slices
 	GLint	stacks
 
+#//# glutSolidTorus($innerRadius, $outerRadius, $nsides, $rings);
 void
 glutSolidTorus(innerRadius, outerRadius, nsides, rings)
 	GLdouble	innerRadius
@@ -14321,6 +17221,7 @@ glutSolidTorus(innerRadius, outerRadius, nsides, rings)
 	GLint	nsides
 	GLint	rings
 
+#//# glutWireTorus($innerRadius, $outerRadius, $nsides, $rings);
 void
 glutWireTorus(innerRadius, outerRadius, nsides, rings)
 	GLdouble	innerRadius
@@ -14328,37 +17229,261 @@ glutWireTorus(innerRadius, outerRadius, nsides, rings)
 	GLint	nsides
 	GLint	rings
 
+#//# glutSolidDodecahedron();
 void
 glutSolidDodecahedron()
 
+#//# glutWireDodecahedron();
 void
 glutWireDodecahedron()
 
+#//# glutSolidOctahedron();
 void
 glutSolidOctahedron()
 
+#//# glutWireOctahedron();
 void
 glutWireOctahedron()
 
+#//# glutSolidTetrahedron();
 void
 glutSolidTetrahedron()
 
+#//# glutWireTetrahedron();
 void
 glutWireTetrahedron()
 
+#//# glutSolidIcosahedron();
 void
 glutSolidIcosahedron()
 
+#//# glutWireIcosahedron();
 void
 glutWireIcosahedron()
 
+#//# glutSolidTeapot(size);
 void
 glutSolidTeapot(size)
 	GLdouble	size
 
+#//# glutWireTeapot($size);
 void
 glutWireTeapot(size)
 	GLdouble	size
+
+#if GLUT_API_VERSION >= 4
+
+#//# glutSpecialUpFunc(\&callback);
+void
+glutSpecialUpFunc(handler=0, ...)
+	SV *	handler
+	CODE:
+	decl_gwh_xs(SpecialUp)
+
+#//# glutGameModeString($string);
+GLboolean
+glutGameModeString(string)
+	char *	string
+	CODE:
+	{
+		char mode[1024];
+		if (!string || !string[0])
+		{
+			int w = glutGet(0x00C8);	// GLUT_SCREEN_WIDTH
+			int h = glutGet(0x00C9);	// GLUT_SCREEN_HEIGHT
+
+			sprintf(mode,"%dx%d:%d@%d",w,h,32,60);
+			string = mode;
+		}
+
+		glutGameModeString(string);
+		RETVAL = glutGameModeGet(0x0001);	// GLUT_GAME_MODE_POSSIBLE
+	}
+	OUTPUT:
+		RETVAL
+
+#//# glutEnterGameMode();
+int
+glutEnterGameMode()
+
+#//# glutLeaveGameMode();
+void
+glutLeaveGameMode()
+
+#//# glutGameModeGet($mode);
+int
+glutGameModeGet(mode)
+	GLenum	mode
+
+##//## CHM implementation of missing FreeGLUT/OpenGLUT features
+
+#//# int  glutBitmapHeight (void *font)
+int
+glutBitmapHeight(font)
+	void * font
+
+#//# int  glutBitmapLength (void *font, const unsigned char *string)
+int
+glutBitmapLength(font, string)
+	void * font
+	const unsigned char * string
+
+#//# void  glutBitmapString (void *font, const unsigned char *string)
+void
+glutBitmapString(font, string)
+	void * font
+	const unsigned char * string
+
+#//# void *  glutGetMenuData (void)
+# void *
+# glutGetMenuData()
+
+#//# void *  glutGetProcAddress (const char *procName)
+# void *
+# glutGetProcAddress(procName)
+# 	const char * procName
+
+#//# void *  glutGetWindowData (void)
+# void *
+# glutGetWindowData()
+
+#//# void  glutMainLoopEvent (void)
+void
+glutMainLoopEvent()
+
+#//# void  glutPostWindowOverlayRedisplay (int windowID)
+void
+glutPostWindowOverlayRedisplay(windowID)
+	int windowID
+
+#//# void  glutPostWindowRedisplay (int windowID)
+void
+glutPostWindowRedisplay(windowID)
+	int windowID
+
+#//# void  glutReportErrors (void)
+void
+glutReportErrors()
+
+#//# void  glutSetMenuData (void *data)
+# void
+# glutSetMenuData(data)
+# 	void * data
+
+#//# void  glutSetWindowData (void *data)
+# void
+# glutSetWindowData(data)
+# 	void * data
+
+#//# void  glutSolidCylinder (GLdouble radius, GLdouble height, GLint slices, GLint stacks)
+void
+glutSolidCylinder(radius, height, slices, stacks)
+	GLdouble radius
+	GLdouble height
+	GLint slices
+	GLint stacks
+
+#//# void  glutSolidRhombicDodecahedron (void)
+void
+glutSolidRhombicDodecahedron()
+
+#//# void  glutSolidSierpinskiSponge (int num_levels, const GLdouble offset[3], GLdouble scale)
+# void
+# glutSolidSierpinskiSponge(num_levels, offset, scale)
+# 	int num_levels
+# 	const GLdouble offset[3]
+# 	GLdouble scale
+
+#//# float  glutStrokeHeight (void *font)
+GLfloat
+glutStrokeHeight(font)
+	void * font
+
+#//# float  glutStrokeLength (void *font, const unsigned char *string)
+GLfloat
+glutStrokeLength(font, string)
+	void * font
+	const unsigned char * string
+
+#//# void  glutStrokeString (void *fontID, const unsigned char *string)
+void
+glutStrokeString(font, string)
+	void * font
+	const unsigned char * string
+
+#//# void  glutWarpPointer (int x, int y)
+void
+glutWarpPointer(x, y)
+	int x
+	int y
+
+#//# void  glutWireCylinder (GLdouble radius, GLdouble height, GLint slices, GLint stacks)
+void
+glutWireCylinder(radius, height, slices, stacks)
+	GLdouble radius
+	GLdouble height
+	GLint slices
+	GLint stacks
+
+#//# void  glutWireRhombicDodecahedron (void)
+void
+glutWireRhombicDodecahedron()
+
+#//# void  glutWireSierpinskiSponge (int num_levels, const GLdouble offset[3], GLdouble scale)
+# void
+# glutWireSierpinskiSponge(num_levels, offset, scale)
+# 	int num_levels
+# 	const GLdouble offset[3]
+# 	GLdouble scale
+
+#endif
+
+# /* FreeGLUT APIs */
+
+#//# glutSetOption($option_flag, $value);
+void
+glutSetOption(option_flag, value)
+	GLenum		option_flag
+	int		value
+	CODE:
+	{
+#if defined HAVE_FREEGLUT
+		glutSetOption(option_flag, value);
+#endif
+	}
+
+#//# glutLeaveMainLoop();
+void
+glutLeaveMainLoop()
+	CODE:
+	{
+#if defined HAVE_FREEGLUT
+		glutLeaveMainLoop();
+#else
+		int win = glutGetWindow();
+		glutDestroyWindow(win);
+		destroy_glut_win_handlers(win);
+#endif
+	}
+
+#//# glutMenuDestroyFunc(\&callback);
+void
+glutMenuDestroyFunc(handler=0, ...)
+	SV *	handler
+	CODE:
+	decl_gwh_xs(MenuDestroy)
+
+
+#//# glutCloseFunc(\&callback);
+void
+glutCloseFunc(handler=0, ...)
+	SV *	handler
+	CODE:
+        {
+#if defined HAVE_FREEGLUT
+		decl_gwh_xs(Close)
+#endif
+        }
 
 #endif /* def GLUT_API_VERSION */
 
@@ -14367,6 +17492,7 @@ glutWireTeapot(size)
 
 #ifdef __PM__
 
+#// morphPM();
 void
 morphPM()
 
@@ -14377,6 +17503,7 @@ __had_dbuffer_hack()
 
 #ifdef HAVE_GLpc			/* GLX or __PM__ */
 
+#// $ID = glpcOpenWindow($x,$y,$w,$h,$pw,$steal,$event_mask,@attribs);
 GLXDrawable
 glpcOpenWindow(x,y,w,h,pw,steal,event_mask, ...)
 	int	x
@@ -14479,6 +17606,7 @@ glpcOpenWindow(x,y,w,h,pw,steal,event_mask, ...)
 	    RETVAL = win;
 	}
 
+#// glpDisplay();
 void *
 glpDisplay()
 	CODE:
@@ -14491,6 +17619,7 @@ glpDisplay()
 		croak("No display!");
 	    RETVAL = dpy;
 
+#// glpMoveResizeWindow($x, $y, $width, $height[, $winID[, $display]]);
 void
 glpMoveResizeWindow(x, y, width, height, w=win, d=dpy)
     void* d
@@ -14500,6 +17629,7 @@ glpMoveResizeWindow(x, y, width, height, w=win, d=dpy)
     unsigned int width
     unsigned int height
 
+#// glpMoveWindow($x, $y[, $winID[, $display]]);
 void
 glpMoveWindow(x, y, w=win, d=dpy)
     void* d
@@ -14507,6 +17637,7 @@ glpMoveWindow(x, y, w=win, d=dpy)
     int x
     int y
 
+#// glpResizeWindow($width, $height[, $winID[, $display]])
 void
 glpResizeWindow(width, height, w=win, d=dpy)
     void* d
@@ -14517,6 +17648,7 @@ glpResizeWindow(width, height, w=win, d=dpy)
 # If glpOpenWindow was used then glXSwapBuffers should be called
 # without parameters (i.e. use the default parameters)
 
+#// glXSwapBuffers([$winID[, $display]])
 void
 glXSwapBuffers(w=win,d=dpy)
 	void *	d
@@ -14526,7 +17658,7 @@ glXSwapBuffers(w=win,d=dpy)
 	    glXSwapBuffers(d,w);
 	}
 
-
+#// XPending([$display]);
 int
 XPending(d=dpy)
 	void *	d
@@ -14537,6 +17669,7 @@ XPending(d=dpy)
 	OUTPUT:
 	RETVAL
 
+#// glpXNextEvent([$display]);
 void
 glpXNextEvent(d=dpy)
 	void *	d
@@ -14584,6 +17717,7 @@ glpXNextEvent(d=dpy)
 		}
 	}
 
+#// glpXQueryPointer([$winID[, $display]]);
 void
 glpXQueryPointer(w=win,d=dpy)
 	void *	d
@@ -14603,47 +17737,83 @@ glpXQueryPointer(w=win,d=dpy)
 #endif
 
 
+#//# glpReadTex($file);
 void
 glpReadTex(file)
 	char *	file
 	CODE:
 	{
-	    GLsizei w,h;
-	    int d,i;
-	    char buf[250];
-	    unsigned char *image;
-	    FILE *fp;
+		GLsizei w,h;
+		int d,i;
+		char buf[250];
+		unsigned char *image;
+		FILE *fp;
+		char *ret;
 
-	    fp=fopen(file,"r");
-	    if(!fp)
-	        croak("couldn't open file %s",file);
-	    fgets(buf,250,fp);		/* P3 */
-	    if (buf[0] != 'P' || buf[1] != '3')
-	        croak("Format is not P3 in file %s",file);
-	    fgets(buf,250,fp);
-	    while (buf[0] == '#' && fgets(buf,250,fp))
-		;			/* Empty */
-	    if (2 != sscanf(buf,"%d%d",&w,&h))
-	        croak("couldn't read image size from file %s",file);
-	    if (1 != fscanf(fp,"%d",&d))
-	        croak("couldn't read image depth from file %s",file);
-	    if(d != 255)
-	        croak("image depth != 255 in file %s unsupported",file);
-	    if(w>10000 || h>10000)
-	        croak("suspicious size w=%d d=%d in file %s", w, d, file);
-	    New(1431, image, w*h*3, unsigned char);
-	    for(i=0;i<w*h*3;i++) {
-		int v;
-	        if (1 != fscanf(fp,"%d",&v)) {
-		    Safefree(image);
-		    croak("Error reading number #%d of %d from file %s", i, w*h*3,file);
+		fp=fopen(file,"r");
+
+		if(!fp)	croak("couldn't open file %s",file);
+
+		ret = fgets(buf,250,fp);		/* P3 */
+
+		if (buf[0] != 'P' || buf[1] != '3')
+			croak("Format is not P3 in file %s",file);
+
+		ret = fgets(buf,250,fp);
+
+		while (buf[0] == '#' && fgets(buf,250,fp));	/* Empty */
+
+		if (2 != sscanf(buf,"%d%d",&w,&h))
+			croak("couldn't read image size from file %s",file);
+		if (1 != fscanf(fp,"%d",&d))
+			croak("couldn't read image depth from file %s",file);
+		if(d != 255)
+			croak("image depth != 255 in file %s unsupported",file);
+		if(w>10000 || h>10000)
+			croak("suspicious size w=%d d=%d in file %s", w, d, file);
+
+		New(1431, image, w*h*3, unsigned char);
+
+		for(i=0;i<w*h*3;i++) {
+			int v;
+
+			if (1 != fscanf(fp,"%d",&v)) {
+				Safefree(image);
+				croak("Error reading number #%d of %d from file %s", i, w*h*3,file);
+			}
+
+			image[i]=(unsigned char) v;
 		}
-	        image[i]=(unsigned char) v;
-	    }
-	    fclose(fp);
-	    glTexImage2D(GL_TEXTURE_2D, 0, 3, w,h, 
-	                 0, GL_RGB, GL_UNSIGNED_BYTE,image);
+
+		fclose(fp);
+
+		glTexImage2D(GL_TEXTURE_2D, 0, 3, w,h, 
+			0, GL_RGB, GL_UNSIGNED_BYTE,image);
 	}
+
+#//# glpHasGLUT();
+int
+glpHasGLUT()
+	CODE:
+	{
+#if defined(HAVE_GLUT) || defined(HAVE_FREEGLUT)
+		RETVAL = 1;
+#else
+		RETVAL = 0;
+#endif
+	}
+	OUTPUT:
+		RETVAL
+
+
+#//# glpHasGPGPU();
+int
+glpHasGPGPU()
+	CODE:
+		RETVAL = gpgpu_size();
+	OUTPUT:
+		RETVAL
+
 
 BOOT:
   InitSys();

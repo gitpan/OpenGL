@@ -1,0 +1,33 @@
+Compiling the OpenGL module with Mac OS X
+============================================
+
+1 - Requires Mac OS X 10.5.x and Xcode 3.x (iPhone SDK) to build on Mac OS.
+
+    Earlier versions of Mac OS used non-standard OpenGL/GLUT header files,
+    which required special-case Mac ifdef'g.
+
+    Note: Mac OS X distributions do not include FreeGLUT support at this time.
+
+    
+2 - Run: perl Makefile.PL
+
+    This will determine the capabilities of your OpenGL installation,
+    and generate a gl_exclude.h file - you can manually edit this
+    file to override exclusions.
+
+3 - Compile the module as usual
+        
+    make
+    make test
+    sudo make install
+
+Note: 'make test' will run test.pl, which will pop up a test window.
+Assuming that the test worked (you should see a spinning cube with
+textures on its faces), then hit 'q' to continue (the test window 
+must have focus).
+
+   
+AUTHOR
+
+Bob "grafman" Free <grafman@graphcomp.com>
+http://graphcomp.com/opengl

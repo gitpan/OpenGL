@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-Perl OpenGL (POGL) - module to display 3D data using OpenGL, GLU, GLUT, and GLX
+OpenGL - v0.57 Perl OpenGL (POGL) module to display 3D data using OpenGL, FreeGLUT/GLUT, and GLX
 
 =head1 SYNOPSIS
 
@@ -34,10 +34,11 @@ at http://graphcomp.com/opengl
 =head1 PREREQUISITES
 
 This module assumes that libGL.so, libGLU.so and libglut.so
-(opengl32.dll, glu32.dll and glut32.dll on Windows) are properly installed
+(opengl32.dll and glu32.dll on Windows) are properly installed
 on your system.
 
-You can find GLUT at http://www.opengl.org/resources/libraries/glut/
+If used with OpenGL::Image, use v1.03 or newer.
+
 
 =head1 DESCRIPTION
 
@@ -99,6 +100,7 @@ a pointer to that string.
   glutInitWindowPosition
   glutInitWindowSize
   glutKeyboardFunc
+  glutKeyboardUpFunc
   glutLayerGet
   glutMainLoop
   glutMenuStateFunc
@@ -137,6 +139,7 @@ a pointer to that string.
   glutSpaceballMotionFunc
   glutSpaceballRotateFunc
   glutSpecialFunc
+  glutSpecialUpFunc
   glutStrokeCharacter
   glutStrokeWidth
   glutSwapBuffers
@@ -145,6 +148,7 @@ a pointer to that string.
   glutTimerFunc
   glutUseLayer
   glutVisibilityFunc
+  glutWindowStatusFunc
   glutWireCone
   glutWireCube
   glutWireDodecahedron
@@ -154,6 +158,16 @@ a pointer to that string.
   glutWireTeapot
   glutWireTetrahedron
   glutWireTorus
+  glutSetOption
+  glutGameModeString
+  glutEnterGameMode
+  glutLeaveGameMode
+  glutGameModeGet
+  glutCloseFunc
+  glutLeaveMainLoop
+  glutIgnoreKeyRepeat
+  glutSetKeyRepeat
+  glutForceJoystickFunc
 
 =head2 GLU functions
 
@@ -1197,6 +1211,16 @@ a pointer to that string.
   glGetActiveAttribARB_p
   glGetAttribLocationARB_c
   glGetAttribLocationARB_p
+  glPointParameterfARB
+  glPointParameterfvARB_c
+  glPointParameterfvARB_s
+  glPointParameterfvARB_p
+  glSampleCoverageARB
+  glClampColorARB
+  glpHasGLUT
+  glpCheckExtension
+  glpFullScreen
+  glpRestoreScreen
 
 =head2 GLX functions
 
@@ -1701,6 +1725,7 @@ glut instead.
   glpDisplay
   glpFlush
   glpGetClipPlane
+  glpFullScreen
   glpLoadMatrixd
   glpLoadMatrixf
   glpMainLoop
@@ -1711,6 +1736,7 @@ glut instead.
   glpOpenWindow
   glpReadTex
   glpResizeWindow
+  glpRestoreScreen
   glpSolidSphere
   glpXNextEvent
   glpXQueryPointer

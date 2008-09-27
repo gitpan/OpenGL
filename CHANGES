@@ -1,42 +1,92 @@
-Change List for 0.56 - Bob "grafman" Free <grafman@graphcomp.com>
+Change List for 0.57 - Bob "grafman" Free <grafman@graphcomp.com>
 ____________________________________________________________
 
 Updated CHANGES
 
 Updated MANIFEST
 
-Updated META.yml
+Updated INSTALL
 
-Updated README
+Updated gl_util.c
 
-Updated test.pl to support Game Mode, OpenGL::Image and OpenGL::Shader
+Updated gl_util.h
 
-Updated gl_util.h to add bind element to oga_struct
+Updated Makefile.PL
 
-Updated gl_util.c to fix a bug in gl_pixelbuffer_size
+Added oga.pl - OGA sample/test app
 
-Updated typemap to add GLcharARB and GLhandleARB
+Updated OpenGL.pm
 
-Updated OpenGL.xs - added APIs; fixed bugs
+Updated OpenGL.pod
 
-Updated OpenGL.pm - added APIs
+Updated OpenGL.xs
 
-Updated OpenGL.pod - added APIs
+Updated README, README.Win32, README.FreeBSD, RADME.cygwin
 
-Added test.png - test image
+Updated test.pl to fix fullscreen handling
 
-Added test.tga - test image
+Added test.jpg - test image
 
-Added fragment.arb
+Replaced include/GL/glut.h
+Added include/GL/freeglut.h
+Added include/GL/freeglut_ext.h
+Added include/GL/freeglut_std.h
 
-Added vertex.arb
+Added FreeGLUT/freeglut.dll
+Added FreeGLUT/freeglut.lib
+Added FreeGLUT/README.txt
 
-Added fragment.glsl
+Updated glut_const.h
 
-Added vertex.glsl
+Upated utils/cleanup.pl
 
-Added fragment.cg
+Updated glext_procs.h
 
-Added vertex.cg
+Updated examples/texhack
 
-Removed examples/RCS/planets,v
+Updated vertex.glsl
+
+Added utils/mingw.bat
+
+Added README.macosx
+
+Updated README.Win32
+
+Updated TODO
+
+Added KNOWN_PROBLEMS
+
+
+
+Chris Marshall
+____________________________________________________________
+
+Added README.cygwin
+
+Updated Makefile.PL
+
+Added utils/makefile.cywin
+
+Updated utils/glversion.c
+
+Updated gl_util.h, gl_const.h, glut_util.h, glu_const.h, glext_procs.h
+
+
+
+Sisyphus
+____________________________________________________________
+
+Added utils/makefile.mingw
+
+Updated Makefile.PL
+
+
+
+Alex Dodge
+____________________________________________________________
+
+Updated OpenGL.pod
+
+Updated OpenGL.pm
+
+Update OpenGL.xs

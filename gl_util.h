@@ -8,26 +8,27 @@
 #endif
 
 
-/* Use version-detection if available */
-#if defined(HAVE_VER) || defined(_WIN32)
-
-#include "./include/GL/gl.h"
-
-/* Disable unsupported extensions here */
-#include "gl_exclude.h"
-
-/* Include extension defs */
-#ifdef _WIN32
+/* Include prototype flag */
+#if (defined(_WIN32) || defined(HAVE_W32API))
 #define GL_GLEXT_PROCS
 #else
 #define GL_GLEXT_PROTOTYPES
 #endif
-#include "glext_procs.h"
 
-#else // No version-detection - use installed header files
+/* Provide GL header files for Windows */
+#define INCLUDE_LOCAL_HEADER !defined(HAVE_W32API)
+#if INCLUDE_LOCAL_HEADER
+#include "./include/GL/gl.h"
+#else
 #include <GL/gl.h>
 #endif
 
+/* Use version-detection if available */
+#if defined(HAVE_VER)
+#include "gl_exclude.h"
+#include "glext_procs.h"
+#else
+#endif
 
 
 #ifndef GL_ADD
@@ -320,7 +321,13 @@ struct oga_struct {
 	int total_types_width;
 	void * data;
 	int data_length;
-	
+
+	GLuint target, pixel_type, pixel_format, element_size;
+	GLuint affine_handle;
+	GLuint tex_handle[2];
+	GLuint fbo_handle;
+	int fbo_w, fbo_h;
+
 	int free_data;
 };
 
