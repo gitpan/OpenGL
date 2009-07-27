@@ -1,3 +1,27 @@
+Changes for PDL::Graphics::OpenGL::Perl::OpenGL 0.01_06 - CHM
+____________________________________________________________
+
+This module is an interim solution to accelerate debuging and
+integration of the official POGL release 0.57 into PDL.
+
+
+
+Changes for 0.57_03 - CHM
+____________________________________________________________
+
+Updated CHANGES.
+
+Makefile.PL: set verbose on as the default build option for
+             bettern diagnostics.  Also added better diags
+	     for when glversion.txt is not generated correctly
+	     and a clean exit(0) without writing a Makefile
+	     which is the preferred style for CPAN Testers.
+
+OpenGL.pm: updated $VERSION to 0.57_03 for a developers release
+
+
+
+
 Change List for 0.57 - Bob "grafman" Free <grafman@graphcomp.com>
 ____________________________________________________________
 

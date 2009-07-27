@@ -81,7 +81,7 @@ if ($^O eq 'MSWin32' && !$IS_CYGWIN)
 
 
 # Get debugging flags
-our $verbose = 0;
+our $verbose = 1;
 if ( grep { m/^verbose/i } @ARGV )
 {
   $verbose = 1;
@@ -132,20 +132,19 @@ our @libdirs = qw
 our @check_libs = qw
 {
   -lGL
-  -lGLU
-  -lglut
-  -lfreeglut
   -lopengl
+  -lMesaGL
+  -lGLU
+  -lglu
+  -lMesaGLU
+  -lfreeglut
+  -lGLUT
+  -lglut
+  -lMesaGLUT
+  -lOSMesa
   -lGLX
   -lglx
-  -lglitz-glx
-  -lglu
-  -lGLUT
-  -lOSMesa
-  -lMesaGL
-  -lMesaGLU
   -lMesaGLX
-  -lMesaGLUT
 };
 
 our $found_libs = get_libs(@libdirs,@check_libs);
@@ -162,6 +161,9 @@ if ($verbose)
 
 # Check for OpenGL installation
 our $DIST_DEFS = get_extensions($found_libs,$dist_flags->{NO_EXCLUSIONS});
+
+# Don't build Makefile if we cannot compile+run glversion
+exit(0) unless length($DIST_DEFS);
 
 # Get user-specified interface
 my $interface_lib;
@@ -299,9 +301,13 @@ if ( grep { m/^interface=/i } @ARGV )
 # Otherwise use available defaults
 elsif ($IS_CYGWIN)
 {
-  if ($found_libs->{GLX} or $found_libs->{MESA})
+  if ($found_libs->{FREEGLUT})
   {
-    $interface_lib = 'GLX'; # CYGWIN will use X11 interface by default
+    $interface_lib = 'FREEGLUT'; # CYGWIN will use X11 interface by default
+  }
+  elsif($found_libs->{GLUT})
+  {
+    $interface_lib = 'GLUT';
   }
   elsif($found_libs->{GLUT32} || $found_libs->{FREEGLUT32})
   {
@@ -316,9 +322,9 @@ elsif ($^O eq 'darwin' && $found_libs->{GLUT})
 {
   $interface_lib = 'AGL';
 }
-elsif ($found_libs->{GLX})
+elsif ($found_libs->{FREEGLUT})
 {
-  $interface_lib = 'GLX';
+  $interface_lib = 'FREEGLUT';
 }
 elsif ($found_libs->{FREEGLUT} || $found_libs->{FREEGLUT32})
 {
@@ -336,8 +342,13 @@ else
 {
   $interface_lib = 'GLX'; # otherwise default to GLX
 }
-print "\nUsing interface: $interface_lib\n\n";
 
+if ($interface_lib eq 'GLX') {
+   warn "GLUT or FreeGLUT not found, cannot build module!\n";
+   exit 0;
+}
+
+print "\nUsing interface: $interface_lib\n\n";
 
 # Marshall compiler defines
 our $DEFS = $DIST_DEFS;
@@ -543,7 +554,7 @@ my $build_config =
     'Config.pm' => '$(INST_LIBDIR)/OpenGL/Config.pm'
   },
   'AUTHOR'	=> "Bob 'grafman' Free ".'<grafman at graphcomp.com>',
-  'OBJECT' 	=> '$(BASEEXT)$(OBJ_EXT) gl_util$(OBJ_EXT)',
+  'OBJECT' 	=> '$(BASEEXT)$(OBJ_EXT) gl_util$(OBJ_EXT) pogl_const$(OBJ_EXT) pogl_gl_top$(OBJ_EXT) pogl_glu$(OBJ_EXT) pogl_rpn$(OBJ_EXT) pogl_glut$(OBJ_EXT) pogl_gl_Accu_GetM$(OBJ_EXT) pogl_gl_GetP_Pass$(OBJ_EXT) pogl_gl_Mult_Prog$(OBJ_EXT) pogl_gl_Pixe_Ver2$(OBJ_EXT) pogl_gl_Prog_Clam$(OBJ_EXT) pogl_gl_Tex2_Draw$(OBJ_EXT) pogl_gl_Ver3_Tex1$(OBJ_EXT) pogl_gl_Vert_Multi$(OBJ_EXT)',
   'XSPROTOARG'	=> '-noprototypes',
   'DEFINE'	=> $DEFS,
   'INC'		=> $INCS,
@@ -555,6 +566,7 @@ my $build_config =
   'clean'       => 
   {
     FILES =>
+      "Config.pm ".
       "utils/glversion.txt ".
       "utils/glversion$Config{exe_ext} ".
       "utils/glversion$Config{obj_ext}"
@@ -805,7 +817,10 @@ sub get_extensions
 
 
   # Parse glversion.txt file
-  return '' if (!open(GLDATA,$glv_file));
+  if ( !defined(open(GLDATA,$glv_file)) ) {
+     print "get_extensions: could not open $glv_file: $!\n" if $verbose;
+     return '';
+  }
   my $gldata = {};
   my @gldata = <GLDATA>;
   close(GLDATA);
@@ -816,7 +831,10 @@ sub get_extensions
     my($key,$val) = split('=',$line);
     $gldata->{$key} = $val;
   }
-  return '' if (!scalar(keys %$gldata));
+  if (!scalar(keys %$gldata)) {
+     print "get_extensions: no extensions found in $glv_file\n" if $verbose;
+     return '';
+  }
 
 
   # Parse glext_procs.h file

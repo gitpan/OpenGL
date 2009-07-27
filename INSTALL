@@ -1,3 +1,8 @@
+ This module is a testing and integration version of POGL only.
+ See POGL for the official release.  This interface will likely
+ change radically before the full POGL functionality is
+ integrated with PDL.  Thanks!
+
  Visit the Perl OpenGL (POGL) Developer's Site for more information:
  http://graphcomp.com/opengl
 

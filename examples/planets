@@ -228,6 +228,8 @@ sub display {
   glXSwapBuffers();
 }
 
+glutInit();
+
 while (1) {
   $mercury += 1/0.24;
   $mercury -= 360 if $mercury >= 360;

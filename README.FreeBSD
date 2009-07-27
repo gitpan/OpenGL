@@ -1,2 +1,0 @@
-In addition to installing FreeGLUT, you need to install the latest libdrm, and update X.
-If you are not using a GPU driver, get the latest version of Mesa.

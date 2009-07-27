@@ -1219,7 +1219,8 @@ sub cbKeyPressed
   }
   elsif ($c eq 'K')
   {
-    glutLeaveMainLoop();
+    # ignore keypress if not FreeGLUT
+    glutLeaveMainLoop() if $OpenGL::_have_freeglut;
   }
   elsif ($c eq 'L')
   {
@@ -1483,6 +1484,7 @@ glutInit();
 
 # To see OpenGL drawing, take out the GLUT_DOUBLE request.
 glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH | GLUT_ALPHA);
+#glutInitDisplayString("rgb alpha>=0 double depth");
 
 # Open Window
 if (defined($gameMode) && glutGameModeString($gameMode))
@@ -1562,7 +1564,7 @@ glutMouseFunc(\&cbMouseClick);
 #glutPassiveMotionFunc(\&cbMouseTrack);
 
 # Handle window close events.
-glutCloseFunc(\&cbClose);
+glutCloseFunc(\&cbClose) if $OpenGL::_have_freeglut;
 
 # OK, OpenGL's ready to go.  Let's call our own init function.
 ourInit($Window_Width, $Window_Height);
@@ -1582,7 +1584,10 @@ Press 'c' to capture/save a RGBA targa file.
 
 # Pass off control to OpenGL.
 # Above functions are called as appropriate.
-glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE,GLUT_ACTION_GLUTMAINLOOP_RETURNS);
+if ($OpenGL::_have_freeglut) {
+   glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE,GLUT_ACTION_GLUTMAINLOOP_RETURNS)
+}
+
 glutMainLoop();
 
 print "FreeGLUT returned from MainLoop\n";

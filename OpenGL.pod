@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-OpenGL - v0.57 Perl OpenGL (POGL) module to display 3D data using OpenGL, FreeGLUT/GLUT, and GLX
+OpenGL - v0.58_01
 
 =head1 SYNOPSIS
 
