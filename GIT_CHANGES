@@ -1,0 +1,923 @@
+commit 298b14dc08b2cb6cca1fb5ad762176f40b87b205
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Aug 31 18:07:20 2009 -0400
+
+    Remove OpenGLUT funs and update FreeGLUT info
+    
+    A number of functions planned for POGL GLUT support
+    were from OpenGLUT however, we have since decided to
+    go to FreeGLUT (with backwards GLUT support as possible).
+    The offending OpenGLUT routines were removed, some info
+    on a few incomplete FreeGLUT bindings updated and TODO
+    was cleaned up to reflect current status.
+
+ OpenGL.pm       |   15 +--------------
+ TODO            |   16 ++++------------
+ pogl_glut.xs    |   34 +---------------------------------
+ 3 files changed, 6 insertions(+), 59 deletions(-)
+
+commit 3bc9564f17f3dc76597b41cbe6339b16951571c8
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Aug 3 16:59:01 2009 -0400
+
+    Fix glversion prob with GLUT_LIB= or GLUT_DEF=
+    
+    There were some cases where the $lib or $def was not defined
+    resulting in empty arguments to the make command for glversion.
+    Added conditional tests to set the parameters only if defined.
+
+ Makefile.PL |   29 +++++++++--------------------
+ 1 files changed, 9 insertions(+), 20 deletions(-)
+
+commit cead0769de4af6dd2db586dfe856f11e9749c984
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Aug 3 16:21:56 2009 -0400
+
+    GLX cleanup and remove OSMesa from list of libs
+    
+    The Mesa off-screen rendering library is a Mesa only feature
+    and is not supported by OpenGL.  Removed the associated library
+    file for checking in Makefile configuration and generation.
+
+ Makefile.PL |   49 +++++++++++++++++++++++--------------------------
+ 1 files changed, 23 insertions(+), 26 deletions(-)
+
+commit 5e6b71ae8d1de08cd5ae333f7ce453216278a1b3
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Aug 3 15:33:29 2009 -0400
+
+    Clean out more of GLX residue from Makefile.PL
+    
+    Add clear messages to Makefile.PL waring that GLX is not directly
+    supported by OpenGL.  You must access window system operations
+    via either GLUT or FreeGLUT---both are available for GLX platforms.
+
+ Makefile.PL |   52 +++++++++++++++++++++++++++++-----------------------
+ 1 files changed, 29 insertions(+), 23 deletions(-)
+
+commit eb739819862f1c2c5bb76a14498a69737c9e18f2
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Aug 3 14:27:16 2009 -0400
+
+    Add WGL interface type and make verbose variable
+    
+    Add WGL as a synonym for W32API in the interface types and clean
+    up some of the description in preparation for phasing out X11 support.
+    
+    Made the verbose option repeatable to increase the verbosity.
+
+ Makefile.PL |   19 +++++++++++--------
+ 1 files changed, 11 insertions(+), 8 deletions(-)
+
+commit f148ff8ff49e3212d3a7708fbf5aadc99330e3c0
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Aug 3 14:12:27 2009 -0400
+
+    Removed "fix" for old ExtUtils::Liblist breakage
+    
+    There was a supposed fix for ExtUtils::Liblist breakage that
+    does not seem to be needed anymore.  At the very least, we
+    should see if there are any problems with more recent versions
+    from ExtUtils-MakeMaker.
+
+ Makefile.PL |   12 ++++--------
+ 1 files changed, 4 insertions(+), 8 deletions(-)
+
+commit 6072fc1a6dc102cef600fe234c04fb1fbfac42c6
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Aug 3 10:51:19 2009 -0400
+
+    Set VERSION to 0.57_02 for development
+
+ OpenGL.pm |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+commit 2dea63ae8970a15a094054bfabd154f11e1b2759
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Aug 3 10:44:02 2009 -0400
+
+    Clean up bad dirs in $LIBS and $INCS
+    
+    Added two routines to clean up the $LIBS and $INCS values
+    removing non-existent directories with -L in $LIBS and -I
+    in $INCS before writing the Makefile. TODO: strip out missing
+    libraries as well.
+
+ Makefile.PL |   38 ++++++++++++++++++++++++++++++++++++++
+ 1 files changed, 38 insertions(+), 0 deletions(-)
+
+commit 304845eb3b287529c4ca644bb245706120ebb504
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sun Jul 26 23:03:18 2009 -0400
+
+    Rm'd test.lib which does not seem to do anything
+
+ test.lib |  Bin 288 -> 0 bytes
+ 1 files changed, 0 insertions(+), 0 deletions(-)
+
+commit b9821f9b00298bd16082efe8c0b05e9ab8538e0a
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Fri Jul 24 14:30:01 2009 -0400
+
+    Added pogl branch containing backport to OpenGL
+    
+    This branch changes the names back to OpenGL
+    ones for release of a developer's version to
+    CPAN and for final integration and testing with
+    the new PDL stuff.
+
+ MANIFEST.SKIP         |   12 +-------
+ META.yml              |    4 +-
+ Makefile.PL           |    4 +-
+ OpenGL.pm             |   12 ++++----
+ OpenGL.pod            |   24 ++++++++--------
+ OpenGL.xs             |   30 +++++++++++-----------
+ README                |    6 ++++
+ gl_util.h             |    2 +-
+ pogl_const.xs         |    4 +-
+ pogl_gl_Accu_GetM.xs  |    8 +++---
+ pogl_gl_GetP_Pass.xs  |    8 +++---
+ pogl_gl_Mult_Prog.xs  |    4 +-
+ pogl_gl_Pixe_Ver2.xs  |    8 +++---
+ pogl_gl_Prog_Clam.xs  |    4 +-
+ pogl_gl_Tex2_Draw.xs  |    4 +-
+ pogl_gl_Ver3_Tex1.xs  |    4 +-
+ pogl_gl_Vert_Multi.xs |   26 +++++++++---------
+ pogl_gl_top.xs        |    4 +-
+ pogl_glu.xs           |    4 +-
+ pogl_glut.xs          |    4 +-
+ pogl_rpn.xs           |   52 ++++++++++++++++++------------------
+ t/00_require.t        |    2 +-
+ t/01_use.t            |    2 +-
+ test.pl               |   68 ++++++++++++++++++++++++------------------------
+ typemap               |    2 +-
+ 25 files changed, 150 insertions(+), 152 deletions(-)
+
+commit 6975a992af646eb6522c866cda322cf1dcba0c25
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Wed Jul 15 10:10:31 2009 -0400
+
+    Final XS split; removed original pogl_gl.xs
+    
+    All the functionality from pogl_gl.xs has been
+    split into nine smaller XS files, each less than
+    about 2K lines of XS source.  The only remaining
+    large compile is the constants.
+
+ .gitignore            |    8 +-
+ pogl_gl.xs            |13067 -------------------------------------------------
+ pogl_gl_Accu_GetM.xs  |11527 +-------------------------------------------
+ pogl_gl_GetP_Pass.xs  |11508 +-------------------------------------------
+ pogl_gl_Mult_Prog.xs  |11096 +-----------------------------------------
+ pogl_gl_Pixe_Ver2.xs  |11414 +------------------------------------------
+ pogl_gl_Prog_Clam.xs  |11064 +-----------------------------------------
+ pogl_gl_Tex2_Draw.xs  |11511 +-------------------------------------------
+ pogl_gl_Ver3_Tex1.xs  |11679 +-------------------------------------------
+ pogl_gl_Vert_Multi.xs |11260 +------------------------------------------
+ 10 files changed, 9 insertions(+), 104125 deletions(-)
+
+commit 297f714082ec9523dde4c476a32d8be135567a47
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Wed Jul 15 09:56:50 2009 -0400
+
+    Completed 8-part split of pogl_gl.xs
+    
+    This splits the OpenGL bindings section of
+    pogl_gl.xs into pogl_gl_top.xs which contains
+    the general and misc stuff and 8 other XS
+    files with the specific bindings for the
+    GL and GLU routines.  Probably should rename
+    pogl_gl_top.xs to pogl_gl.xs at some point.
+
+ Makefile.PL           |    2 +-
+ OpenGL.xs             |   50 +-
+ pogl_gl.xs            |  693 +---
+ pogl_gl_Accu_GetM.xs  |13067 +++++++++++++++++++++++++++++++++++++++++++++++++
+ pogl_gl_GetP_Pass.xs  |13067 +++++++++++++++++++++++++++++++++++++++++++++++++
+ pogl_gl_Mult_Prog.xs  |13067 +++++++++++++++++++++++++++++++++++++++++++++++++
+ pogl_gl_Pixe_Ver2.xs  |13067 +++++++++++++++++++++++++++++++++++++++++++++++++
+ pogl_gl_Prog_Clam.xs  |13067 +++++++++++++++++++++++++++++++++++++++++++++++++
+ pogl_gl_Tex2_Draw.xs  |13067 +++++++++++++++++++++++++++++++++++++++++++++++++
+ pogl_gl_Ver3_Tex1.xs  |13067 +++++++++++++++++++++++++++++++++++++++++++++++++
+ pogl_gl_Vert_Multi.xs |13067 +++++++++++++++++++++++++++++++++++++++++++++++++
+ pogl_gl_top.xs        |   24 +-
+ pogl_glu.xs           |   24 +-
+ pogl_glut.xs          |   24 +-
+ pogl_rpn.xs           |   24 +-
+ 15 files changed, 104551 insertions(+), 826 deletions(-)
+
+commit 82eceb110c5f6bffdb972f4df0ebc81c5faebbfb
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Tue Jul 14 17:22:46 2009 -0400
+
+    Split top/bot from pogl_gl.xs into pogl_gl_top.xs
+    
+    This first refactoring of pogl_gl.xs creates a new
+    pogl_gl_top.xs file with all the odd pieces at the
+    beginning and end of the file.  The only stuff left
+    in pogl_gl.xs is the OpenGL stuff which can be
+    split cleanly.
+
+ Makefile.PL    |    2 +-
+ OpenGL.xs      |    3 +-
+ pogl_gl.xs     |   54 +++--
+ pogl_gl_top.xs |  740 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 771 insertions(+), 28 deletions(-)
+
+commit 21bd5bddb53a150144ab1a2a0f3666b87e491fca
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Tue Jul 14 16:23:07 2009 -0400
+
+    Add ifdef IN_POGL_CONST_XS to isolate neoconstant
+    
+    Wrapped the neoconstant section of the xs files
+    with #ifdef IN_POGL_CONST_XS .. #endif pairs to
+    turn the code off everywhere but pogl_const.xs.
+    Everything builds and passes the tests so can probably
+    removed the now skipped code at some future point.
+
+ OpenGL.xs     |    7 +++----
+ pogl_const.xs |    4 +++-
+ pogl_gl.xs    |   32 +++++++++++++++++---------------
+ pogl_glu.xs   |    4 +++-
+ pogl_glut.xs  |    6 ++++--
+ pogl_rpn.xs   |    8 +++++---
+ 6 files changed, 35 insertions(+), 26 deletions(-)
+
+commit bfbebde4f00afc2add69302b05e63104ef9ba0b9
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Tue Jul 14 15:24:04 2009 -0400
+
+    Remove ifdef IN_POGL_GL_XS sections in pogl_gl.xs
+    
+    This is not needed since the file has already been
+    split.  The idea is to clean things up a bit before
+    the final split into smaller compilation units.
+
+ pogl_gl.xs |   15 +--------------
+ 1 files changed, 1 insertions(+), 14 deletions(-)
+
+commit 6a73e6b0e994c05b7a15258c2d7064163507a185
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Tue Jul 14 15:09:43 2009 -0400
+
+    Add another junk file name to .gitignore
+
+ .gitignore |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+commit 241f519dc2a34da03fc01514f9aeb56a7beb9364
+Author: U-TESSERACT-3\chm <chm@tesseract-3.(none)>
+Date:   Sun Jul 12 23:24:12 2009 -0400
+
+    Set version to 0.01_07git for development
+
+ OpenGL.pm |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+commit b905c77522274454486e3348158d4a67e92574aa
+Author: U-TESSERACT-3\chm <chm@tesseract-3.(none)>
+Date:   Sun Jul 12 18:00:56 2009 -0400
+
+    Updated MANIFEST.SKIP
+
+ MANIFEST.SKIP |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+commit a29be51b0cd551e0830f3eaf6d97f8dbd0a22877
+Author: U-TESSERACT-3\chm <chm@tesseract-3.(none)>
+Date:   Sun Jul 12 13:04:50 2009 -0400
+
+    Update version to 0.01_06 for release to CPAN
+
+ OpenGL.pm |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+commit a14e0fd7ecb4bb3dbdc14c7490a1c0f06800b633
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Fri Jul 10 17:47:34 2009 -0400
+
+    Added some more entries to .gitignore
+
+ .gitignore |    5 +++++
+ 1 files changed, 5 insertions(+), 0 deletions(-)
+
+commit 250c95e7eaa73450319854a310fc8ba3060df600
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Fri Jul 10 17:43:08 2009 -0400
+
+    Minor word-smithing re version number and pod docs
+    
+    CHANGES - updated for git development
+    MANIFEST.SKIP - added a few more files
+    OpenGL.pod - fixed version docs to match module
+    OpenGL.xs - fixed minor podchecker bugs
+    examples/README - add current state of affairs NOTE here
+
+ CHANGES         |    2 +-
+ MANIFEST.SKIP   |   22 ++++++++++++----------
+ OpenGL.pod      |    2 +-
+ OpenGL.xs       |    6 +++++-
+ examples/README |    7 +++++++
+ 5 files changed, 26 insertions(+), 13 deletions(-)
+
+commit fd57f8ac5d5fb85bea5408dff370313d0269955b
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Thu Jul 9 18:01:46 2009 -0400
+
+    Renamed tests to t/##_xxxx.t convention
+    
+    This allows for sequential ordering of tests
+    based on their number prefix which means simpler
+    functionality can be tested before more complex
+    functions without checking in each file for the
+    earlier capability.
+
+ t/00_require.t |    3 +++
+ t/01_use.t     |    3 +++
+ t/require.t    |    3 ---
+ t/use.t        |    3 ---
+ 4 files changed, 6 insertions(+), 6 deletions(-)
+
+commit b786d038e8cdeb26dbb4bfaf9720ebc795b47317
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Thu Jul 9 14:39:38 2009 -0400
+
+    Revert to glutInitDisplayMode() in test.pl
+    
+    glutInitDisplayString() is not fully implemented
+    in FreeGLUT so it is not possible to request
+    either an alpha channel buffer or one without
+    an alpha channel.  It may be possible to work
+    around with a try-and-die hack which would
+    try a couple of test applications to see which
+    end up running.
+
+ test.pl |    4 ++--
+ 1 files changed, 2 insertions(+), 2 deletions(-)
+
+commit 08400e2d88ae201d9ac0f0fd4a13ad203683a07b
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Thu Jul 9 14:23:32 2009 -0400
+
+    Add exit 0 to Makefile.PL if no *GLUT found
+    
+    This explicitly exits the configure process
+    if GLUT or FreeGLUT libraries are not found.
+    Since GLUT (and FreeGLUT) both will build on
+    an X11/GLX system, this just makes explicit
+    the GLUT requirement in a fashion consistent
+    with CPAN Testers reporting definitions.
+
+ Makefile.PL |    7 ++++++-
+ 1 files changed, 6 insertions(+), 1 deletions(-)
+
+commit 7e078e1fa304697dff8dbf5451597a974a41cdc3
+Author: U-TESSERACT-3\chm <chm@tesseract-3.(none)>
+Date:   Sat Jun 13 22:46:45 2009 -0400
+
+    Update version to 0.01_06git for more development
+
+ OpenGL.pm |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+commit 03e8caf2465b52c3abb8a5a90c86944eb3449595
+Author: U-TESSERACT-3\chm <chm@tesseract-3.(none)>
+Date:   Sat Jun 13 19:16:36 2009 -0400
+
+    Added glutInitDisplayString() to pogl_glut.xs
+    
+    This allows for much greater flexibility in display
+    mode selection.  For example, on hardware without alpha
+    support, this allows you to request an alpha capability
+    but accept none.
+
+ pogl_glut.xs |    7 ++++++-
+ test.pl      |    3 ++-
+ 2 files changed, 8 insertions(+), 2 deletions(-)
+
+commit 36923e42aef50d815b90105674cc45475ea71a3f
+Author: U-TESSERACT-3\chm <chm@tesseract-3.(none)>
+Date:   Sat Jun 13 18:59:36 2009 -0400
+
+    Fixed skip of Makefile.PL in MANIFEST.SKIP
+
+ MANIFEST.SKIP |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+commit f0c476227257cbc17252f50338e88eac4955cd0c
+Author: U-TESSERACT-3\chm <chm@tesseract-3.(none)>
+Date:   Sat Jun 13 18:20:35 2009 -0400
+
+    Make glut/freeglut the interface choices for cygwin
+
+ Makefile.PL |   29 ++++++++++++++++-------------
+ 1 files changed, 16 insertions(+), 13 deletions(-)
+
+commit dc1f6aa2f1bd7bb9d4a65f0bc055457119c5d593
+Author: U-TESSERACT-3\chm <chm@tesseract-3.(none)>
+Date:   Sat Jun 13 18:19:11 2009 -0400
+
+    Taking MANIFEST out of git version control
+
+ .gitignore    |    1 +
+ MANIFEST      |  106 ---------------------------------------------------------
+ MANIFEST.SKIP |    3 ++
+ 3 files changed, 4 insertions(+), 106 deletions(-)
+
+commit 4710fd075fd1424d4757a7cef1ef4376712738b9
+Author: U-TESSERACT-3\chm <chm@tesseract-3.(none)>
+Date:   Sat Jun 13 15:10:45 2009 -0400
+
+    Split out OpenGL constants into pogl_const.xs
+    
+    This reduces the size of the files to be compiled
+    and their ultimate size.  We need to subdivide
+    further the GL specific constants and functions to
+    make the maximum compile size significantly smaller.
+
+ .gitignore    |    2 +
+ MANIFEST      |   17 +++++++++++-
+ MANIFEST.SKIP |   57 +++++++++++++++++++++++++++++++++++++++++
+ Makefile.PL   |    2 +-
+ OpenGL.pm     |    2 +-
+ OpenGL.xs     |    8 ++---
+ pogl_const.xs |   79 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 7 files changed, 158 insertions(+), 9 deletions(-)
+
+commit aa1cde36ffe8da11037abe2a2156333a04d8b544
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Fri Jun 12 13:30:25 2009 -0400
+
+    Change perms on pogl_gl_funcs.txt list file.
+
+ 0 files changed, 0 insertions(+), 0 deletions(-)
+
+commit efedafa7b873a64d5bdb6060f2e58a002b28a99c
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Fri Jun 12 10:41:30 2009 -0400
+
+    Add a ref list of all bindings in pogl_gl.xs
+
+ pogl_gl_funcs.txt |  982 +++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 files changed, 982 insertions(+), 0 deletions(-)
+
+commit 2a909fe19ca5f18f1900103107c054e828e2b928
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Fri Jun 12 10:03:23 2009 -0400
+
+    Updated idea for split of XS
+
+ TODO |   21 ++++++++++++++++++---
+ 1 files changed, 18 insertions(+), 3 deletions(-)
+
+commit 2aa9a5a8e18e87adf4223dcb249527d4152c8e7f
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Fri Jun 12 10:01:49 2009 -0400
+
+    Split out GLU from pogl_gl.xs to pogl_glu.xs
+    
+    The main split left is to subdivide the pogl_gl.xs
+    OpenGL routine bindings.  Possible splits are by
+    function category, alphabetically, c, string, perl
+    interfaces, ...
+
+ Makefile.PL |    2 +-
+ OpenGL.xs   |    3 +-
+ pogl_gl.xs  |  754 +--------------------------------------------------------
+ pogl_glu.xs |  792 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 797 insertions(+), 754 deletions(-)
+
+commit 908ced3818a6e81922e3b879dbf5b7147ae1d21e
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Fri Jun 12 10:00:54 2009 -0400
+
+    Added EL-ELI.c source for easy reference to binding
+
+ EL-ELI.c |   37 +++++++++++++++++++++++++++++++++++++
+ 1 files changed, 37 insertions(+), 0 deletions(-)
+
+commit 3478bad6b029e8fc98bc0ded71628c04b3ccbf51
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Wed Jun 10 11:26:45 2009 -0400
+
+    Updated TODO to add GLUI bindings to the list
+
+ TODO |    5 ++++-
+ 1 files changed, 4 insertions(+), 1 deletions(-)
+
+commit 53c595b330ec1287b70596ae6c0c7f4cdaffb62d
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Wed Jun 10 11:14:50 2009 -0400
+
+    Updated TODO with all outstanding port notes
+    
+    The big realization here: GLUT or FreeGLUT builds on
+    all GLX platforms so we lose nothing by dropping GLX
+    support from POGL!  The main work will be supporting
+    the glp*() functions via a GLUT framework rather than
+    the current GLX+X11+XEvent stuff.
+
+ TODO |  181 ++++++++++++++++++++++++++++++++++++++++++++---------------------
+ 1 files changed, 122 insertions(+), 59 deletions(-)
+
+commit 1174055741afc6fabe8907cf6291584344e310c0
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Wed Jun 10 11:14:10 2009 -0400
+
+    Update version to 0.01_05git
+
+ OpenGL.pm |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+commit 7d0ddeb212321d405ba31edb6d25a479a1fc91b1
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Wed Jun 10 09:56:11 2009 -0400
+
+    Renamed pogl_main.xs to pogl_gl.xs
+    
+    This is the planned final name for the file
+    making the GL bindings.  It currently has
+    everything that has not been split out.
+    Similarly, pogl_rpn.xs contains the OGA
+    stuff due to the dependencies in the current
+    code.  Once the RPN declarations have been
+    refactored into an include file, the OGA
+    stuff will move to pogl_array.xs.
+
+ .gitignore   |    9 +-
+ Makefile.PL  |    2 +-
+ OpenGL.xs    |    6 +-
+ pogl_gl.xs   |14517 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ pogl_main.xs |14517 ----------------------------------------------------------
+ 5 files changed, 14529 insertions(+), 14522 deletions(-)
+
+commit 8602b439e813657dd611f709f83070549d0ed3d4
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Wed Jun 10 09:39:16 2009 -0400
+
+    Added t/ directory with use_ok() and require_ok()
+    
+    The "make test" command now runs all the tests in
+    t/ and finishes by running the original test.pl.
+    We need to add specific subtests for each main
+    interface for regression testing and cross-platform
+    diagnostics.
+
+ t/require.t |    3 +++
+ t/use.t     |    3 +++
+ 2 files changed, 6 insertions(+), 0 deletions(-)
+
+commit 9ed9b29bf5e139d7d57bc7375a7dfd93754bcd30
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Wed Jun 10 09:38:44 2009 -0400
+
+    Added pogl_xxx.c intermediate filenames
+
+ .gitignore |   17 ++++++++++-------
+ 1 files changed, 10 insertions(+), 7 deletions(-)
+
+commit 2d4881e5b8996d2b1ab32cae5f48af546437db24
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Tue Jun 9 10:07:04 2009 -0400
+
+    Added Config.pm to list of files to clean.
+
+ Makefile.PL |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+commit 32596be1a38da4455124c73c8a7d76bd08436125
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Tue Jun 9 09:53:59 2009 -0400
+
+    Preliminary split of OpenGL.xs completed
+    
+    Using the technology from the Glib module,
+    we have split out the XS intefaces for
+    GLUT/FreeGLUT, RPN+OGA, and GL+GLU+GLX
+    into separate XS files:
+    
+      pogl_glut.xs  -- GLUT/FreeGLUT bindings
+      pogl_rpn.xs   -- RPN and OGA interfaces
+      pogl_main.xs  -- GL, GLU, and GLX stuff
+    
+    This resulted in new MODULES for each of the
+    resulting files:
+    
+      PDL::Graphics::OpenGL::Perl::OpenGL::GLUT
+      PDL::Graphics::OpenGL::Perl::OpenGL::RPN
+      PDL::Graphics::OpenGL::Perl::OpenGL::Rest
+    
+    Need to determine if no index ought to be
+    specified here.
+    
+    TODO:
+    
+      Still need to split GL, GLU, and GLX
+      Subdivide GL to reduce compile pressure
+      Add includes to allow RPN and Array to decouple
+
+ Makefile.PL  |    2 +-
+ OpenGL.xs    |17825 +---------------------------------------------------------
+ pogl_glut.xs |16216 +----------------------------------------------------
+ pogl_main.xs | 3460 +------------
+ pogl_rpn.xs  | 1803 ++++++
+ 5 files changed, 1813 insertions(+), 37493 deletions(-)
+
+commit b570c7ac1c306ed0646e3ea025ed29ee8ef0fb87
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Tue Jun 9 09:53:00 2009 -0400
+
+    Added a list of FreeGLUT only funs for reference
+
+ freeglut-funs-name.txt |   22 ++++++++++++++++++++++
+ 1 files changed, 22 insertions(+), 0 deletions(-)
+
+commit ccd0c90b90a9ebf5d83fa63c2c5e6f098507d578
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Tue Jun 9 09:52:17 2009 -0400
+
+    Update VERSION to 0.05 in prep for test release
+
+ OpenGL.pm |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+commit d4ccbad90ec7ec15e1cb4d8be9aa7a80bddebdc9
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Mon Jun 8 17:42:49 2009 -0400
+
+    Introduce new files to split XS across
+    
+    After the split booting works with the
+    two files, I'll see about extending it
+    to work with all the different categories.
+
+ pogl_glut.xs |17973 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ pogl_main.xs |17973 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 35946 insertions(+), 0 deletions(-)
+
+commit 455ca65edb54c41bbf25c7a02122c3033ce3f0c2
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Mon Jun 8 17:41:25 2009 -0400
+
+    First attempt to split out XS files
+    
+    I'm getting duplicate generation of the
+    boot functions.  Will try to set separate
+    MODULE values for each file and see if that
+    helps
+
+ Makefile.PL |    2 +-
+ OpenGL.xs   |   16 ++++++++--------
+ 2 files changed, 9 insertions(+), 9 deletions(-)
+
+commit 900f345317c6de9421ad5208eccf900450e7c5fb
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Mon Jun 8 16:45:20 2009 -0400
+
+    Added _have_freeglut parameter and checks
+    
+    If HAVE_FREEGLUT is defined, then so will _have_freeglut.
+    test.pl was modified to avoid FreeGLUT functionality so
+    it should run with GLUT only.
+
+ OpenGL.xs |   16 ++++++++++++++--
+ test.pl   |   10 +++++++---
+ 2 files changed, 21 insertions(+), 5 deletions(-)
+
+commit 6294fc10a3d199343c200fa1605bc71c3c5e4406
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Mon Jun 8 16:07:09 2009 -0400
+
+    Make FreeGLUT over GLX the default for cygwin make
+    
+    There is still a problem with using w32api and the
+    freeglut.dll distributed with POGL.  I make the
+    FreeGLUT + GLX the default for cygwin and determined
+    build options that work with the explicit freeglut.dll
+    but work needs to be done to get this running with
+    the full perl module.
+
+ utils/Makefile.cygwin |   10 +++++++---
+ utils/glversion.c     |    8 ++++++++
+ 2 files changed, 15 insertions(+), 3 deletions(-)
+
+commit 80dc1ce705de07a0fdc1770ae6c09f52c9296427
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Fri May 29 18:25:05 2009 -0400
+
+    OpenGL.xs has partitions...next to split to files.
+    
+    The #ifdef IN_POGL_XXX_XS dividers are in place in
+    OpenGL.xs and it should be ready to create the actual
+    split out XS files.  Note: I discovered that you cannot
+    span a MODULE directive line in an XS file with #ifdef
+    to #endif (or #else).  Either side works ok.
+
+ OpenGL.xs |   28 +++++++++++++++++++++++++++-
+ 1 files changed, 27 insertions(+), 1 deletions(-)
+
+commit c69cd2930b05b265a66287505adfa06b5394f28a
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Fri May 29 18:02:00 2009 -0400
+
+    Another step to XS splitting and cleanup
+
+ OpenGL.xs  |   33 ++++++++++++++++++++++++++++-
+ gl_const.h |    2 +-
+ gl_util.h  |   65 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++---
+ 3 files changed, 93 insertions(+), 7 deletions(-)
+
+commit d7ca39a5008b97f9e33f19a36f0189d879d94a6e
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Fri May 29 16:52:54 2009 -0400
+
+    More XS split and move PackCallbackST to pgopogl.h
+    
+    Another checkpoint in the XS file partition process.
+    A bit of cleanup on the #defines and move a macro
+    definition from the XS file to pgopogl.h.
+
+ OpenGL.xs |   13 +++++++++++--
+ pgopogl.h |   13 +++++++++++++
+ 2 files changed, 24 insertions(+), 2 deletions(-)
+
+commit cc6c9bff9227292311a4808e44dbe3cbf864ec4a
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Fri May 29 15:55:01 2009 -0400
+
+    Add OpenGL.xs-orig to .gitignore
+
+ .gitignore |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+commit 545bc3011252c792007cf68a5d51ac73dcc0520a
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Fri May 29 15:50:46 2009 -0400
+
+    Safety snapshot of partial xs file split
+    
+    By using #ifdef's and #defines such as IN_POGL_GL_XS, I am
+    segmenting the original OpenGL.xs file by the planned final
+    XS file location.  Once all the partitioning #ifdef--#endif
+    pairs are in, we'll copy the file to the new .xs names and
+    set only the specific #define for that file.  When the split
+    version is debugged and working we will remove the redundant
+    code sections.
+
+ OpenGL.xs |   70 +++++++++++++++++++++++++++++++++++++++++++++++++-----------
+ 1 files changed, 57 insertions(+), 13 deletions(-)
+
+commit 95616470cbbe4a9027a633ae96ea7fe7bdc80c19
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Fri May 29 15:46:07 2009 -0400
+
+    Add indentation so folds work for big sections
+    
+    The large arrays and other structure associated with
+    the constants, functions and other identifiers for the
+    OpenGL module result in lots of lines.  By adding some
+    default indentation, vim allows folds to hide these
+    long line groups allowing for better visualization of
+    the file contents.
+
+ OpenGL.pm | 9224 ++++++++++++++++++++++++++++++------------------------------
+ 1 files changed, 4612 insertions(+), 4612 deletions(-)
+
+commit a0329e895f5329e1141be3c628403215e534da0f
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Fri May 29 15:45:14 2009 -0400
+
+    Add more stuff to .gitignore
+
+ .gitignore |    2 ++
+ 1 files changed, 2 insertions(+), 0 deletions(-)
+
+commit c30ef516a49808e4effabc7eaefdb63147925f95
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Fri May 29 15:44:24 2009 -0400
+
+    Factor out common XS includes and ppport.h
+
+ pgopogl.h |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+commit a88993e8a7db449e7b771634157aa77ce1415f65
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Fri May 29 14:06:30 2009 -0400
+
+    Put basic .gitignore for module development
+
+ .gitignore |   11 +++++++++++
+ 1 files changed, 11 insertions(+), 0 deletions(-)
+
+commit 44132c292f59ed900ed7205184f695629b2cfba1
+Author: Chris Marshall <chm@alum.mit.edu>
+Date:   Fri May 29 13:39:02 2009 -0400
+
+    Initial commit of PGOPOGL module to git
+    
+    Getting started to split the XS file to reduce the
+    size of the compile processes so things can build
+    on systems with lower memory requirements.  This may
+    reduce the time to compile as well.  Need to check.
+
+ CHANGES                          |  116 +
+ COPYRIGHT                        |   82 +
+ FreeGLUT/README.txt              |    2 +
+ FreeGLUT/freeglut.dll            |  Bin 0 -> 229376 bytes
+ FreeGLUT/freeglut.lib            |  Bin 0 -> 32452 bytes
+ INSTALL                          |  122 +
+ MANIFEST                         |   93 +
+ META.yml                         |   10 +
+ Makefile.PL                      |  938 ++
+ OpenGL.pm                        | 6276 ++++++++++++++
+ OpenGL.pod                       | 1886 ++++
+ OpenGL.xs                        |17853 ++++++++++++++++++++++++++++++++++++++
+ README                           |   16 +
+ SUPPORTS                         |   35 +
+ TODO                             |   59 +
+ examples/README                  |    5 +
+ examples/clip                    |  116 +
+ examples/cube                    |   69 +
+ examples/depth                   |   39 +
+ examples/double                  |   75 +
+ examples/fun                     |  384 +
+ examples/glu_test                |   68 +
+ examples/light                   |  127 +
+ examples/plane                   |  109 +
+ examples/planets                 |  274 +
+ examples/quest                   |  357 +
+ examples/simple                  |   26 +
+ examples/smooth                  |   38 +
+ examples/spaceship.nff           |  230 +
+ examples/stan.ppm                |  823 ++
+ examples/texhack                 |   82 +
+ examples/texture                 |  132 +
+ examples/tk_demo                 |  104 +
+ examples/tk_steal                |  120 +
+ examples/try                     |   22 +
+ examples/with-glut.txt           |    1 +
+ examples/with-glx.txt            |   10 +
+ examples/wolf.bin                |  Bin 0 -> 49160 bytes
+ fragment.arb                     |   11 +
+ fragment.cg                      |   23 +
+ fragment.glsl                    |    8 +
+ genvars.pl                       |   73 +
+ gl_const.h                       | 3124 +++++++
+ gl_exclude.h                     |  151 +
+ gl_util.c                        | 1479 ++++
+ gl_util.h                        |  337 +
+ glext_procs.h                    | 8589 ++++++++++++++++++
+ glpm_const.h                     |   99 +
+ glu_const.h                      |  107 +
+ glu_util.h                       |   14 +
+ glut_const.h                     |  189 +
+ glut_util.h                      |   20 +
+ glx_const.h                      |  170 +
+ glx_util.h                       |    1 +
+ include/GL/SGIFreeSWLicB.1.1.pdf |  Bin 0 -> 24888 bytes
+ include/GL/freeglut.h            |   22 +
+ include/GL/freeglut_ext.h        |  115 +
+ include/GL/freeglut_std.h        |  547 ++
+ include/GL/gl.h                  | 1914 ++++
+ include/GL/glext.h               | 6495 ++++++++++++++
+ include/GL/glprocs.h             | 2213 +++++
+ include/GL/glu.h                 |  584 ++
+ include/GL/glut.h                |   21 +
+ include/GL/glxext.h              |  706 ++
+ include/GL/wglext.h              |  631 ++
+ isosurf.bin                      |  Bin 0 -> 86148 bytes
+ isosurf.pl                       |  326 +
+ menutest.pl                      |   23 +
+ oga.pl                           |  187 +
+ os2pm_X.h                        |  618 ++
+ pgopogl.h                        |   46 +
+ pgopogl.xs                       |   58 +
+ ppport.h                         | 4954 +++++++++++
+ test.jpg                         |  Bin 0 -> 10546 bytes
+ test.lib                         |  Bin 0 -> 288 bytes
+ test.pl                          | 1590 ++++
+ test.png                         |  Bin 0 -> 28939 bytes
+ test.tga                         |  Bin 0 -> 65580 bytes
+ typemap                          |   40 +
+ utils/Makefile                   |   36 +
+ utils/Makefile.cygwin            |   27 +
+ utils/Makefile.macosx            |   23 +
+ utils/cleanup.pl                 |   91 +
+ utils/const.pl                   |    9 +
+ utils/exports.pl                 |   13 +
+ utils/exports.txt                |  337 +
+ utils/glext_procs.pl             |  128 +
+ utils/glversion.c                |   37 +
+ utils/glxinfo.c                  |  798 ++
+ utils/hdr_diff.pl                |   44 +
+ utils/makefile.mak               |   30 +
+ utils/makefile.mingw             |   24 +
+ utils/mingw.bat                  |   30 +
+ utils/opengl32.txt               |  394 +
+ utils/wgl_ext.txt                |  122 +
+ vertex.arb                       |   26 +
+ vertex.cg                        |   40 +
+ vertex.glsl                      |   23 +
+ 98 files changed, 68416 insertions(+), 0 deletions(-)

@@ -30,6 +30,7 @@ FreeGLUT/freeglut.dll
 FreeGLUT/freeglut.lib
 FreeGLUT/README.txt
 genvars.pl
+GIT_CHANGES
 gl-funs-number.txt
 gl_const.h
 gl_exclude.h
@@ -88,7 +89,6 @@ SUPPORTS
 t/00_require.t
 t/01_use.t
 test.jpg
-test.lib
 test.pl
 test.tga
 TODO

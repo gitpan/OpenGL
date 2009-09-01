@@ -6,20 +6,15 @@ use Config;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
 
-# ExtUtils::Liblist is broken
-@findlib::ISA = qw(ExtUtils::Liblist);
-sub findlib::lsdir { shift; grep /$_[0]/, <$_[1]>}
-sub findlib::file_name_is_absolute { 1 } # Used for warnings only...
-
- 
 # Supported windowing interfaces
 our $is_valid_interface =
 {
-  'FREEGLUT'	=> 'FreeGLUT, preferred over GLUT',
-  'GLUT'	=> 'GLUT; this really FreeGLUT on Linux',
-  'GLX'		=> 'X11; requires a running XServer',
   'AGL'		=> 'GLUT framework on Mac OS X',
-  'W32API'	=> 'Uses FreeGLUT on CYGWIN, instead of GLX/X11'
+  'FREEGLUT'	=> 'FreeGLUT, preferred over GLUT',
+  'GLUT'	=> 'GLUT; often really FreeGLUT on Linux',
+  'GLX'		=> 'GLX+X11 not supported; use GLUT or FreeGLUT',
+  'W32API'	=> 'Uses WGL+FreeGLUT on CYGWIN, instead of GLX+FreeGLUT',
+  'WGL'         => 'Same as W32API',
 };
 
 
@@ -37,9 +32,11 @@ sub Usage
 
     help                This help message
 
-    verbose             Display additional status info
+    verbose             Display additional status info, can be
+                        repeated for more verbosity
 
     dist=NO_EXCLUSIONS  Build with no OpenGL Extension exclusions
+
     dist=EXCLUSIONS     Override NO_EXCLUSIONS default for Win32
 
     interface=XFACE     Build for a specific windowing interface
@@ -64,7 +61,7 @@ close(STDERR);
 my $uname = `uname`;
 open(STDERR, ">&SAVEERR");
 our $IS_CYGWIN = ($uname =~ m|^CYGWIN|);
-our $IS_W32API = ($IS_CYGWIN && grep { m/^interface=W32API/i } @ARGV );
+our $IS_W32API = ($IS_CYGWIN && grep { m/^interface=(W32API|WGL)/i } @ARGV );
 
 
 # Detect MINGW
@@ -81,13 +78,13 @@ if ($^O eq 'MSWin32' && !$IS_CYGWIN)
 
 
 # Get debugging flags
-our $verbose = 1;
-if ( grep { m/^verbose/i } @ARGV )
+our $verbose = 0;
+if ( grep { if (m/^verbose/i) { $verbose++; 1; } else { 0; } } @ARGV )
 {
-  $verbose = 1;
   # Strip out interface args
   @ARGV = grep { !m/^verbose=/i } @ARGV;
 }
+print "\$verbose set to $verbose\n" if $verbose;
 
 
 # Get distribution build flags
@@ -141,14 +138,13 @@ our @check_libs = qw
   -lGLUT
   -lglut
   -lMesaGLUT
-  -lOSMesa
   -lGLX
   -lglx
   -lMesaGLX
 };
 
 our $found_libs = get_libs(@libdirs,@check_libs);
-die "No OpenGL libs found\n" if (!scalar($found_libs));
+die "No OpenGL related libs found\n" if (!scalar($found_libs));
 
 if ($verbose)
 {
@@ -187,7 +183,7 @@ if ( grep { m/^interface=/i } @ARGV )
 
       # test if requested interfaces supported
       # !!! Should use lookup table
-      if ($interface eq 'W32API')
+      if ($interface eq 'W32API' or $interface eq 'WGL')
       {
         if (!$found_libs->{FREEGLUT32} && !$found_libs->{GLUT32})
         {
@@ -234,8 +230,7 @@ if ( grep { m/^interface=/i } @ARGV )
             }
           }
         }
-
-        if ($interface eq 'GLUT')
+        elsif ($interface eq 'GLUT')
         {
           if (!$found_libs->{GLUT} && $found_libs->{FREEGLUT})
           {
@@ -259,16 +254,29 @@ if ( grep { m/^interface=/i } @ARGV )
 
           if (!$found_libs->{GLUT} && !$found_libs->{GLUT32})
           {
-            print "GLUT interface requires GLUT or FreeGLUT\n";
+            print "GLUT interface requires GLUT or FreeGLUT but libs were not found\n";
             next;
           }
+        }
+        else
+        {
+           print "Error in interface argument processing\n";
+           next;
         }
       }
       elsif ($interface eq 'GLX')
       {
+         print "\n";
+         print "***********************************************************************\n";
+         print "* ERROR: GLX interface is not supported, use GLUT or FreeGLUT instead *\n";
+         print "***********************************************************************\n";
+         print "\n";
+
+         exit 0;
+
         if (!$found_libs->{GL} && !$found_libs->{MESA} && !$found_libs->{GLX})
         {
-          print "GLX interface requires GLX/X11\n";
+          print "GLX interface requires GLX/X11 but the libraries were not found\n";
           next;
         }
       }
@@ -315,16 +323,12 @@ elsif ($IS_CYGWIN)
   }
   else
   {
-    die "No suitable interface found for CYGWIN\n";
+    die "No suitable OpenGL+GLUT interface found for CYGWIN\n";
   }
 }
 elsif ($^O eq 'darwin' && $found_libs->{GLUT})
 {
   $interface_lib = 'AGL';
-}
-elsif ($found_libs->{FREEGLUT})
-{
-  $interface_lib = 'FREEGLUT';
 }
 elsif ($found_libs->{FREEGLUT} || $found_libs->{FREEGLUT32})
 {
@@ -334,18 +338,9 @@ elsif ($found_libs->{GLUT} || $found_libs->{GLUT32})
 {
   $interface_lib = 'GLUT';
 }
-elsif ($^O eq 'MSWin32')
-{
-  die "Windows requires FreeGLUT or GLUT\n";
-}
 else
 {
-  $interface_lib = 'GLX'; # otherwise default to GLX
-}
-
-if ($interface_lib eq 'GLX') {
-   warn "GLUT or FreeGLUT not found, cannot build module!\n";
-   exit 0;
+  die "FreeGLUT or GLUT libraries were not found, won't build OpenGL module.";
 }
 
 print "\nUsing interface: $interface_lib\n\n";
@@ -368,17 +363,21 @@ elsif($IS_CYGWIN)
   delete($found_libs->{'GLU32'});
   delete($found_libs->{'OPENGL32'});
 }
-if (!$found_libs->{'GL'})
-{
-  if ($found_libs->{'GLX'})
-  {
-    $found_libs->{'GL'} = $found_libs->{'GLX'};
-  }
-  elsif ($found_libs->{'MESA'})
-  {
-    $found_libs->{'GL'} = $found_libs->{'MESA'};
-  }
+
+if (0) { # May be not necessary now, see if removing makes a difference
+   if (!$found_libs->{'GL'})
+   {
+      if ($found_libs->{'GLX'})
+      {
+         $found_libs->{'GL'} = $found_libs->{'GLX'};
+      }
+      elsif ($found_libs->{'MESA'})
+      {
+         $found_libs->{'GL'} = $found_libs->{'MESA'};
+      }
+   }
 }
+
 print "resulting libs:\n" if ($verbose);
 foreach my $key (sort keys %$found_libs)
 {
@@ -424,17 +423,6 @@ if ($IS_W32API || (($^O eq 'MSWin32') && !$IS_CYGWIN))		# Win32
   }
 
   $EXES = ['FreeGLUT/freeglut.dll'];
-}
-elsif (0 && $IS_W32API)						# CYGWIN W32API
-{
-  my $glut_lib = ($found_libs->{FREEGLUT32}) ? $found_libs->{FREEGLUT32} :
-    $found_libs->{GLUT32};
-
-  $LIBS = "-L/usr/lib/w32api -lopengl32 -lglu32 -LFreeGLUT -l$glut_lib";
-  $LDFROM ="-l$glut_lib";
-  $INCS = '-I/usr/include/w32api';
-  $DEFS .= " -DHAVE_W32API";
-  $DYNS = { OTHERLDFLAGS => '-Wl,--exclude-symbols,'."\x7F".$glut_lib.'_NULL_THUNK_DATA' };
 }
 elsif ($interface_lib eq 'AGL')					# Mac OS X
 {
@@ -541,6 +529,9 @@ else # Everyone else
   }
 }
 
+clean_incs( $INCS );
+
+clean_libs( $LIBS );
 
 # This is the final build configuration
 my $build_config =
@@ -630,6 +621,7 @@ sub get_libs
   # Mac OS X
   if ($^O eq 'darwin' && -d '/System/Library/Frameworks/OpenGL.framework')
   {
+
     $found->{GL} = 'OpenGL.framework';
     $found->{GLU} = 'AGL.framework';
     $found->{GLUT} = 'GLUT.framework';
@@ -707,7 +699,7 @@ sub get_libs
   # Everyone else
   open(SAVEERR, ">&STDERR");
   close(STDERR);
-  ($libs) = findlib->ext(join(' ',@glx_libs),0);
+  ($libs) = ExtUtils::Liblist->ext(join(' ',@glx_libs),0);
   open(STDERR, ">&SAVEERR");
 
   foreach my $lib (split(' ',$libs))
@@ -783,22 +775,22 @@ sub get_extensions
   {
     $make_ver = "&mingw.bat";
 #    $make_ver = '&dmake -f makefile.mingw GLUT_DEF='.$def;
-    #print "mingw glversion: '$make_ver'\n";# if $verbose;
+    print "mingw glversion: '$make_ver'\n" if $verbose>1;
   }
   elsif ($IS_W32API)
   {
-    $make_ver = ";make -f Makefile.cygwin GLUT_LIB=$lib GLUT_DEF=$def";
-    #print "cygwin glversion: '$make_ver'\n" if $verbose;
+    $make_ver = ";make -f Makefile.cygwin " .  (length($lib) ? "GLUT_LIB=$lib " : "") . (length($def) ? "GLUT_DEF=$def " : "");
+    print "cygwin glversion: '$make_ver'\n" if $verbose>1;
   }
   elsif ($^O eq 'MSWin32')
   {
-    $make_ver = '&nmake -f makefile.mak GLUT_DEF='.$def;
-    #print "MSWin32 glversion: '$make_ver'\n" if $verbose;
+    $make_ver = '&nmake -f makefile.mak ' . (length($def) ? "GLUT_DEF=$def " : "");
+    print "MSWin32 glversion: '$make_ver'\n" if $verbose>1;
   }
   elsif ($^O eq 'darwin')
   {
-    $make_ver = ";make -f Makefile.macosx GLUT_LIB=$lib GLUT_DEF=$def";
-    #print "MacOSX glversion: '$make_ver'\n" if $verbose;
+    $make_ver = ";make -f Makefile.macosx " .  (length($lib) ? "GLUT_LIB=$lib " : "") . (length($def) ? "GLUT_DEF=$def " : "");
+    print "MacOSX glversion: '$make_ver'\n" if $verbose>1;
   }
   else
   {
@@ -807,8 +799,8 @@ sub get_extensions
       print "\nIn order to test your GPU's capabilities, run this make under an X11 shell\n\n";
     }
 
-    $make_ver = ";make -f Makefile GLUT_LIB=$lib GLUT_DEF=$def";
-    #print "glversion: '$make_ver'\n" if $verbose;
+    $make_ver = ";make -f Makefile " .  (length($lib) ? "GLUT_LIB=$lib " : "") . (length($def) ? "GLUT_DEF=$def " : "");
+    print "glversion: '$make_ver'\n" if $verbose>1;
   }
   my $exec = 'cd utils'."$make_ver clean".$make_ver;
   print "glversion: $exec\n" if ($verbose);
@@ -915,6 +907,43 @@ sub get_extensions
   # return Distributable Defs
   print "Have Version Data\n" if ($verbose);
   return '-DHAVE_VER';
+}
+
+# Takes as input a INCS string ready for MakeMaker and cleans out
+# non-existant directories produce a minimal configuration value
+sub clean_incs {
+   my $inincs = $_[0];
+   print "clean_incs: got input INCS='$inincs'\n" if $verbose>1;
+
+   my @inincs = split / /, $inincs;
+
+   # clean out -I args with non-existent directories
+   print "clean_incs: removing bad directories\n" if $verbose>1;
+   my @outincs = grep { my $tmp = $_; $tmp =~ s/^-I// and ( -d $tmp or -l $tmp) } @inincs;
+   my $outincs = join ' ', @outincs;
+
+   print "clean_incs: returning INCS='$outincs'\n" if $verbose>1;
+   $_[0] = $outincs;
+}
+
+# Takes as input a LIBS string ready for MakeMaker and cleans out
+# non-existant directories and libraries to produce a better,
+# minimal configuration value
+sub clean_libs {
+   my $inlibs = $_[0];
+   print "clean_libs: got input LIBS='$inlibs'\n" if $verbose>1;
+
+   my @inlibs = split ' ', $inlibs;
+
+   # clean out -L args with non-existent directories
+   print "clean_libs: removing bad directories\n" if $verbose>1;
+   my @outlibs = grep { my $tmp = $_; /^-l/ or $tmp =~ s/^-L// and ( -d $tmp or -l $tmp) } @inlibs;
+
+
+   my $outlibs = join ' ', @outlibs;
+
+   print "clean_libs: returning LIBS='$outlibs'\n" if $verbose>1;
+   $_[0] = $outlibs;
 }
 
 # Dump Config.pm
