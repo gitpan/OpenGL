@@ -1,4 +1,4 @@
-/*  Last saved: Sun 06 Sep 2009 02:10:19 PM */
+/*  Last saved: Thu 10 Sep 2009 05:40:39 PM */
 
 /*  Copyright (c) 1998 Kenneth Albanowski. All rights reserved.
  *  Copyright (c) 2007 Bob Free. All rights reserved.
@@ -72,7 +72,7 @@ Display myDisplay;
 
 #ifdef HAVE_GLpc
 
-#  define NUM_ARG 7
+#  define NUM_ARG 7			/* Number of mandatory args to glpcOpenWindow */
 
 Display *dpy;
 int dpy_open;
@@ -80,8 +80,9 @@ XVisualInfo *vi;
 Colormap cmap;
 XSetWindowAttributes swa;
 Window win;
-GLXContext cx;
+GLXContext ctx;
 
+static int debug=0;
 static int default_attributes[] = { GLX_DOUBLEBUFFER, GLX_RGBA };
 
 #endif	/* defined HAVE_GLpc */ 
@@ -460,8 +461,8 @@ glpcOpenWindow(x,y,w,h,pw,steal,event_mask, ...)
 	    /* A blank line here will confuse xsubpp ;-) */
 #ifdef HAVE_GLX
 	    /* create a GLX context */
-	    cx = glXCreateContext(dpy, vi, 0, GL_TRUE);
-	    if(!cx)
+	    ctx = glXCreateContext(dpy, vi, 0, GL_TRUE);
+	    if(!ctx)
 		croak("No context\n");
 	
 	    /* create a color map */
@@ -488,8 +489,8 @@ glpcOpenWindow(x,y,w,h,pw,steal,event_mask, ...)
 #ifndef HAVE_GLX
 	    /* On OS/2: cannot create a context before mapping something... */
 	    /* create a GLX context */
-	    cx = glXCreateContext(dpy, vi, 0, GL_TRUE);
-	    if(!cx)
+	    ctx = glXCreateContext(dpy, vi, 0, GL_TRUE);
+	    if(!ctx)
 		croak("No context!\n");
 
 	    LastEventMask = event_mask;
@@ -500,13 +501,60 @@ glpcOpenWindow(x,y,w,h,pw,steal,event_mask, ...)
 #endif	/* not defined HAVE_GLX */
 
 	    /* connect the context to the window */
-	    if (!glXMakeCurrent(dpy, win, cx))
+	    if (!glXMakeCurrent(dpy, win, ctx))
 	        croak("Non current");
 	
 	    /* clear the buffer */
 	    glClearColor(0,0,0,1);
 	    RETVAL = win;
 	}
+
+#// glpRasterFont(name,base,number,d)
+int
+glpRasterFont(name,base,number,d)
+        char *name
+        int base
+        int number
+        Display *d
+        CODE:
+        {
+                XFontStruct *fi;
+                int lb;
+                fi = XLoadQueryFont(d,name);
+                if(fi == NULL) {
+                        die("No font %s found",name);
+                }
+                lb = glGenLists(number);
+                if(lb == 0) {
+                        die("No display lists left for font %s (need %d)",name,number);
+                }
+                glXUseXFont(fi->fid, base, number, lb);
+                RETVAL=lb;
+        }
+        OUTPUT:
+        RETVAL
+
+#// glpSetDebug(flag);
+void
+glpSetDebug(flag)
+        int flag
+        CODE:
+        {
+        debug=flag;
+        }
+
+#// glpPrintString(base,str);
+void
+glpPrintString(base,str)
+        int base
+        char *str
+        CODE:
+        {
+                glPushAttrib(GL_LIST_BIT);
+                glListBase(base);
+                glCallLists(strlen(str),GL_UNSIGNED_BYTE,(GLubyte*)str);
+                glPopAttrib();
+        }
 
 #// glpDisplay();
 void *
@@ -598,11 +646,14 @@ glpXNextEvent(d=dpy)
 				break;
 			case ButtonPress:
 			case ButtonRelease:
-				EXTEND(sp,4);
+				EXTEND(sp,7);
 				PUSHs(sv_2mortal(newSViv(event.type)));
 				PUSHs(sv_2mortal(newSViv(event.xbutton.button)));
 				PUSHs(sv_2mortal(newSViv(event.xbutton.x)));
 				PUSHs(sv_2mortal(newSViv(event.xbutton.y)));
+				PUSHs(sv_2mortal(newSViv(event.xbutton.x_root)));
+				PUSHs(sv_2mortal(newSViv(event.xbutton.y_root)));
+				PUSHs(sv_2mortal(newSViv(event.xbutton.state)));
 				break;
 			case MotionNotify:
 				EXTEND(sp,4);

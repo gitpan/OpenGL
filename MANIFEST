@@ -31,7 +31,6 @@ FreeGLUT/freeglut.lib
 FreeGLUT/README.txt
 genvars.pl
 GIT_CHANGES
-gl-funs-number.txt
 gl_const.h
 gl_exclude.h
 gl_util.c

@@ -1,4 +1,4 @@
-/*  Last saved: Sun 06 Sep 2009 02:10:25 PM*/
+/*  Last saved: Fri 11 Sep 2009 02:37:41 PM */
 
 /*  Copyright (c) 1998 Kenneth Albanowski. All rights reserved.
  *  Copyright (c) 2007 Bob Free. All rights reserved.
@@ -459,7 +459,7 @@ enum {
 	HANDLE_GLUT_TabletMotion,
 	HANDLE_GLUT_TabletButton,
         HANDLE_GLUT_MenuDestroy,            /* Open/FreeGLUT -chm */
-	HANDLE_GLUT_Close
+	HANDLE_GLUT_Close                   /* Open/FreeGLUT -chm */
 };
 
 /* Callback for glutDisplayFunc */
@@ -1143,7 +1143,11 @@ void
 glutWindowStatusFunc(handler=0, ...)
 	SV *	handler
 	CODE:
-	decl_gwh_xs(WindowStatus)
+        {
+#if defined HAVE_FREEGLUT
+		decl_gwh_xs(WindowStatus)
+#endif
+	}
 
 #endif
 
@@ -1159,7 +1163,11 @@ void
 glutMouseWheelFunc(handler=0, ...)
 	SV *	handler
 	CODE:
-	decl_gwh_xs(MouseWheel)
+        {
+#if defined HAVE_FREEGLUT
+		decl_gwh_xs(MouseWheel)
+#endif
+	}
 
 #//# glutMotionFunc(\&callback);
 void
@@ -1173,7 +1181,11 @@ void
 glutPassiveMotionFunc(handler=0, ...)
 	SV *	handler
 	CODE:
-	decl_gwh_xs(PassiveMotion)
+	{
+#if defined HAVE_FREEGLUT
+		decl_gwh_xs(PassiveMotion)
+#endif
+	}
 
 #//# glutVisibilityFunc(\&callback);
 void
@@ -1286,7 +1298,11 @@ void
 glutMenuStateFunc(handler=0, ...)
 	SV *	handler
 	CODE:
-	decl_ggh_xs(MenuState)
+	{
+#if defined HAVE_FREEGLUT
+		decl_ggh_xs(MenuState)
+#endif
+	}
 
 #//# glutIdleFunc(\&callback);
 void
@@ -1569,33 +1585,60 @@ int
 glutGameModeGet(mode)
 	GLenum	mode
 
-##//## CHM implementation of missing FreeGLUT/OpenGLUT features
-
+#//# FreeGLUT/OpenGLUT feature
 #//# int  glutBitmapHeight (void *font)
 int
 glutBitmapHeight(font)
 	void * font
+	CODE:
+	{
+#if defined HAVE_FREEGLUT
+		RETVAL = glutBitmapHeight(font);
+#endif
+	}
 
+#//# FreeGLUT/OpenGLUT feature
 #//# int  glutBitmapLength (void *font, const unsigned char *string)
 int
 glutBitmapLength(font, string)
 	void * font
 	const unsigned char * string
+	CODE:
+	{
+#if defined HAVE_FREEGLUT
+		RETVAL = glutBitmapLength(font, string);
+#endif
+	}
 
+#//# FreeGLUT/OpenGLUT feature
 #//# void  glutBitmapString (void *font, const unsigned char *string)
 void
 glutBitmapString(font, string)
 	void * font
 	const unsigned char * string
+	CODE:
+	{
+#if defined HAVE_FREEGLUT
+		glutBitmapString(font, string);
+#endif
+	}
 
+#//# FreeGLUT/OpenGLUT feature
 #//# void *  glutGetProcAddress (const char *procName)
 # void *
 # glutGetProcAddress(procName)
 # 	const char * procName
 
+#//# FreeGLUT/OpenGLUT feature
 #//# void  glutMainLoopEvent (void)
 void
 glutMainLoopEvent()
+	CODE:
+	{
+#if defined HAVE_FREEGLUT
+		glutMainLoopEvent();
+#endif
+	}
 
 #//# void  glutPostWindowOverlayRedisplay (int windowID)
 void
@@ -1618,15 +1661,34 @@ glutSolidCylinder(radius, height, slices, stacks)
 	GLdouble height
 	GLint slices
 	GLint stacks
+	CODE:
+	{
+#if defined HAVE_FREEGLUT
+		glutSolidCylinder(radius, height, slices, stacks);
+#endif
+	}
 
 #//# void  glutSolidRhombicDodecahedron (void)
 void
 glutSolidRhombicDodecahedron()
+	CODE:
+	{
+#if defined HAVE_FREEGLUT
+		glutSolidRhombicDodecahedron();
+#endif
+	}
 
 #//# float  glutStrokeHeight (void *font)
 GLfloat
 glutStrokeHeight(font)
 	void * font
+	CODE:
+	{
+#if defined HAVE_FREEGLUT
+		RETVAL = glutStrokeHeight(font);
+#endif
+	}
+
 
 #//# float  glutStrokeLength (void *font, const unsigned char *string)
 GLfloat
@@ -1639,6 +1701,12 @@ void
 glutStrokeString(font, string)
 	void * font
 	const unsigned char * string
+	CODE:
+	{
+#if defined HAVE_FREEGLUT
+		glutStrokeString(font, string);
+#endif
+	}
 
 #//# void  glutWarpPointer (int x, int y)
 void
@@ -1653,10 +1721,23 @@ glutWireCylinder(radius, height, slices, stacks)
 	GLdouble height
 	GLint slices
 	GLint stacks
+	CODE:
+	{
+#if defined HAVE_FREEGLUT
+		glutWireCylinder(radius, height, slices, stacks);
+#endif
+	}
+
 
 #//# void  glutWireRhombicDodecahedron (void)
 void
 glutWireRhombicDodecahedron()
+	CODE:
+	{
+#if defined HAVE_FREEGLUT
+		glutWireRhombicDodecahedron();
+#endif
+	}
 
 #endif
 
@@ -1693,8 +1774,11 @@ void
 glutMenuDestroyFunc(handler=0, ...)
 	SV *	handler
 	CODE:
-	decl_gwh_xs(MenuDestroy)
-
+        {
+#if defined HAVE_FREEGLUT
+		decl_gwh_xs(MenuDestroy)
+#endif
+	}
 
 #//# glutCloseFunc(\&callback);
 void

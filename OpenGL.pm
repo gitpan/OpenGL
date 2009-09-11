@@ -11,7 +11,7 @@ require DynaLoader;
 
 use Carp;
 
-$VERSION = '0.58';        # Remove git for release
+$VERSION = '0.58_001';        # Remove git for release
 $BUILD_VERSION = $XS_VERSION = $VERSION;
 $VERSION = eval($VERSION);
 
@@ -6135,7 +6135,7 @@ sub glpOpenWindow {
                 $p{$k} = $a{$k};
         }
         glpcOpenWindow($p{'x'},$p{'y'},$p{'width'},$p{'height'},
-                       $p{'parent'},$p{steal},$p{'mask'},
+                       $p{'parent'},$p{'steal'},$p{'mask'},
                        @{$p{'attributes'}});
 }
 
