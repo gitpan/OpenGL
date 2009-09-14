@@ -1,3 +1,126 @@
+commit 7325e4233a16ac947a3493319c3fef325deb2c99
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Sep 14 16:25:39 2009 -0400
+
+    glpcOpenWindow() refactoring completed
+    
+    Merging and reconciling the code from the PDL branch of OpenGL
+    and the Perl OpenGL module is complete.  The two basic changes
+    from the previous POGL function are:
+    
+    (1) Argument order changed reversing steal and event_mask
+          This change should have minimal impact on POGL users
+          since the glpcOpenWindow() is the raw, internal function.
+          Users should be using the glpOpenWindow() perl wrapper.
+    (2) glpcOpenWindow() now returns a hash containing fields:
+          Display, Window, and Context for X Server configuration and
+          GL_Version, GL_Vendor, and GL_Renderer for OpenGL info.
+
+ pogl_gl_top.xs |   48 +++++++++++++++++++++++++++++++++++-------------
+ 1 files changed, 35 insertions(+), 13 deletions(-)
+
+commit 5828a79afe6f67f335528f465911d5d8e2e59bfc
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Sep 14 15:33:58 2009 -0400
+
+    glpcOpenWindow merged through glXMakeCurrent call
+    
+    All of the differences between the POGL and PDL versions of the
+    glpcOpenWindow() XS routine have been merged as far as the
+    display/window/context creation stuff goes.
+
+ pogl_gl_top.xs |   11 ++++++-----
+ 1 files changed, 6 insertions(+), 5 deletions(-)
+
+commit d4b1d2c12201b9cbaf3d35fe5465e6efe80a1ef5
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Sep 14 15:26:02 2009 -0400
+
+    glpcOpenWindow merged thru XMapWindow call
+
+ pogl_gl_top.xs |   17 ++++++++++++-----
+ 1 files changed, 12 insertions(+), 5 deletions(-)
+
+commit 01a05ccb0d2eba1dfbba3ccd13c85d57b340fa1a
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Sep 14 15:16:23 2009 -0400
+
+    Merged glXCreateContext and XCreateColormap
+    
+    glpcOpenWindow() routines merged code from glXCreateContext()
+    through XCreateColormap.
+
+ pogl_gl_top.xs |    9 ++++++---
+ 1 files changed, 6 insertions(+), 3 deletions(-)
+
+commit 9f02afdc5a41698122e4aa170d8eaa15471f1daf
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Sep 14 15:10:28 2009 -0400
+
+    glpcOpenWindow merged glXChooseVisual code
+    
+    POGL and PDL code merged through glXChooseVisual.
+    Argument checking bug fixed in glpOpenWindow (was using defined
+    rather than exists and so generated a warning every time any
+    attributes were given.
+
+ OpenGL.pm      |   20 ++++++++++----------
+ pogl_gl_top.xs |   40 +++++++++++++++++++++++-----------------
+ 2 files changed, 33 insertions(+), 27 deletions(-)
+
+commit 26194a2d8ef02ed2a6d92703937f8ba819935a26
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Sep 14 14:49:36 2009 -0400
+
+    glpcOpenWindow attributes merge, reorder args
+    
+    Reordered event_mask and steal arguments to clean up PDL interface.
+    Added debug code to attributes handling.
+
+ OpenGL.pm      |    4 +-
+ pogl_gl_top.xs |  194 +++++++++++++++++++++++++++++---------------------------
+ 2 files changed, 102 insertions(+), 96 deletions(-)
+
+commit b2eddff9f15d0c1820a22c7a229512d358087f98
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sun Sep 13 17:31:47 2009 -0400
+
+    Remove glpcOpenWindow() from EXPORT_OK
+    
+    For improved compatibility, remove glpcOpenWindow() from OpenGL
+    EXPORT_OK to encourage use of the glpOpenWindow() front end
+    which offers all the functionality but allows for the lower
+    level interface to change while maintaining backwards compatibility.
+    
+    Update OpenGL.pod with history of implementation indicating the
+    current state of flux in the API.
+
+ OpenGL.pm  |    6 +++++-
+ OpenGL.pod |   47 +++++++++++++++++++++++++++--------------------
+ 2 files changed, 32 insertions(+), 21 deletions(-)
+
+commit 2df514873fe699064938fadededa9ce74d64c124
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Fri Sep 11 17:33:58 2009 -0400
+
+    Update VERSION to 0.58_002 for development
+
+ OpenGL.pm  |    2 +-
+ OpenGL.pod |    2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+commit 700f80bfaeb35fcf63532fac4383afaa5d0ea885
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Fri Sep 11 16:18:13 2009 -0400
+
+    Prep for 0.58_001 developers release
+
+ CHANGES        |    9 ++++++++-
+ INSTALL        |   15 ++++++++-------
+ KNOWN_PROBLEMS |    3 +++
+ README         |    9 +++++----
+ 4 files changed, 24 insertions(+), 12 deletions(-)
+
 commit 620097ffefe9cd0b146f7c43193249cc68ac7828
 Author: Chris Marshall <devel.chm.01@gmail.com>
 Date:   Fri Sep 11 15:27:24 2009 -0400

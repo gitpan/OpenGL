@@ -11,7 +11,7 @@ require DynaLoader;
 
 use Carp;
 
-$VERSION = '0.58_001';        # Remove git for release
+$VERSION = '0.58_002';        # Remove git for release
 $BUILD_VERSION = $XS_VERSION = $VERSION;
 $VERSION = eval($VERSION);
 
@@ -1313,7 +1313,6 @@ our $glext_dependencies =
 ##------------------------------------------------------------------------
 
 @glx_func = qw(
-   glpcOpenWindow
    glXSwapBuffers
    XPending
    glpXNextEvent
@@ -6115,27 +6114,32 @@ bootstrap OpenGL;
 # (with modifications for OS/2).
 
 %window_defaults=(
-                'x'     => 0,
-                'y'     => 0,
-                'width' => 500,
-                'height'=> 500,
-                'parent'=> 0,
-                'steal'=> 0,
-		'mask'	=> (_have_glx() ? StructureNotifyMask() : 0),
-                # 'attributes'=> [GLX_RGBA()],
-        );
+   'x'         => 0,
+   'y'         => 0,
+   'width'     => 500,
+   'height'    => 500,
+   'parent'    => 0,
+   'steal'     => 0,
+   'mask'      => (_have_glx() ? StructureNotifyMask() : 0),
+   'attributes'=> [],
+);
+
 
 sub glpOpenWindow {
         # default values
         my(%a) = @_;
         my(%p) = %window_defaults;
         foreach $k (keys(%a)){
-                defined($p{$k}) || warn "Not a valid parameter to glpOpenWindow: `$k'\n";
+                exists($p{$k}) || warn "Not a valid parameter to glpOpenWindow: `$k'\n";
                 #print "parameter $k now ",$a{$k}," was ",$p{$k},"\n";  
                 $p{$k} = $a{$k};
         }
+        #
+        # glpcOpenWindow() no longer exported.  Use fully qualified
+        # package name or (better!) glpOpenWindow()
+        #
         glpcOpenWindow($p{'x'},$p{'y'},$p{'width'},$p{'height'},
-                       $p{'parent'},$p{'steal'},$p{'mask'},
+                       $p{'parent'},$p{'mask'},$p{'steal'},
                        @{$p{'attributes'}});
 }
 

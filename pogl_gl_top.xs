@@ -1,4 +1,4 @@
-/*  Last saved: Thu 10 Sep 2009 05:40:39 PM */
+/*  Last saved: Mon 14 Sep 2009 04:13:39 PM */
 
 /*  Copyright (c) 1998 Kenneth Albanowski. All rights reserved.
  *  Copyright (c) 2007 Bob Free. All rights reserved.
@@ -82,8 +82,8 @@ XSetWindowAttributes swa;
 Window win;
 GLXContext ctx;
 
-static int debug=0;
-static int default_attributes[] = { GLX_DOUBLEBUFFER, GLX_RGBA };
+static int debug = 0;
+static int default_attributes[] = { GLX_DOUBLEBUFFER, GLX_RGBA, None };
 
 #endif	/* defined HAVE_GLpc */ 
 
@@ -407,107 +407,152 @@ __had_dbuffer_hack()
 #ifdef HAVE_GLpc			/* GLX or __PM__ */
 
 #// $ID = glpcOpenWindow($x,$y,$w,$h,$pw,$steal,$event_mask,@attribs);
-GLXDrawable
-glpcOpenWindow(x,y,w,h,pw,steal,event_mask, ...)
-	int	x
-	int	y
-	int	w
-	int	h
-	int	pw
-	int	steal
-	long	event_mask
-	CODE:
-	{
-	    XEvent event;
-	    Window pwin=(Window)pw;
-	    int *attributes = default_attributes + 1;
-	    int *a_buf = NULL;
+HV *
+glpcOpenWindow(x,y,w,h,pw,event_mask,steal, ...)
+    int	x
+    int	y
+    int	w
+    int	h
+    int	pw
+    long	event_mask
+    int	steal
+    CODE:
+{
+    XEvent event;
+    Window pwin = (Window)pw;
+    unsigned int err;
+    int *attributes = default_attributes + 1;
+    int *a_buf = NULL;
 
-	    if(items>NUM_ARG){
-	        int i;
-	        a_buf = (int *)malloc((items-NUM_ARG+2)* sizeof(int));
-		a_buf[0] = GLX_DOUBLEBUFFER; /* Preallocate */
-		attributes = a_buf + 1;
-	        for(i=NUM_ARG;i<items;i++) {
-	            attributes[i-NUM_ARG]=SvIV(ST(i));
-	        }
-	        attributes[items-NUM_ARG]=None;
-	    }
-	    /* get a connection */
-	    if (!dpy_open) {
-		dpy = XOpenDisplay(0);
-		dpy_open = 1;
-	    }
-	    if (!dpy)
-		croak("No display!");
+    RETVAL = newHV(); /* Create hash to return GL Object info */
 
-	    /* get an appropriate visual */
-	    vi = glXChooseVisual(dpy, DefaultScreen(dpy),attributes);
-	    if (!vi) { /* Might have happened that one does not
-			* *need* DOUBLEBUFFER, but the display does
-			* not provide SINGLEBUFFER; and the semantic
-			* of GLX_DOUBLEBUFFER is that if it misses,
-			* only SINGLEBUFFER visuals are selected.  */
-			attributes--; /* GLX_DOUBLEBUFFER preallocated there */
-		vi = glXChooseVisual(dpy, DefaultScreen(dpy),attributes); /* Retry */
-		if (vi)
-	    		DBUFFER_HACK = 1;
-	    }
-	    if (a_buf)
-		free(a_buf);
-	    if(!vi)
-		croak("No visual!");
+    if(items > NUM_ARG){
+        int i;
+        a_buf = (int *) malloc((items-NUM_ARG+2) * sizeof(int));
+        a_buf[0] = GLX_DOUBLEBUFFER; /* Preallocate */
+        attributes = a_buf + 1;
+        for (i=NUM_ARG; i<items; i++) {
+            attributes[i-NUM_ARG] = SvIV(ST(i));
+        }
+        attributes[items-NUM_ARG] = None;
+    }
+    if (debug) {
+        int i;	
+        for (i=0; attributes[i] != None; i++) {
+            printf("att=%d %d\n", i, attributes[i]);
+        }
+    }
+    /* get a connection */
+    if (!dpy_open) {
+        dpy = XOpenDisplay(NULL);
+        dpy_open = 1;
+    }
+    if (!dpy) {
+        croak("ERROR: failed to get an X connection");
+    } else if (debug) {
+        printf("Display open %x\n", dpy);
+    }		
 
-	    /* A blank line here will confuse xsubpp ;-) */
+    /* get an appropriate visual */
+    vi = glXChooseVisual(dpy, DefaultScreen(dpy), attributes);
+    if (!vi) { /* Might have happened that one does not
+                * *need* DOUBLEBUFFER, but the display does
+                * not provide SINGLEBUFFER; and the semantic
+                * of GLX_DOUBLEBUFFER is that if it misses,
+                * only SINGLEBUFFER visuals are selected.  */
+        attributes--; /* GLX_DOUBLEBUFFER preallocated there */
+        vi = glXChooseVisual(dpy, DefaultScreen(dpy), attributes); /* Retry */
+        if (vi)
+            DBUFFER_HACK = 1;
+    }
+    if (a_buf)
+        free(a_buf);
+    if(!vi) {
+        croak("ERROR: failed to get an X visual\n");
+    } else if (debug) {
+        printf("Visual open %x\n", vi);
+    }		
+
+    /* A blank line here will confuse xsubpp ;-) */
 #ifdef HAVE_GLX
-	    /* create a GLX context */
-	    ctx = glXCreateContext(dpy, vi, 0, GL_TRUE);
-	    if(!ctx)
-		croak("No context\n");
-	
-	    /* create a color map */
-	    cmap = XCreateColormap(dpy, RootWindow(dpy, vi->screen),
-				   vi->visual, AllocNone);
-	
-	    /* create a window */
-	    swa.colormap = cmap;
-	    swa.border_pixel = 0;
-	    swa.event_mask = event_mask;
+    /* create a GLX context */
+    ctx = glXCreateContext(dpy, vi, 0, GL_TRUE);
+    if (!ctx) {
+        croak("ERROR: failed to get an X Context");
+    } else if (debug) {
+        printf("Context Created %x\n", ctx);
+    }
+
+    /* create a color map */
+    cmap = XCreateColormap(dpy, RootWindow(dpy, vi->screen),
+            vi->visual, AllocNone);
+
+    /* create a window */
+    swa.colormap = cmap;
+    swa.border_pixel = 0;
+    swa.event_mask = event_mask;
 #endif	/* defined HAVE_GLX */
 
-	    if(!pwin){pwin=RootWindow(dpy, vi->screen);}
-	    if (steal)
-		win = nativeWindowId(dpy, pwin); /* What about depth/visual */
-	    else
-		win = XCreateWindow(dpy, pwin, 
-				    x, y, w, h,
-				    0, vi->depth, InputOutput, vi->visual,
-				    CWBorderPixel|CWColormap|CWEventMask, &swa);
-	    if(!win)
-	        croak("No Window");
-	    XMapWindow(dpy, win);
-#ifndef HAVE_GLX
-	    /* On OS/2: cannot create a context before mapping something... */
-	    /* create a GLX context */
-	    ctx = glXCreateContext(dpy, vi, 0, GL_TRUE);
-	    if(!ctx)
-		croak("No context!\n");
+    if (!pwin) {
+        pwin = RootWindow(dpy, vi->screen);
+        if (debug) printf("Using root as parent window 0x%x\n", pwin);
+    }
+    if (steal) {
+        win = nativeWindowId(dpy, pwin); /* What about depth/visual */
+    } else {
+        win = XCreateWindow(dpy, pwin, 
+                x, y, w, h,
+                0, vi->depth, InputOutput, vi->visual,
+                CWBorderPixel|CWColormap|CWEventMask, &swa);
+        /* NOTE: PDL code had CWBackPixel above */
+    }
+    if (!win) {
+        croak("No Window");
+    } else {
+        if (debug) printf("win = 0x%x\n", win);
+    }
+    XMapWindow(dpy, win);
+#ifndef HAVE_GLX  /* For OS/2 GLX emulation stuff -chm 2009.09.14 */
+    /* On OS/2: cannot create a context before mapping something... */
+    /* create a GLX context */
+    ctx = glXCreateContext(dpy, vi, 0, GL_TRUE);
+    if (!ctx)
+        croak("No context!\n");
 
-	    LastEventMask = event_mask;
-#else	/* defined HAVE_GLX */
-	    if((event_mask & StructureNotifyMask) && !steal) {
-	        XIfEvent(dpy, &event, WaitForNotify, (char*)win);
-	    }
+    LastEventMask = event_mask;
+#else	/* HAVE_GLX, this is the default branch */
+    if ( (event_mask & StructureNotifyMask) && !steal ) {
+        XIfEvent(dpy, &event, WaitForNotify, (char*)win);
+    }
 #endif	/* not defined HAVE_GLX */
 
-	    /* connect the context to the window */
-	    if (!glXMakeCurrent(dpy, win, ctx))
-	        croak("Non current");
-	
-	    /* clear the buffer */
-	    glClearColor(0,0,0,1);
-	    RETVAL = win;
-	}
+    /* connect the context to the window */
+    if (!glXMakeCurrent(dpy, win, ctx))
+        croak("Non current");
+
+    if (debug)
+        printf("Display=0x%x Window=0x%x Context=0x%x\n",dpy, win, ctx);
+
+    /* Create the GL object hash information */
+    hv_store(RETVAL, "Display", strlen("Display"), newSViv(PTR2IV(dpy)), 0);
+    hv_store(RETVAL, "Window", strlen("Window"),   newSViv(  (IV) win ), 0);
+    hv_store(RETVAL, "Context", strlen("Context"), newSViv(PTR2IV(ctx)), 0);
+
+    hv_store(RETVAL, "GL_Version",strlen("GL_Version"), 
+            newSVpv((char *) glGetString(GL_VERSION),0),0);
+    hv_store(RETVAL, "GL_Vendor",strlen("GL_Vendor"), 
+            newSVpv((char *) glGetString(GL_VENDOR),0),0);
+    hv_store(RETVAL, "GL_Renderer",strlen("GL_Renderer"), 
+            newSVpv((char *) glGetString(GL_RENDERER),0),0);
+
+    /* clear the buffer */
+    glClearColor(0,0,0,1);
+    while ( (err = glGetError()) != GL_NO_ERROR ) {
+        printf("ERROR issued in GL %%s\n", gluErrorString(err));
+    }
+}
+OUTPUT:
+RETVAL
 
 #// glpRasterFont(name,base,number,d)
 int
@@ -540,7 +585,7 @@ glpSetDebug(flag)
         int flag
         CODE:
         {
-        debug=flag;
+        debug = flag;
         }
 
 #// glpPrintString(base,str);
