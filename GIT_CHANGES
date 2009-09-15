@@ -1,3 +1,37 @@
+commit e948f8fcfa3794e51b544a9cc146d141bb59eeaa
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Tue Sep 15 09:15:46 2009 -0400
+
+    Prepare for quick release of 0.58_003 w fixes
+
+ KNOWN_PROBLEMS |    2 +-
+ OpenGL.pm      |    2 +-
+ OpenGL.pod     |    2 +-
+ TODO           |    3 ++-
+ 4 files changed, 5 insertions(+), 4 deletions(-)
+
+commit 5002639eeaa560cc2ab88579b08dcd75d98101fe
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Tue Sep 15 09:13:33 2009 -0400
+
+    Fix test.pl to handle display availability better
+    
+    Now test.pl will quietly exit if the desired OpenGL
+    display options are not available.  Also cleaned up
+    the @ARGV handling a bit.
+
+ test.pl |    7 ++++++-
+ 1 files changed, 6 insertions(+), 1 deletions(-)
+
+commit 1cd37c05115cc98a0e6599f10629bf1bb6cc8e47
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Sep 14 16:38:06 2009 -0400
+
+    Update README for 0.58_002 release
+
+ README |    1 -
+ 1 files changed, 0 insertions(+), 1 deletions(-)
+
 commit 7325e4233a16ac947a3493319c3fef325deb2c99
 Author: Chris Marshall <devel.chm.01@gmail.com>
 Date:   Mon Sep 14 16:25:39 2009 -0400
