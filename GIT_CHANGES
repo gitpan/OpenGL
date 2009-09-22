@@ -1,3 +1,118 @@
+commit f4566c6b1641b92c2967ff8d35e5d3bd934704b2
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Tue Sep 22 16:10:55 2009 -0400
+
+    Prep for OpenGL-0.58_004 developers release
+    
+    Updated readme-type files a bit.  This release
+    includes some minor changes in the library searches
+    for testing.  Support for GLU tessellation is new.
+
+ INSTALL         |   16 ++++++++--------
+ KNOWN_PROBLEMS  |    4 ++--
+ OpenGL.pod      |    2 +-
+ README          |   23 +++++++++++++----------
+ TODO            |    7 +------
+ 5 files changed, 25 insertions(+), 27 deletions(-)
+
+commit c568349a81d2b72193e8aa8819e6e2aed04c1551
+Author: Chris Marshall <marshallch@sourceforge.net>
+Date:   Tue Sep 22 15:35:15 2009 -0400
+
+    Remove GLX from lib check list
+    
+    On Mesa/DRI systems, the GLX library is in libGL
+    so we don't need to look for it specifically.  We
+    can add more thorough checks when we move to a
+    compile/link test framework to probe (e.g. Devel::CheckLib)
+
+ Makefile.PL |    3 ---
+ 1 files changed, 0 insertions(+), 3 deletions(-)
+
+commit 31dc0aab861c84c3f4d82c298e1c5ec5556f6949
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Tue Sep 22 11:42:43 2009 -0400
+
+    Remove X driver paths from library search
+    
+    The library probe was finding libraries in locations used by
+    the X server to load drivers and extensions.  These are not
+    link libraries.  On linux systems, GLX is apparently in libGL
+    so we should check there rather than:
+    
+        /usr/lib/xorg/modules
+        /usr/X11R6/lib/modules
+        /usr/lib/xorg/modules/extensions
+        /usr/X11R6/lib/modules/extensions
+
+ Makefile.PL |    4 ----
+ 1 files changed, 0 insertions(+), 4 deletions(-)
+
+commit f285d38588b772c9cba14c151fecff82014a7775
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Sep 21 23:31:27 2009 -0400
+
+    Move glpSetDebug() out of HAVE_glpc condition
+    
+    This fixes part of the problem with using or not using GLX with GLUT
+    since glpSetDebug() is independent of that choice.  Still need to
+    fix the includes, defines, and link to work.
+
+ pogl_gl_top.xs |   21 +++++++++++----------
+ 1 files changed, 11 insertions(+), 10 deletions(-)
+
+commit 0acc729f3560e4b86c5c7f44554f53b021ae9ecf
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Sep 21 21:59:48 2009 -0400
+
+    Added GLU tessellation support
+    
+    This folds in the GLU tessellation support work
+    by Paul Seamons.  Thanks, Paul!
+
+ OpenGL.pm       |   22 +-
+ glu_const.h     |   22 +
+ pogl_glu.xs     | 1692 ++++++++++++++++++++++++++++++-------------------------
+ tessellation.pl |  256 +++++++++
+ typemap         |   83 ++--
+ 5 files changed, 1259 insertions(+), 816 deletions(-)
+
+commit 0b5fa812f37eadd36194f6cc1c7ece092d42478f
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sun Sep 20 19:13:12 2009 -0400
+
+    Rm git from version number and edit TODO
+
+ OpenGL.pm |    2 +-
+ TODO      |    9 ++++++---
+ 2 files changed, 7 insertions(+), 4 deletions(-)
+
+commit d6a47e3cc3f4362426749a33536ddfcb954d7902
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Fri Sep 18 16:00:20 2009 -0400
+
+    Don't remove HAVE_GLX define with *GLUT on linux
+    
+    As part of an attempted cleanup of configuration output,
+    HAVE_GLX was being deleted on non-cygwin systems using
+    GLUT or FreeGLUT.  This issue will be addressed in a planned
+    refactoring of the POGL configuration info to make explicit
+    things the build system *has* versus the things the build
+    system *used* to make POGL, e.g. use FreeGLUT but has GLX also.
+
+ Makefile.PL |   34 +++++++++++++++++-----------------
+ 1 files changed, 17 insertions(+), 17 deletions(-)
+
+commit 1ebe1a0a3d729218f6d490add15190ffbd2b1c9e
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Tue Sep 15 09:46:40 2009 -0400
+
+    VERSION to 0.58_004git for development
+
+ OpenGL.pm  |    2 +-
+ OpenGL.pod |    2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
 commit e948f8fcfa3794e51b544a9cc146d141bb59eeaa
 Author: Chris Marshall <devel.chm.01@gmail.com>
 Date:   Tue Sep 15 09:15:46 2009 -0400

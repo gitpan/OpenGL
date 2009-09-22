@@ -88,6 +88,7 @@ README
 SUPPORTS
 t/00_require.t
 t/01_use.t
+tessellation.pl
 test.jpg
 test.pl
 test.tga

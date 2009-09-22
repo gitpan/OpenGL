@@ -120,10 +120,6 @@ our @libdirs = qw
   -L/usr/X11R6/lib
   -L/usr/local/lib
   -L/usr/openwin/lib
-  -L/usr/lib/xorg/modules
-  -L/usr/X11R6/lib/modules
-  -L/usr/lib/xorg/modules/extensions
-  -L/usr/X11R6/lib/modules/extensions
 };
 
 our @check_libs = qw
@@ -138,9 +134,6 @@ our @check_libs = qw
   -lGLUT
   -lglut
   -lMesaGLUT
-  -lGLX
-  -lglx
-  -lMesaGLX
 };
 
 our $found_libs = get_libs(@libdirs,@check_libs);
@@ -429,23 +422,23 @@ elsif ($interface_lib eq 'AGL')					# Mac OS X
   $INCS = '-Iinclude -I/usr/X11/include';
   $DYNS = { OTHERLDFLAGS => "-framework OpenGL -framework GLUT" };
 }
-elsif (($^O ne 'cygwin') && ($interface_lib =~ m|GLUT|))	# GLUT/FreeGLUT
-{
-  delete($found_libs->{GLX});
-  $DEFS =~ s|-DHAVE_GLX||;
-
-  my @includes = qw
-  {
-    -I/usr/include
-    -I/usr/local/include
-  };
-  $INCS = "@includes";
-
-  # Marshall libs
-  my $libs = ' -l'.join(' -l',values(%$found_libs));
-  $LIBS = "@libdirs $libs";
-  $DEFS .= " -DGL_GLEXT_LEGACY";
-}
+## elsif (($^O ne 'cygwin') && ($interface_lib =~ m|GLUT|))	# GLUT/FreeGLUT
+## {
+##   delete($found_libs->{GLX});
+##   $DEFS =~ s|-DHAVE_GLX||;
+## 
+##   my @includes = qw
+##   {
+##     -I/usr/include
+##     -I/usr/local/include
+##   };
+##   $INCS = "@includes";
+## 
+##   # Marshall libs
+##   my $libs = ' -l'.join(' -l',values(%$found_libs));
+##   $LIBS = "@libdirs $libs";
+##   $DEFS .= " -DGL_GLEXT_LEGACY";
+## }
 else # Everyone else
 {
   my @includes = qw
