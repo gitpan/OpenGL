@@ -1,3 +1,40 @@
+commit 72eba44e70a75a90c88f3247b138c812af1f684b
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Fri Sep 25 16:41:47 2009 -0400
+
+    Prep for an OpenGL-0.58_005 release
+
+ README   |   11 ++++++-----
+ SUPPORTS |    1 +
+ TODO     |    3 ++-
+ 3 files changed, 9 insertions(+), 6 deletions(-)
+
+commit b3f6ef10ede07c1cc0d2b7af366f10289d90e1aa
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Fri Sep 25 10:43:53 2009 -0400
+
+    Fix mingw/dmake build problems
+    
+    The global state variable, debug, was moved out of the HAVE_GLpc
+    code sections since it is independent of the GLX stuff.  Added
+    a fallback display mode without GLUT_ALPHA to test.pl to fix
+    failures on systems without hardware alpha.  This may also fix
+    the reported mingw/dmake problem.
+
+ pogl_gl_top.xs |    3 ++-
+ test.pl        |   11 +++++++++--
+ 2 files changed, 11 insertions(+), 3 deletions(-)
+
+commit 6e32342b1517d496091f77e057cfd80f9f04565f
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Tue Sep 22 16:21:11 2009 -0400
+
+    Update version to 0.58_005 for development
+
+ OpenGL.pm  |    2 +-
+ OpenGL.pod |    2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
 commit f4566c6b1641b92c2967ff8d35e5d3bd934704b2
 Author: Chris Marshall <devel.chm.01@gmail.com>
 Date:   Tue Sep 22 16:10:55 2009 -0400
