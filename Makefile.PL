@@ -73,7 +73,7 @@ if ($^O eq 'MSWin32' && !$IS_CYGWIN)
 #  $IS_MINGW = `gcc -dumpversion`;
 #  open(STDERR, ">&SAVEERR");
 
-  $IS_MINGW = (($Config{make} eq 'dmake') && ($Config{cc} eq 'gcc'))
+  $IS_MINGW = (($Config{make} =~ /\bdmake/i) && ($Config{cc} =~ /\bgcc/i))
 }
 
 
@@ -420,6 +420,7 @@ if ($IS_W32API || (($^O eq 'MSWin32') && !$IS_CYGWIN))		# Win32
 elsif ($interface_lib eq 'AGL')					# Mac OS X
 {
   $INCS = '-Iinclude -I/usr/X11/include';
+  $DEFS .= " -DHAVE_AGL_GLUT";  # So we know we have glutWMCloseFunc() and glutCheckLoop()
   $DYNS = { OTHERLDFLAGS => "-framework OpenGL -framework GLUT" };
 }
 ## elsif (($^O ne 'cygwin') && ($interface_lib =~ m|GLUT|))	# GLUT/FreeGLUT

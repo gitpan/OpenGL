@@ -1,3 +1,26 @@
+commit 9e5e31a2dae7270856d570ec8ffcc018d7680b33
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sat Sep 26 21:25:11 2009 -0400
+
+    Add GLUT_INIT_STATE and GLUT_WINDOW_FORMAT_ID
+    
+    These are some FreeGLUT state extensions that were missing.
+    Added to the FreeGLUT section.  Don't know if they are supported
+    by Mac GLUT.  Need to check.
+
+ OpenGL.pm    |    2 ++
+ glut_const.h |    2 ++
+ 2 files changed, 4 insertions(+), 0 deletions(-)
+
+commit 0f3b3f1897c28e4eb3cab5eab6704ce36bc338a3
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sat Sep 26 21:17:16 2009 -0400
+
+    VERSION to 0.58_006git for development
+
+ OpenGL.pm |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
 commit 72eba44e70a75a90c88f3247b138c812af1f684b
 Author: Chris Marshall <devel.chm.01@gmail.com>
 Date:   Fri Sep 25 16:41:47 2009 -0400
