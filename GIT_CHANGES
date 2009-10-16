@@ -1,3 +1,54 @@
+commit 56a847436c9e452c1b178879e4a5a48f1175d1f0
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Fri Oct 16 10:28:12 2009 -0400
+
+    Fixed freeglut font not found error
+    
+    The problem was the macro to generate the font
+    ID constants was coercing the type to int before
+    calling newSViv() which broke things if the
+    value being generated was a pointer on a 64-bit
+    system with ints defined as 4byte quantities.
+
+ OpenGL.pm     |    2 +-
+ OpenGL.pod    |    2 +-
+ glut_const.h  |   18 +++++++++---------
+ pogl_const.xs |    3 ++-
+ pogl_glut.xs  |    8 ++++----
+ 5 files changed, 17 insertions(+), 16 deletions(-)
+
+commit f22bf1b4ece04ed9c84a96dcdb46e8ad0126a0b1
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Thu Oct 15 14:11:01 2009 -0400
+
+    Start 0.59_001 developers release
+    
+    It looks like another OpenGL release will be needed to
+    resolve build issues for GLUT only systems and for
+    platforms with both GLUT and FreeGLUT present to ensure
+    that FreeGLUT is used for the module build/compile/test.
+
+ OpenGL.pm  |    2 +-
+ OpenGL.pod |    2 +-
+ TODO       |    5 ++++-
+ 3 files changed, 6 insertions(+), 3 deletions(-)
+
+commit 21b377d17d89a976a33a51f9048322c7b7899b92
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Thu Oct 15 14:05:08 2009 -0400
+
+    Add HAVE_FREEGLUT to skip if GLUT only
+    
+    Problems building POGL have been reported for systems
+    when GLUT is being used instead of FreeGLUT for two reasons:
+    (1) FreeGLUT is not installed in which case we would like the
+    build to work but perhaps with less capability, or (2) both
+    GLUT and FreeGLUT are available but the wrong include file is
+    being used (i.e. glut.h instead of freeglut.h).
+
+ glut_const.h |    2 ++
+ 1 files changed, 2 insertions(+), 0 deletions(-)
+
 commit 432033682a7ec79e3066417c795cc2ae72893821
 Author: Chris Marshall <devel.chm.01@gmail.com>
 Date:   Mon Oct 5 16:18:38 2009 -0400
