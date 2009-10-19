@@ -1,10 +1,4 @@
-Last saved: Thu 15 Oct 2009 02:10:11 PM 
-
-
-Clarify FreeGLUT/GLUT requirments wording
-    * make explicit what you get by OS
-    * add information on installing FreeGLUT
-    * install locations (TBD)
+Last saved: Mon 19 Oct 2009 01:10:42 PM 
 
 
 Evaluate local include directory usage
@@ -51,6 +45,7 @@ Clean up glp*() routine support:
         * N.B. *GLUT is on *all* GLX systems but may not use GLX
 	* Keep minimal GLX+X11 code to support Tk bindings
 	* Is Tk even being used?  Contact perl/Tk about better support.
+	* Investigate Gtk+ instead of Tk for embedding
 
 
 Fix examples/ directory
@@ -79,7 +74,7 @@ Move test apps to t/ subdirectory from test.pl
 
 
 Implement safe glutInit
-    * check if done glutInit before calling glutInit()
+    * check if done_glutInit before calling glutInit()
     * carp/croak/quiet error settings
 
 
@@ -114,7 +109,7 @@ Improve support for non-standard OpenGL configurations
 
 
 OpenGLUT support for building
-    * NOTE: OpenGLUT appears to be a dead project, use FreeGLUT.
+    * OpenGLUT appears to be a dead project, use FreeGLUT.
     * OpenGL support not planned at this time
 
 
@@ -144,7 +139,7 @@ Fix current POGL configuration and build process
 		* GLU
 		* GLUT
 		* GLX
-        * What bindings are actually enabled
+        * What bindings are actually enabled?
         * Use the same information to build POGL as glversion
     * Refactor Makefile.PL to be comprehensible.
         * strip out unused options
