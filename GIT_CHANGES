@@ -1,3 +1,55 @@
+commit 3b1c3ca79c57e45397545865be00ef74ca6980e4
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sun Oct 25 14:45:17 2009 -0400
+
+    Add -DHAVE_FREEGLUT_H to HG freeglut patch
+
+ Makefile.PL |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+commit f6c5829c44fcb1f8c5165e7ec3c5135b56dfba14
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sun Oct 25 14:31:00 2009 -0400
+
+    Apply debian probe for FreeGLUT patch
+    
+    Thanks Henning Glawe!
+
+ Makefile.PL |   14 ++++++++++++++
+ 1 files changed, 14 insertions(+), 0 deletions(-)
+
+commit 89f3304455af78a0a21cdd3efe3d24544c2a790a
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sun Oct 25 14:24:02 2009 -0400
+
+    Placeholder for freeglut.dll.bat problem
+    
+    This is a proposed fix for the current use of EXE_FILES in Makefile.PL
+    to install freeglut.dll on win32 machines.  EXE_FILES is for perl
+    scripts and not binaries.  The fix does work but it has the problem
+    of performing the install at configure time.  The whole process needs
+    to be reworked to happen at install time.
+
+ Makefile.PL |   13 +++++++++++++
+ 1 files changed, 13 insertions(+), 0 deletions(-)
+
+commit 74f258dd4fd29e125e34744c8775995056d20ee9
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Fri Oct 23 13:35:25 2009 -0400
+
+    VERSION to 0.60_001 for more development
+    
+    And added some notes in KNOWN_PROBLEMS and TODO regarding
+    the failure of the ASPerl automated PPM build machinery to
+    build OpenGL PPMs on *any* platform.  Need to do something
+    about this for the next release.
+
+ KNOWN_PROBLEMS |    7 +++++++
+ OpenGL.pm      |    2 +-
+ OpenGL.pod     |    2 +-
+ TODO           |    9 ++++++++-
+ 4 files changed, 17 insertions(+), 3 deletions(-)
+
 commit 704670ffd8d7de232551970d6dde66834fbda509
 Author: Chris Marshall <devel.chm.01@gmail.com>
 Date:   Mon Oct 19 13:19:03 2009 -0400
