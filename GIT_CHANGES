@@ -1,3 +1,32 @@
+commit b3832c9295cf6ed2ddaf1cb3f99b8b49178cb643
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Nov 9 21:44:52 2009 -0500
+
+    Multiple updates to docs and VERSION for CPAN
+    
+    Updated META.yml and Release_Notes, SUPPORTS, TODO for OpenGL-0.61
+    release.  Updated version info in OpenGL.pm and OpenGL.pod.
+
+ META.yml      |   23 +++++++++++++----------
+ OpenGL.pm     |    2 +-
+ OpenGL.pod    |    2 +-
+ Release_Notes |    7 ++++++-
+ SUPPORTS      |   13 +++++++++++++
+ TODO          |    4 ++--
+ 6 files changed, 36 insertions(+), 15 deletions(-)
+
+commit b5928746c2aca957fe576896db0c34c1049ef8c1
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Wed Oct 28 13:23:34 2009 -0400
+
+    Fix Mac OS X glversion build include path
+    
+    The ../include should not be used except by the win32
+    code which is installing the FreeGLUT library.
+
+ utils/Makefile.macosx |    4 +++-
+ 1 files changed, 3 insertions(+), 1 deletions(-)
+
 commit 3b1c3ca79c57e45397545865be00ef74ca6980e4
 Author: Chris Marshall <devel.chm.01@gmail.com>
 Date:   Sun Oct 25 14:45:17 2009 -0400

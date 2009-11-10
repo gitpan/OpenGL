@@ -59,7 +59,6 @@ isosurf.bin
 isosurf.pl
 KNOWN_PROBLEMS
 Makefile.PL
-Makefile.PL.orig
 MANIFEST			This list of files
 MANIFEST.SKIP
 menutest.pl
@@ -95,7 +94,6 @@ test.pl
 test.tga
 TODO
 typemap
-use_freeglut
 utils/cleanup.pl
 utils/const.pl
 utils/exports.pl
