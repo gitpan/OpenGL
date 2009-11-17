@@ -1,3 +1,40 @@
+commit 81755ec75df4ec718a3e16fc086a1213a02b211d
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Nov 16 21:58:39 2009 -0500
+
+    Prepare for OpenGL-0.61_001 CPAN developers rel
+    
+    Update version number info and the Release_Notes.
+
+ OpenGL.pm     |    2 +-
+ OpenGL.pod    |    2 +-
+ Release_Notes |   11 +++++++++++
+ 3 files changed, 13 insertions(+), 2 deletions(-)
+
+commit f54bc3ebb84114687e4749066eb9e6b7b20c4ceb
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Nov 16 21:56:42 2009 -0500
+
+    Fix glut_const.h typos that broke some GLUT macros
+    
+    The result, among other things, was that the FreeGLUT event loop
+    exit handling did not work.  test.pl was broken in another way
+    so though it appeared to work correctly, it did not---just quietly
+    skipped the exit code which is why we saw no problems there.
+
+ glut_const.h |    4 ++--
+ test.pl      |    2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+commit 061a2c1d52bd6516c20122168d1bd121c88a5532
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Nov 9 21:52:18 2009 -0500
+
+    Update META.yml for OpenGL-0.61 release
+
+ META.yml |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
 commit b3832c9295cf6ed2ddaf1cb3f99b8b49178cb643
 Author: Chris Marshall <devel.chm.01@gmail.com>
 Date:   Mon Nov 9 21:44:52 2009 -0500
