@@ -1,4 +1,24 @@
 +------------------------------------------------------------------------+
+|                    OpenGL-0.61_002 Release Notes                       |
++------------------------------------------------------------------------+
+
+* This is a developer's release of OpenGL.  If no breakage is
+  reported from CPAN testing, this is planned to become the new
+  stable OpenGL release.
+
+* Added /opt/csw to list of locations searched for OpenGL and
+  FreeGLUT files for Solaris
+
+* Apply fix to prevent freeglut.dll.bat install for win32
+
+* Fix build for Apple OpenGL to only use AGL framework libraries
+  and includes, not the X11 ones
+
+* Fix check for FreeGLUT in test.pl so things are handled better
+  when FreeGLUT is not present.
+
+
++------------------------------------------------------------------------+
 |                    OpenGL-0.61_001 Release Notes                       |
 +------------------------------------------------------------------------+
 

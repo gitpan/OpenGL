@@ -120,6 +120,7 @@ our @libdirs = qw
   -L/usr/X11R6/lib
   -L/usr/local/lib
   -L/usr/openwin/lib
+  -L/opt/csw/lib
 };
 
 our @check_libs = qw
@@ -415,24 +416,22 @@ if ($IS_W32API || (($^O eq 'MSWin32') && !$IS_CYGWIN))		# Win32
     $OPTS = "/ogity /GDs";
   }
 
-  $EXES = ['FreeGLUT/freeglut.dll'];
-
-  # This is a suggested fix for the problem of EXE_FILES being intended for perl scripts
-  # and *not* binaries as is being done above.  This needs to be modified to take place
-  # at install time or some such... a work around would be to replace line 418 with this
-  # code block:
+  # Using a dll as EXES is incorrect for EU::MM, since the EXES here mean
+  # perl scripts and not windows binaries or DLLs.  This puts the DLL in
+  # blib/bin from whence it should be installed correctly.  It is not
+  # clear that this step is even needed since the freeglut.dll is installed
+  # by this Makefile.PL if no FreeGLUT is found.
   #
-  # {
-  #   system $^X , qw[-MExtUtils::Command -e mkpath --], qw[blib/bin];
-  #   system $^X , qw[-MExtUtils::Command -e cp --], qw[FreeGLUT/freeglut.dll blib/bin/freeglut.dll];
-  # }
-
-
+  ## $EXES = ['FreeGLUT/freeglut.dll']; 
+  {
+     system $^X , qw[-MExtUtils::Command -e mkpath --], qw[blib/bin];
+     system $^X , qw[-MExtUtils::Command -e cp --], qw[FreeGLUT/freeglut.dll blib/bin/freeglut.dll];
+  }
 
 }
 elsif ($interface_lib eq 'AGL')					# Mac OS X
 {
-  $INCS = '-Iinclude -I/usr/X11/include';
+  $INCS = ""; # no include flags required: Apple gcc will automatically pick up the system frameworks
   $DEFS .= " -DHAVE_AGL_GLUT";  # So we know we have glutWMCloseFunc() and glutCheckLoop()
   $DYNS = { OTHERLDFLAGS => "-framework OpenGL -framework GLUT" };
 }
@@ -461,6 +460,7 @@ else # Everyone else
     -I/usr/X11R6/include
     -I/usr/local/include
     -I/usr/openwin/include
+    -I/opt/csw/include
   };
   $INCS = "@includes";
 

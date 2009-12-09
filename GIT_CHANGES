@@ -1,3 +1,89 @@
+commit 0bdcb2c7065ac713888b580ce6a3371fa50d94d5
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Wed Dec 9 15:46:41 2009 -0500
+
+    Update KNOWN_PROBLEMS and Release_Notes for CPAN
+    
+    This is for an official CPAN 0.61_002 developer's release.
+
+ KNOWN_PROBLEMS |   10 ++++++----
+ Release_Notes  |   20 ++++++++++++++++++++
+ 2 files changed, 26 insertions(+), 4 deletions(-)
+
+commit 10be1914beb366c07180f14258e2e5ab446ae407
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Wed Dec 9 14:56:16 2009 -0500
+
+    Add /opt/csw/{include,lib} for solaris
+    
+    This appears to be the location of a free software package
+    built for solaris.  They only have freeglut 2.2 in their
+    repository.  I need to determine if there is a reason that
+    they are not current.
+
+ Makefile.PL |    2 ++
+ 1 files changed, 2 insertions(+), 0 deletions(-)
+
+commit 0d1462adaf7748d6c792ccb499295f7ae0ebceb2
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Tue Nov 24 12:20:51 2009 -0500
+
+    Apply fix to prevent freeglut.dll.bat install
+    
+    The new code is probably better than doing an install of
+    freeglut.dll to some systemwide location.  If we can verify
+    that the paths are set up correctly and the code works, we
+    should remove the alternate install since it is less
+    problematic to keep libraries installed for perl in the
+    perl locations rather than global install locations.
+
+ Makefile.PL |   22 ++++++++++------------
+ 1 files changed, 10 insertions(+), 12 deletions(-)
+
+commit b90cb83aacdd7483a2c3bdca2fc6798aa4b58f62
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sun Nov 22 13:50:44 2009 -0500
+
+    Fix build for AGL to only use AGL, not X11
+    
+    This fixes the build for Mac OS X systems using the recommended
+    Apple OpenGL and GLUT frameworks.  Additional installation of
+    X11 should no longer be required.  The build still uses the
+    glext_procs.h and the ../include/GL/gl.h includes since there
+    is a conflict between the Apple gl.h and the POGL glext_procs.h.
+
+ Makefile.PL           |    2 +-
+ glu_util.h            |    4 ++++
+ glut_util.h           |   11 +++++++++++
+ utils/Makefile.macosx |    4 ++--
+ utils/glversion.c     |    8 ++++++++
+ 5 files changed, 26 insertions(+), 3 deletions(-)
+
+commit a7bdc829716f6131a9b74a219c0df5247b1dc2b5
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Fri Nov 20 13:25:34 2009 -0500
+
+    Fix more _have_freeglut checks: should call sub
+    
+    There was some confusion about the _have_freeglut() routine
+    in OpenGL which is a subroutine call and not a scalar value.
+    In test.pl and some other code, $OpenGL::_have_freeglut was
+    checked and silently failed since a non-existing variable
+    returns undef.
+
+ test.pl |    4 ++--
+ 1 files changed, 2 insertions(+), 2 deletions(-)
+
+commit e699cc3843c912dce91473f1c1ff8bd02ad23dd7
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Fri Nov 20 13:25:18 2009 -0500
+
+    Set VERSION to 0.61_002 for more development
+
+ OpenGL.pm  |    2 +-
+ OpenGL.pod |    2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
 commit 81755ec75df4ec718a3e16fc086a1213a02b211d
 Author: Chris Marshall <devel.chm.01@gmail.com>
 Date:   Mon Nov 16 21:58:39 2009 -0500

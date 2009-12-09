@@ -1,11 +1,9 @@
 * Build may not complete if you do not have the
   required FreeGLUT or Apple GLUT (on Mac OS X systems).
-  While this is not a bug, we would like to enable as
-  much GLUT compatibility as possible.
 
   NOTE: PDL::Graphics::TriD does require either FreeGLUT
-  or Apple GLUT to function.  An OpenGL using plain old
-  GLUT will not work at the moment.
+  2.4 (or greater) or Apple GLUT to function.  An OpenGL
+  build using "plain old GLUT" doesn't work at the moment.
 
 * On one Mac OS system, glutBitmapCharacter() appears to 
   to be rendering into the Overlay.  This makes text and
@@ -28,6 +26,10 @@
   the same system.  Edit the Makefile produced and add
   -DHAVE_FREEGLUT_H to the DEFINE = line and things may
   compile then.
+
+* On RHEL 3 (gcc 3.2.3), one user has reported problems
+  compiling OpenGL without turning off optimizations for
+  pogl_const.c compiling.
 
 * Configuration and compiling requires an active OpenGL
   context (e.g. a display)
