@@ -2,17 +2,14 @@
   required FreeGLUT or Apple GLUT (on Mac OS X systems).
 
   NOTE: PDL::Graphics::TriD does require either FreeGLUT
-  2.4 (or greater) or Apple GLUT to function.  An OpenGL
-  build using "plain old GLUT" doesn't work at the moment.
+  or Apple GLUT to function.  An OpenGL using plain old
+  GLUT will not work with PDL-2.4.6.
 
 * On one Mac OS system, glutBitmapCharacter() appears to 
   to be rendering into the Overlay.  This makes text and
   legends always on top, even if the glRasterPos() was
   set with depth.
   
-  If you see this with PDL::Graphics::TriD, please report.
-  We need help debugging.  Thanks.
-
 * ActiveState automated PPM builds currently fail due to
   what appears to be interface detection failures in their
   build environment.  You'll need to use another PPM site
@@ -26,10 +23,6 @@
   the same system.  Edit the Makefile produced and add
   -DHAVE_FREEGLUT_H to the DEFINE = line and things may
   compile then.
-
-* On RHEL 3 (gcc 3.2.3), one user has reported problems
-  compiling OpenGL without turning off optimizations for
-  pogl_const.c compiling.
 
 * Configuration and compiling requires an active OpenGL
   context (e.g. a display)
