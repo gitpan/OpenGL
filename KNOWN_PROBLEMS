@@ -1,15 +1,6 @@
 * Build may not complete if you do not have the
   required FreeGLUT or Apple GLUT (on Mac OS X systems).
 
-  NOTE: PDL::Graphics::TriD does require either FreeGLUT
-  or Apple GLUT to function.  An OpenGL using plain old
-  GLUT will not work with PDL-2.4.6.
-
-* On one Mac OS system, glutBitmapCharacter() appears to 
-  to be rendering into the Overlay.  This makes text and
-  legends always on top, even if the glRasterPos() was
-  set with depth.
-  
 * ActiveState automated PPM builds currently fail due to
   what appears to be interface detection failures in their
   build environment.  You'll need to use another PPM site
@@ -60,3 +51,7 @@
     glTexCoordPointer_p(size, oga)
     glVertexPointerEXT_p(size, oga)
     glVertexPointer_p(size, oga)
+
+* gcc 3.2.3 on Red Hat Enterprise Linux has been reported to
+  crash compiling pogl_const.c.  A work around is to disable
+  optimizations for that file or use a different compiler/version.
