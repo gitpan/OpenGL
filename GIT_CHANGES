@@ -1,3 +1,40 @@
+commit c16207f2215d5463b5fe6c4cfccab2d47c973c98
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Fri Aug 6 13:53:05 2010 -0400
+
+    Attempted fix for rt.cpan.org #52350 for gcc 3.2.3
+    
+    This version of gcc crashes when compiling pogl_const.c with
+    -O2 optimization on.  The work around is to check for that
+    version of gcc in %Config and set OPTIMIZE => '-O0' in that
+    case for WriteMakefile.
+
+ Makefile.PL |   23 ++++++-----------------
+ 1 files changed, 6 insertions(+), 17 deletions(-)
+
+commit 3a713c484339194a71f90508c016be3504d286a2
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sat Jul 10 14:26:40 2010 -0400
+
+    Update VERSION to 0.63_001 for more development
+
+ OpenGL.pm  |    2 +-
+ OpenGL.pod |    2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+commit a420c2045b4d896cbf5e493e2bdf1342959bb0cf
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sat Jul 10 14:19:55 2010 -0400
+
+    Update README-type files for CPAN release
+
+ INSTALL        |    9 ---------
+ KNOWN_PROBLEMS |    9 ---------
+ Release_Notes  |   23 +++++++++++++++++++++++
+ SUPPORTS       |    9 +++++++++
+ TODO           |    2 +-
+ 5 files changed, 33 insertions(+), 19 deletions(-)
+
 commit 8adc43649d5433f2521094e3ad2d15e9c036a23d
 Author: Chris Marshall <devel.chm.01@gmail.com>
 Date:   Sat Jul 10 14:07:14 2010 -0400
