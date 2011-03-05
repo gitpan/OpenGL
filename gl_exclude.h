@@ -1,15 +1,12 @@
 // OpenGL Extension Exclusions - may be modified before building.
 //
-// Generated for Mesa project: www.mesa3d.org, Mesa GLX Indirect
-// OpenGL v1.2 (1.5 Mesa 6.4), using FreeGLUT v20400
+// Generated for Mesa Project, Software Rasterizer
+// OpenGL v1.4 (2.1 Mesa 7.8.2), using FreeGLUT v20600
 
 #define NO_GL_VERSION_2_0
 #define NO_GL_VERSION_1_5
-#define NO_GL_VERSION_1_4
-#define NO_GL_VERSION_1_3
 #define NO_GL_3DFX_multisample
 #define NO_GL_3DFX_tbuffer
-#define NO_GL_3DFX_texture_compression_FXT1
 #define NO_GL_APPLE_client_storage
 #define NO_GL_APPLE_element_array
 #define NO_GL_APPLE_fence
@@ -19,25 +16,16 @@
 #define NO_GL_APPLE_vertex_array_range
 #define NO_GL_APPLE_ycbcr_422
 #define NO_GL_ARB_color_buffer_float
-#define NO_GL_ARB_draw_buffers
-#define NO_GL_ARB_fragment_program
-#define NO_GL_ARB_fragment_program_shadow
 #define NO_GL_ARB_fragment_shader
 #define NO_GL_ARB_half_float_pixel
 #define NO_GL_ARB_matrix_palette
-#define NO_GL_ARB_multisample
-#define NO_GL_ARB_occlusion_query
 #define NO_GL_ARB_pixel_buffer_object
 #define NO_GL_ARB_shader_objects
 #define NO_GL_ARB_shading_language_100
-#define NO_GL_ARB_texture_compression
 #define NO_GL_ARB_texture_float
-#define NO_GL_ARB_texture_non_power_of_two
 #define NO_GL_ARB_vertex_blend
 #define NO_GL_ARB_vertex_buffer_object
-#define NO_GL_ARB_vertex_program
 #define NO_GL_ARB_vertex_shader
-#define NO_GL_ATI_draw_buffers
 #define NO_GL_ATI_element_array
 #define NO_GL_ATI_envmap_bumpmap
 #define NO_GL_ATI_fragment_shader
@@ -51,7 +39,7 @@
 #define NO_GL_ATI_vertex_attrib_array_object
 #define NO_GL_ATI_vertex_streams
 #define NO_GL_EXT_422_pixels
-#define NO_GL_EXT_blend_equation_separate
+#define NO_GL_EXT_clip_volume_hint
 #define NO_GL_EXT_cmyka
 #define NO_GL_EXT_color_matrix
 #define NO_GL_EXT_color_subtable
@@ -60,7 +48,6 @@
 #define NO_GL_EXT_coordinate_frame
 #define NO_GL_EXT_cull_vertex
 #define NO_GL_EXT_depth_bounds_test
-#define NO_GL_EXT_framebuffer_object
 #define NO_GL_EXT_histogram
 #define NO_GL_EXT_index_array_formats
 #define NO_GL_EXT_index_func
@@ -69,19 +56,17 @@
 #define NO_GL_EXT_light_texture
 #define NO_GL_EXT_misc_attribute
 #define NO_GL_EXT_multisample
-#define NO_GL_EXT_paletted_texture
 #define NO_GL_EXT_pixel_buffer_object
 #define NO_GL_EXT_pixel_transform
 #define NO_GL_EXT_pixel_transform_color_table
-#define NO_GL_EXT_shared_texture_palette
 #define NO_GL_EXT_texture_filter_anisotropic
-#define NO_GL_EXT_texture_mirror_clamp
 #define NO_GL_EXT_texture_perturb_normal
 #define NO_GL_EXT_vertex_shader
 #define NO_GL_EXT_vertex_weighting
 #define NO_GL_GREMEDY_string_marker
 #define NO_GL_HP_convolution_border_modes
 #define NO_GL_HP_image_transform
+#define NO_GL_HP_occlusion_test
 #define NO_GL_HP_texture_lighting
 #define NO_GL_IBM_cull_vertex
 #define NO_GL_IBM_multimode_draw_arrays
@@ -93,16 +78,12 @@
 #define NO_GL_MESA_resize_buffers
 #define NO_GL_MESA_window_pos
 #define NO_GL_NV_copy_depth_to_color
-#define NO_GL_NV_depth_clamp
 #define NO_GL_NV_evaluators
 #define NO_GL_NV_fence
 #define NO_GL_NV_float_buffer
 #define NO_GL_NV_fog_distance
-#define NO_GL_NV_fragment_program
 #define NO_GL_NV_fragment_program2
-#define NO_GL_NV_fragment_program_option
 #define NO_GL_NV_half_float
-#define NO_GL_NV_light_max_exponent
 #define NO_GL_NV_multisample_filter_hint
 #define NO_GL_NV_occlusion_query
 #define NO_GL_NV_packed_depth_stencil
@@ -112,15 +93,12 @@
 #define NO_GL_NV_register_combiners2
 #define NO_GL_NV_texgen_emboss
 #define NO_GL_NV_texture_compression_vtc
-#define NO_GL_NV_texture_env_combine4
 #define NO_GL_NV_texture_expand_normal
 #define NO_GL_NV_texture_shader
 #define NO_GL_NV_texture_shader2
 #define NO_GL_NV_texture_shader3
 #define NO_GL_NV_vertex_array_range
 #define NO_GL_NV_vertex_array_range2
-#define NO_GL_NV_vertex_program
-#define NO_GL_NV_vertex_program1_1
 #define NO_GL_NV_vertex_program2
 #define NO_GL_NV_vertex_program2_option
 #define NO_GL_NV_vertex_program3
@@ -150,6 +128,7 @@
 #define NO_GL_SGIX_clipmap
 #define NO_GL_SGIX_convolution_accuracy
 #define NO_GL_SGIX_depth_pass_instrument
+#define NO_GL_SGIX_depth_texture
 #define NO_GL_SGIX_flush_raster
 #define NO_GL_SGIX_fog_offset
 #define NO_GL_SGIX_fog_scale
@@ -166,6 +145,7 @@
 #define NO_GL_SGIX_reference_plane
 #define NO_GL_SGIX_resample
 #define NO_GL_SGIX_scalebias_hint
+#define NO_GL_SGIX_shadow
 #define NO_GL_SGIX_sprite
 #define NO_GL_SGIX_subsample
 #define NO_GL_SGIX_tag_sample_buffer
@@ -179,7 +159,6 @@
 #define NO_GL_SGIX_ycrcb
 #define NO_GL_SGIX_ycrcb_subsample
 #define NO_GL_SGIX_ycrcba
-#define NO_GL_SGI_color_table
 #define NO_GL_SGI_texture_color_table
 #define NO_GL_SUNX_constant_data
 #define NO_GL_SUN_convolution_border_modes
