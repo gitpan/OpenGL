@@ -1,3 +1,243 @@
+commit 8dce1f0a108dd9ede8220647bc2bf048416e36cf
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sat Mar 19 14:39:42 2011 -0400
+
+    Make this test all TODO
+    
+    This causes failures not to be fatal which will
+    allow an official OpenGL release while the remaining
+    issues in the new tests or functionality are
+    resolved.
+
+ t/10_opengl_array.t | 1167 ++++++++++++++++++++++++++-------------------------
+ 1 files changed, 585 insertions(+), 582 deletions(-)
+
+commit fd3a1b371e711fe56cbef333d510494c01e6006b
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sat Mar 19 14:38:42 2011 -0400
+
+    Update included freeglut.dll to 2.6.0
+    
+    Thanks, Rob.  We'll see how this works in the next
+    developers release of OpenGL.
+
+ FreeGLUT/freeglut.dll |  Bin 229376 -> 233472 bytes
+ FreeGLUT/freeglut.lib |  Bin 32452 -> 34394 bytes
+ 2 files changed, 0 insertions(+), 0 deletions(-)
+
+commit 426553c3a4c9e1577c0bc6e75cb5a2050a17dce1
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sat Mar 19 14:37:10 2011 -0400
+
+    Convert DOS files to UNIX format text
+
+ Array.pod        |  996 +++++++++++++++++-----------------
+ Tessellation.pod | 1634 +++++++++++++++++++++++++++---------------------------
+ 2 files changed, 1315 insertions(+), 1315 deletions(-)
+
+commit 343f41df1f62dd995f7579d195e1d3a30a84efc3
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sun Mar 13 13:02:04 2011 -0400
+
+    Apply Paul Seamons' OpenGL::Array fixes
+    
+     - Added a perldoc (based on http://graphcomp.com/pogl.cgi?v=0111s3p1&r=s3p6)
+     - Correct the documentation about store,load, and set rpn operations.
+     - Fixed bug in new_pointer when trying to assign to the array.
+     - Appears to be a copy paste bug from new_from_pointer.
+     - Fixed bugs in swap rpn to actually swap.
+     - Added dump rpn operation to print a copy of the stack to STDERR.
+     - Added floor rpn operation.
+     - Added colget, colset, rowget, rowset array manipulation operations.
+     - Fixed returnrow and returnrowif operations to set the data correctly before
+         leaving the row (it used to be incorrect on the first few rows and
+         segfault on the last row).
+
+ Array.pod           |  498 +++++++++++++++++++++++++++++++++++++++++++
+ Makefile.PL         |    1 +
+ pogl_rpn.xs         |  165 +++++++++++++--
+ t/10_opengl_array.t |  582 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 1231 insertions(+), 15 deletions(-)
+
+commit 989b36615b08ff943984580325bd7cd00d343d44
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Mar 7 22:34:58 2011 -0500
+
+    Add OpenGL::Tessellation POD from Paul Seamons
+
+ Makefile.PL      |    1 +
+ Tessellation.pod |  817 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 818 insertions(+), 0 deletions(-)
+
+commit 3642fb8d271fb57d21d6030c89c30d46367a8db4
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sat Mar 5 15:18:53 2011 -0500
+
+    Rename examples to end with .pl
+    
+    Since the goal is to increase cross-platform
+    portability of POGL, naming these files *.pl
+    will make it clear that they are perl scripts
+    that can be run.
+
+ examples/planets    |  273 ---------------------------------------------------
+ examples/planets.pl |  273 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 273 insertions(+), 273 deletions(-)
+
+commit 620db497a37fdafa3471eafdb0c595732a2fffc7
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sat Mar 5 15:12:23 2011 -0500
+
+    Update Release_Notes for 0.64_001 devel release
+
+ Release_Notes |   17 +++++++++++++++++
+ 1 files changed, 17 insertions(+), 0 deletions(-)
+
+commit 01d8406ddcd0fe3870b6220da483b5f7932a6c0f
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sat Mar 5 15:08:13 2011 -0500
+
+    Add Paul Seamons tesselation support (revised)
+    
+    After some hiatus I've gone back and added proper support for
+    tessellation.  I've added full support for the full realm of
+    opaque data passing.  I have written the code against the CPAN
+    version 0.64.
+
+ OpenGL.pm                |   22 ++-
+ examples/clip            |  116 ----------
+ examples/clip.pl         |  116 ++++++++++
+ examples/cube            |   69 ------
+ examples/cube.pl         |   69 ++++++
+ examples/depth           |   39 ----
+ examples/depth.pl        |   39 ++++
+ examples/double          |   75 -------
+ examples/double.pl       |   75 +++++++
+ examples/fun             |  384 --------------------------------
+ examples/fun.pl          |  384 ++++++++++++++++++++++++++++++++
+ examples/glu_test        |   68 ------
+ examples/glu_test.pl     |   68 ++++++
+ examples/light           |  127 -----------
+ examples/light.pl        |  127 +++++++++++
+ examples/plane           |  109 ---------
+ examples/plane.pl        |  109 +++++++++
+ examples/quest           |  357 ------------------------------
+ examples/quest.pl        |  357 ++++++++++++++++++++++++++++++
+ examples/simple          |   26 ---
+ examples/simple.pl       |   26 +++
+ examples/smooth          |   38 ----
+ examples/smooth.pl       |   38 ++++
+ examples/tessellation.pl |  308 ++++++++++++++++++++++++++
+ examples/texhack         |   82 -------
+ examples/texhack.pl      |   82 +++++++
+ examples/texture         |  132 -----------
+ examples/texture.pl      |  132 +++++++++++
+ examples/tk_demo         |  104 ---------
+ examples/tk_demo.pl      |  104 +++++++++
+ examples/tk_steal        |  120 ----------
+ examples/tk_steal.pl     |  120 ++++++++++
+ examples/try             |   22 --
+ examples/try.pl          |   22 ++
+ gl_exclude.h             |   36 +++-
+ glu_const.h              |   21 ++
+ pogl_glu.xs              |  546 +++++++++++++++++++++++++++++++++++++--------
+ typemap                  |    2 +-
+ 38 files changed, 2695 insertions(+), 1976 deletions(-)
+
+commit b7e54f1449760d52e6aa81ca5c99682a5fc09b09
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sun Feb 13 15:00:03 2011 -0500
+
+    Update TODO with PM on OS/2 info
+    
+    We'll be discontinuing support of PM on OS/2 for GLX since
+    that platform does not appear to be in use.  This may be
+    moot since we have already moved from GLX to FreeGLUT for
+    windows.  Now only need to add the ability to use OpenGL
+    routines when passed appropriate platform contexts (GLX,WGL,AGL).
+
+ TODO |   23 ++++++++++++++++++-----
+ 1 files changed, 18 insertions(+), 5 deletions(-)
+
+commit 42dc5ba6a30ec29fc7d14b85444cd8bb11718500
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Jan 10 11:01:10 2011 -0500
+
+    Make planets example work using GLUT
+    
+    And update the TODO file with some needed improvements
+    for examples and re making the planets demo look more
+    realistic (or at least better!)
+
+ TODO             |   17 +++++++++++++++-
+ examples/planets |   57 ++++++++++++++++++++++++++---------------------------
+ 2 files changed, 44 insertions(+), 30 deletions(-)
+
+commit 0ed8b3eacaa3c8ccc5f542bb1b1257cc5c4d3fda
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Dec 20 07:31:26 2010 -0500
+
+    Add GLUT constant/function export control to TODO
+
+ TODO |    5 +++++
+ 1 files changed, 5 insertions(+), 0 deletions(-)
+
+commit ef5547b9ab831e5fd83d94a26060b6b029e3addb
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sat Nov 13 22:23:53 2010 -0500
+
+    Add win==0 handling to TODO list
+    
+    The GLUT binding code calls glutGetWindow() but
+    then never checks or handles the case where
+    win==0 which indicates "If no windows exist
+    or the previously current window was destroyed,
+    glutGetWindow returns zero."
+
+ TODO |    5 +++++
+ 1 files changed, 5 insertions(+), 0 deletions(-)
+
+commit 66e784c798f0f372ccaf7c9b0327dc0dffe7df49
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Tue Sep 28 21:21:24 2010 -0400
+
+    VERSION to 0.64_001/add gl_exclude.h to .gitignore
+
+ .gitignore |    1 +
+ OpenGL.pm  |    2 +-
+ OpenGL.pod |    2 +-
+ 3 files changed, 3 insertions(+), 2 deletions(-)
+
+commit a1e6694209a786ca73a301f0e163f658d382c4ee
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Tue Sep 14 19:33:59 2010 -0400
+
+    Update VERISON to 0.64 in prep for CPAN release
+    
+    This is a very minor point release to support some fixes
+    for buildability and portability.
+
+ KNOWN_PROBLEMS |    4 ----
+ OpenGL.pm      |    2 +-
+ OpenGL.pod     |    2 +-
+ Release_Notes  |   19 +++++++++++++++++++
+ SUPPORTS       |   13 +++++++++++++
+ 5 files changed, 34 insertions(+), 6 deletions(-)
+
+commit f1198a8d8ea60ae97a4eb49be2b6f041414f1536
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sun Aug 15 11:02:45 2010 -0400
+
+    Add Test::More as a prerequisite
+    
+    And update VERSION to 0.63_002 for further development.
+
+ Makefile.PL   |    1 +
+ OpenGL.pm     |    2 +-
+ OpenGL.pod    |    2 +-
+ Release_Notes |   32 ++++++++++++++++++++++++++++++++
+ 4 files changed, 35 insertions(+), 2 deletions(-)
+
 commit c16207f2215d5463b5fe6c4cfccab2d47c973c98
 Author: Chris Marshall <devel.chm.01@gmail.com>
 Date:   Fri Aug 6 13:53:05 2010 -0400
@@ -61,7 +301,7 @@ Date:   Sat Jul 10 13:59:09 2010 -0400
  2 files changed, 20 insertions(+), 17 deletions(-)
 
 commit aec2bb14eaab5f4ef21caa4cabdb13269847eeec
-Merge: 407fa0c... ab6ec76...
+Merge: 407fa0c ab6ec76
 Author: Chris Marshall <devel.chm.01@gmail.com>
 Date:   Mon May 24 06:00:07 2010 -0400
 
@@ -1111,8 +1351,8 @@ Date:   Sun Sep 6 13:47:29 2009 -0400
     Update VERSION to 0.58 and some docs for release
 
  OpenGL.pm  |    3 +-
- OpenGL.pod | 1424 ++++++++++++++++++++++++++++++------------------------------
- 2 files changed, 721 insertions(+), 706 deletions(-)
+ OpenGL.pod | 1602 ++++++++++++++++++++++++++++++------------------------------
+ 2 files changed, 810 insertions(+), 795 deletions(-)
 
 commit 36688c2fc47c64956c8d688a3b63f33aa26df1e3
 Author: Chris Marshall <devel.chm.01@gmail.com>
@@ -1409,16 +1649,16 @@ Date:   Wed Jul 15 10:10:31 2009 -0400
     large compile is the constants.
 
  .gitignore            |    8 +-
- pogl_gl.xs            |13067 -------------------------------------------------
- pogl_gl_Accu_GetM.xs  |11527 +-------------------------------------------
- pogl_gl_GetP_Pass.xs  |11508 +-------------------------------------------
- pogl_gl_Mult_Prog.xs  |11096 +-----------------------------------------
- pogl_gl_Pixe_Ver2.xs  |11414 +------------------------------------------
- pogl_gl_Prog_Clam.xs  |11064 +-----------------------------------------
- pogl_gl_Tex2_Draw.xs  |11511 +-------------------------------------------
- pogl_gl_Ver3_Tex1.xs  |11679 +-------------------------------------------
- pogl_gl_Vert_Multi.xs |11260 +------------------------------------------
- 10 files changed, 9 insertions(+), 104125 deletions(-)
+ pogl_gl.xs            |13067 -------------------------------------------
+ pogl_gl_Accu_GetM.xs  |11527 +--------------------------------------
+ pogl_gl_GetP_Pass.xs  |14512 +++++------------------------------------------
+ pogl_gl_Mult_Prog.xs  |14916 +++++++------------------------------------------
+ pogl_gl_Pixe_Ver2.xs  |14606 ++++++------------------------------------------
+ pogl_gl_Prog_Clam.xs  |11064 +------------------------------------
+ pogl_gl_Tex2_Draw.xs  |14509 +++++------------------------------------------
+ pogl_gl_Ver3_Tex1.xs  |11679 +--------------------------------------
+ pogl_gl_Vert_Multi.xs |14756 ++++++------------------------------------------
+ 10 files changed, 8264 insertions(+), 112380 deletions(-)
 
 commit 297f714082ec9523dde4c476a32d8be135567a47
 Author: Chris Marshall <devel.chm.01@gmail.com>
@@ -1862,11 +2102,11 @@ Date:   Tue Jun 9 09:53:59 2009 -0400
       Add includes to allow RPN and Array to decouple
 
  Makefile.PL  |    2 +-
- OpenGL.xs    |17825 +---------------------------------------------------------
- pogl_glut.xs |16216 +----------------------------------------------------
- pogl_main.xs | 3460 +------------
+ OpenGL.xs    |17859 +---------------------------------------------------------
+ pogl_glut.xs |16384 +-----------------------------------------------------
+ pogl_main.xs | 5516 ++++---------------
  pogl_rpn.xs  | 1803 ++++++
- 5 files changed, 1813 insertions(+), 37493 deletions(-)
+ 5 files changed, 2942 insertions(+), 38622 deletions(-)
 
 commit b570c7ac1c306ed0646e3ea025ed29ee8ef0fb87
 Author: Chris Marshall <chm@alum.mit.edu>
