@@ -1,4 +1,24 @@
 +------------------------------------------------------------------------+
+|                  OpenGL-0.64_003
++------------------------------------------------------------------------+
+
+  This is a CPAN developers release for the Perl OpenGL module with
+  some minor fixes to improve buildability and updates and bug
+  fixes to check.
+
+  Highlights:
+
+  * Fix interface=w32api to work for cygwin again.  Requires a
+    current cygwin install---greater than 1.7.x.
+
+  * Minor cleanup in Makefile.PL and documentation/readme updates
+    reflecting the newly set up Perl OpenGL project at sf.net:
+
+      http://sourceforge.net/projects/pogl/
+
+
+
++------------------------------------------------------------------------+
 |                  OpenGL-0.64_002
 +------------------------------------------------------------------------+
 
