@@ -1,4 +1,22 @@
 +------------------------------------------------------------------------+
+|                  OpenGL-0.64_004
++------------------------------------------------------------------------+
+
+  This is a CPAN developers release for the Perl OpenGL module with
+  some minor fixes to improve buildability and updates and bug
+  fixes to check.
+
+  Highlights:
+
+  * Add META.yml information to the build process
+
+  * Fix bug in test.pl
+
+  * First POGL code to be placed on new sf.net site.
+
+
+
++------------------------------------------------------------------------+
 |                  OpenGL-0.64_003
 +------------------------------------------------------------------------+
 

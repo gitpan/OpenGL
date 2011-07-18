@@ -8,7 +8,6 @@ INSTALL
 KNOWN_PROBLEMS
 MANIFEST			This list of files
 MANIFEST.SKIP
-META.yml
 Makefile.PL
 OpenGL.pm
 OpenGL.pod
@@ -45,7 +44,6 @@ fragment.cg
 fragment.glsl
 genvars.pl
 gl_const.h
-gl_exclude.h
 gl_util.c
 gl_util.h
 glext_procs.h
@@ -112,3 +110,4 @@ utils/wgl_ext.txt
 vertex.arb
 vertex.cg
 vertex.glsl
+META.yml                                 Module meta-data (added by MakeMaker)

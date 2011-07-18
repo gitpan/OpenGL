@@ -1,9 +1,9 @@
 --- #YAML:1.0
 name:               OpenGL
-version:            0.64_003
-abstract:           ~
+version:            0.64_004
+abstract:           Perl bindings to the OpenGL API, GLU, and GLUT/FreeGLUT
 author:
-    - Bob 'grafman' Free <grafman at graphcomp.com>
+    - Chris Marshall <chm at cpan dot org>
 license:            unknown
 distribution_type:  module
 configure_requires:
@@ -12,6 +12,10 @@ build_requires:
     ExtUtils::MakeMaker:  0
 requires:
     Test::More:  0
+resources:
+    bugtracker:  http://sourceforge.net/tracker/?group_id=562483&atid=2281758
+    homepage:    http://sourceforge.net/projects/pogl/
+    repository:  git://pogl.git.sourceforge.net/gitroot/pogl/pogl
 no_index:
     directory:
         - t
