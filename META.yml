@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               OpenGL
-version:            0.64_004
+version:            0.65
 abstract:           Perl bindings to the OpenGL API, GLU, and GLUT/FreeGLUT
 author:
     - Chris Marshall <chm at cpan dot org>
