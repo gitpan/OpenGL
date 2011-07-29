@@ -20,7 +20,7 @@
   compile then.
 
 * Configuration and compiling requires an active OpenGL
-  context (e.g. a display)
+  context on non-win32 systems (e.g. a display)
 
 * The calling interfaces for OpenGL, GLU, GLUT, GLX, X11,
   and the perl module routines (names beginning with glp)
@@ -51,3 +51,7 @@
     glTexCoordPointer_p(size, oga)
     glVertexPointerEXT_p(size, oga)
     glVertexPointer_p(size, oga)
+
+* OpenGL::RPN operations can segfault.  Work is underway
+  to debug the stack issues which appear to be the root
+  cause.

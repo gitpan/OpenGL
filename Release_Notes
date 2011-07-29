@@ -1,4 +1,20 @@
 +------------------------------------------------------------------------+
+|                  OpenGL-0.66
++------------------------------------------------------------------------+
+
+General Notes:
+
+ * This test adds skips for some tests from OpenGL::RPN
+   under current development avoiding FAILs in automated
+   builds due to known problems.
+
+ * It is compatible with the Prima GUI toolkit and the
+   Prima::OpenGL module.
+
+
+
+
++------------------------------------------------------------------------+
 |                  OpenGL-0.65
 +------------------------------------------------------------------------+
 
@@ -31,8 +47,6 @@ Highlights:
     toolkit in addition to bug fixes and code cleanup.
     Thanks, Dmitry!  See http://search.cpan.org/~karasik/Prima-1.30/
     for details.
- 
-
 
 
 
