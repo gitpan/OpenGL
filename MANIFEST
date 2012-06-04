@@ -24,6 +24,7 @@ examples/depth.pl
 examples/double.pl
 examples/fun.pl
 examples/glu_test.pl
+examples/glxgears.pl
 examples/light.pl
 examples/plane.pl
 examples/planets.pl
@@ -47,7 +48,6 @@ gl_const.h
 gl_util.c
 gl_util.h
 glext_procs.h
-glpm_const.h
 glu_const.h
 glu_util.h
 glut_const.h

@@ -1,3 +1,146 @@
+commit ba163a7b85a738f69f4ee7e5fff2a877603a1ccd
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Jun 4 09:37:21 2012 -0400
+
+    Add glxgears port to examples/
+    
+    Thanks to Brian Medley!
+
+ examples/glxgears.pl |  291 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 files changed, 291 insertions(+), 0 deletions(-)
+
+commit e0e480d868b6bb6ed7962dadaf8548a73f9328fd
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sat Jan 28 12:49:41 2012 -0500
+
+    Fix int(pointer) usages with PTR2IV()
+    
+    These could be problems on 64bit systems
+
+ pogl_glu.xs |    8 ++++----
+ 1 files changed, 4 insertions(+), 4 deletions(-)
+
+commit 77e060d898de38e28fde75775298d593d96fbe93
+Merge: 2cd4f8e 2ec344a
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sat Jan 21 12:06:04 2012 -0500
+
+    Merge branch 'master' of ssh://pogl.git.sourceforge.net/gitroot/pogl/pogl
+    
+    Conflicts:
+    	TODO
+
+commit 2ec344a93cf1b4b3797f643eb7d39712b6ff9f64
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Oct 24 09:34:56 2011 -0400
+
+    Fix NULL pointer handling in glVertexPointer_s
+
+ pogl_gl_Pixe_Ver2.xs |    7 +++++--
+ 1 files changed, 5 insertions(+), 2 deletions(-)
+
+commit 5bfd4924914d4b96415238056ed8e5e843d3f49c
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Oct 24 09:34:18 2011 -0400
+
+    Update TODO list
+
+ TODO |  155 ++++++++++++++++++++++++++++++++++++-----------------------------
+ 1 files changed, 86 insertions(+), 69 deletions(-)
+
+commit bc9bb7d3e03a22035357f9bf7ef99cba583d076e
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Oct 24 09:33:54 2011 -0400
+
+    Remove legacy PM support code
+
+ pogl_const.xs |    3 +--
+ 1 files changed, 1 insertions(+), 2 deletions(-)
+
+commit 2cd4f8e9ea3597ba17ef521cf66b7859d5af42cd
+Merge: 29381e2 870fc13
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Tue Sep 20 21:08:48 2011 -0400
+
+    Merge branch 'master' of ssh://pogl.git.sourceforge.net/gitroot/pogl/pogl
+
+commit 29381e226be395cecf7df0ee61e025f931b109df
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sun Sep 18 21:37:30 2011 -0400
+
+    Clean up more PM stuff and update TODO
+
+ TODO          |    4 ++++
+ pogl_const.xs |    1 -
+ 2 files changed, 4 insertions(+), 1 deletions(-)
+
+commit 870fc13ea0eb25bd43b9e16e51a58ef3df5fb149
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Mon Aug 22 09:04:57 2011 -0400
+
+    Update TODO list
+
+ TODO |    8 +++++++-
+ 1 files changed, 7 insertions(+), 1 deletions(-)
+
+commit a5c9f5e462066c91fb6a27f4c8c1ba8c8bb82f23
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sun Aug 7 13:22:36 2011 -0400
+
+    Update TODO list
+
+ TODO |   16 ----------------
+ 1 files changed, 0 insertions(+), 16 deletions(-)
+
+commit b304cfeae1ec7aa307fac5d626560e800f3f140c
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Sun Aug 7 13:16:03 2011 -0400
+
+    Remove deprecated OS/2 code
+    
+    OS/2 is no longer supported by the Perl OpenGL
+    module.  This commit removes that dead code.
+
+ Makefile.PL    |    6 -
+ OpenGL.xs      |    3 -
+ gl_exclude.h   |    4 +-
+ gl_util.c      |  309 --------------------------------------------------------
+ glpm_const.h   |   99 ------------------
+ pogl_gl_top.xs |   20 +----
+ pogl_glut.xs   |  155 ----------------------------
+ 7 files changed, 3 insertions(+), 593 deletions(-)
+
+commit 09f86bbebcec4bc9ec691bacf558a1d8a64ece1a
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Wed Aug 3 11:06:03 2011 -0400
+
+    Add C89 fix for VC6.0 and ASPerl compiles
+    
+    Thanks to patch by Jean-Louis Morel.
+
+ pogl_glu.xs |    4 ++++
+ 1 files changed, 4 insertions(+), 0 deletions(-)
+
+commit 485641d650ac9a6268bfc70eef9090e637c22ea3
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Fri Jul 29 09:36:01 2011 -0400
+
+    Re-enable TODO tests for OpenGL::RPN calc
+
+ t/10_opengl_array.t |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+commit 5cbfa1c05725bb5c38610702aff72a27a796be36
+Author: Chris Marshall <devel.chm.01@gmail.com>
+Date:   Fri Jul 29 09:34:07 2011 -0400
+
+    Update version to 0.66_001 for development
+
+ OpenGL.pm     |    2 +-
+ OpenGL.pod    |    2 +-
+ Release_Notes |   34 +++++++++++++++++++++++++++++++++-
+ 3 files changed, 35 insertions(+), 3 deletions(-)
+
 commit 578abaa6a694c109b815bea5c978bf96e11ab710
 Author: Chris Marshall <devel.chm.01@gmail.com>
 Date:   Fri Jul 29 09:08:04 2011 -0400
