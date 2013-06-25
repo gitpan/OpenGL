@@ -1,4 +1,4 @@
-/*  Last saved: Tue 02 Apr 2013 02:45:10 PM */
+/*  Last saved: Tue 02 Apr 2013 02:26:51 PM */
 
 /*  Copyright (c) 1998 Kenneth Albanowski. All rights reserved.
  *  Copyright (c) 2007 Bob Free. All rights reserved.
@@ -493,7 +493,7 @@ static void generic_glut_menu_handler(int value)
 
 
 
-MODULE = OpenGL::GLUT		PACKAGE = OpenGL
+MODULE = OpenGL::GLUT		PACKAGE = OpenGL::GLUT
 
 #// Test for done with glutInit
 int
