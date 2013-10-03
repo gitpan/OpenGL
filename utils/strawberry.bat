@@ -13,7 +13,7 @@ gcc -DHAVE_FREEGLUT -DIS_STRAWBERRY -c glversion.c
 if errorlevel 1 goto ERROR
 
 echo linking glversion.o
-gcc -o glversion.exe glversion.o -lopengl32 -lglut 
+gcc -o glversion.exe glversion.o -lopengl32 -L%drive%/c/lib -lglut 
 if errorlevel 1 goto ERROR
 
 echo generating glversion.txt
