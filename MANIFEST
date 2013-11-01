@@ -92,7 +92,6 @@ pogl_glut.xs
 pogl_rpn.xs
 ppport.h
 README
-ref-pogl-build-log.txt
 Release_Notes
 SUPPORTS
 t/00_require.t
