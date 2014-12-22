@@ -4,7 +4,7 @@
       "Chris Marshall <chm at cpan dot org>"
    ],
    "dynamic_config" : 1,
-   "generated_by" : "ExtUtils::MakeMaker version 6.66, CPAN::Meta::Converter version 2.130880",
+   "generated_by" : "ExtUtils::MakeMaker version 6.86, CPAN::Meta::Converter version 2.142060",
    "license" : [
       "unknown"
    ],
@@ -46,5 +46,5 @@
          "url" : "git://pogl.git.sourceforge.net/gitroot/pogl/pogl"
       }
    },
-   "version" : "0.6703"
+   "version" : "0.6704"
 }

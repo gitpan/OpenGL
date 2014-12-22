@@ -29,11 +29,9 @@ examples/wolf.bin
 fragment.arb
 fragment.cg
 fragment.glsl
-frank-vbo.pl
 FreeGLUT/freeglut.dll
 FreeGLUT/freeglut.lib
 FreeGLUT/README.txt
-funlist.c
 genvars.pl
 gl_const.h
 gl_util.c
@@ -45,7 +43,6 @@ glut_const.h
 glut_util.h
 glx_const.h
 glx_util.h
-hang.pl
 include/GL/freeglut.h
 include/GL/freeglut_ext.h
 include/GL/freeglut_std.h
@@ -65,18 +62,13 @@ Makefile.PL
 MANIFEST			This list of files
 MANIFEST.SKIP
 menutest.pl
-MYMETA.json
-MYMETA.yml
 oga.pl
 OpenGL.pm
 OpenGL.pod
 OpenGL.xs
-opengl_glut.xs
 os2pm_X.h
 pgopogl.h
 pgopogl.xs
-pixel_buffer_object.txt
-pogl-api.txt
 pogl_const.xs
 pogl_gl_Accu_GetM.xs
 pogl_gl_GetP_Pass.xs
